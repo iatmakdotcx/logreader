@@ -5,7 +5,7 @@ import java.nio.charset.Charset;
 import mak.capture.DBColumn;
 
 public class MsColumn extends DBColumn {
-	public int nullmap;
+    public int nullmap;
     public short max_length;
     public short precision;
     public short scale;

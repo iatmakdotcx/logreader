@@ -8,7 +8,7 @@ public class MsMain {
 	private MsDict md;
 	
 	public MsMain(){
-		MsSqlDatabase _Db = new MsSqlDatabase(new ConsoleOutput(), "192.168.0.61","sa","xxk@20130220","MaktestDB");
+		MsDatabase _Db = new MsDatabase(new ConsoleOutput(), "192.168.0.61","sa","xxk@20130220","MaktestDB");
 		
 		md = new MsDict(_Db);
 		if (md.CheckDBState()){

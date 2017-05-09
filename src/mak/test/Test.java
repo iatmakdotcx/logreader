@@ -1,16 +1,16 @@
 package mak.test;
 
 import java.nio.charset.Charset;
-import java.nio.charset.spi.CharsetProvider;
 
 import mak.capture.log.ConsoleOutput;
 import mak.capture.mssql.MsColumn;
 import mak.capture.mssql.MsDict;
 import mak.capture.mssql.MsMain;
-import mak.capture.mssql.MsSqlDatabase;
+import mak.capture.mssql.MsDatabase;
 import mak.capture.mssql.MsTable;
 import mak.data.input.GenericLittleEndianAccessor;
 import mak.data.input.SeekOrigin;
+import mak.tools.AesTools;
 import mak.tools.HexTool;
 
 public class Test {
@@ -23,16 +23,19 @@ public class Test {
 //		double dsdd = new MsMain().msConvert_Bytes2Float(bb,4);
 //		System.out.println(dsdd);
 		
+		System.out.println(AesTools.getInstance().Encode("123456"));
+		System.out.println(AesTools.getInstance().Decode("KaJznD2QuERU7DWEXsgsWQ=="));
+		
 		
 		//new MsMain().testUpdate();
 		//new MsMain().testDelete();
-		new MsMain().testInsert();
+		//new MsMain().testInsert();
 		//new MsMain().testUpdate_LOP_MODIFY_ROW();
 	}
 	
 	public static void insertLogPrise() {
 		
-		MsSqlDatabase _Db = new MsSqlDatabase(log,"192.168.0.61","sa","xxk@20130220","MaktestDB");
+		MsDatabase _Db = new MsDatabase(log,"192.168.0.61","sa","xxk@20130220","MaktestDB");
 		MsDict md = new MsDict(_Db);
 		if (md.CheckDBState()){
 			md.RefreshDBDict();

@@ -8,7 +8,7 @@ import mak.capture.DataBaseType;
 import mak.capture.log.Output;
 import mak.tools.StringUtil;
 
-public class MsSqlDatabase extends DBDatabase {
+public class MsDatabase extends DBDatabase {
 	public static final String driver = "com.microsoft.sqlserver.jdbc.SQLServerDriver";
 	public int dbVersion = 0;
 	public int dbSubVersion = 0;  //  <>0‘Ú «R2∞Ê±æ
@@ -17,7 +17,7 @@ public class MsSqlDatabase extends DBDatabase {
 	public String Pwd;
 	public String dbName;
 	
-	public MsSqlDatabase(Output output, String Host, String UserId, String PassWd, String DbName){
+	public MsDatabase(Output output, String Host, String UserId, String PassWd, String DbName){
 		this.output = output;
 		this.host = Host;
 		this.user = UserId;

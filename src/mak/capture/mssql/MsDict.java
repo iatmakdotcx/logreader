@@ -19,12 +19,12 @@ public class MsDict extends DBDict {
 //    private HashMap list_MsSyn = new HashMap();  //MsSyn() 同义词
 //    private HashMap list_MsDBView = new HashMap();  //dBView() 视图
 	
-	public MsDict(MsSqlDatabase _Db) {
+	public MsDict(MsDatabase _Db) {
 		super(_Db);
 	}
 	
-	private MsSqlDatabase getDB(){
-		return (MsSqlDatabase)this.Db;
+	private MsDatabase getDB(){
+		return (MsDatabase)this.Db;
 	}
 	
     public boolean CheckDBState() {
@@ -34,19 +34,19 @@ public class MsDict extends DBDict {
         try {
             Statement statement = this.Db.conn.createStatement();
             String string = "select Convert(varchar(max),serverproperty('productversion')), Convert(varchar(max),@@version) ";
-	        ResultSet resultSet = statement.executeQuery(string);
-	        if (!resultSet.next()) {
-	            GetOutPut().Error("读取" + this.Db.GetFullDbName() + "版本信息失败");
-	            resultSet.close();
-	            statement.close();
-	            return false;
-	        }
-	        getDB().setdbVersion(resultSet.getString(1));
-	        String DBVersionStr = resultSet.getString(2);	        
-	        this.GetOutPut().Info("数据库版本: " + DBVersionStr);
-	        resultSet.close();
+            ResultSet resultSet = statement.executeQuery(string);
+            if (!resultSet.next()) {
+                GetOutPut().Error("读取" + this.Db.GetFullDbName() + "版本信息失败");
+                resultSet.close();
+                statement.close();
+                return false;
+            }
+            getDB().setdbVersion(resultSet.getString(1));
+            String DBVersionStr = resultSet.getString(2);	        
+	    this.GetOutPut().Info("数据库版本: " + DBVersionStr);
+	    resultSet.close();
 	        
-	        String string2 = "select recovery_model_desc,[COLLATION_NAME],compatibility_level,Convert(int,COLLATIONPROPERTY([COLLATION_NAME], 'CodePage')) from sys.databases where UPPER(name) = '" + this.getDB().dbName.toUpperCase() + "'";
+            String string2 = "select recovery_model_desc,[COLLATION_NAME],compatibility_level,Convert(int,COLLATIONPROPERTY([COLLATION_NAME], 'CodePage')) from sys.databases where UPPER(name) = '" + this.getDB().dbName.toUpperCase() + "'";
             resultSet = statement.executeQuery(string2);
             if (!resultSet.next()) {
                 this.GetOutPut().Error("读取" + this.getDB().GetFullDbName() + "日志恢复模型失败");

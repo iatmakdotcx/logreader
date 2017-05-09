@@ -2,8 +2,6 @@ package mak.capture.mssql;
 
 import java.util.ArrayList;
 
-import com.sun.istack.internal.NotNull;
-
 import mak.data.input.GenericLittleEndianAccessor;
 import mak.data.input.SeekOrigin;
 
@@ -164,7 +162,7 @@ public class MsLogUpdate extends MsLogInsert {
 			GenericLittleEndianAccessor glea_key = new GenericLittleEndianAccessor(r2);
 			byte prefix = glea_key.readByte();
 			if (prefix!=0x16) {
-				md.GetOutPut().Warning("更新日志警告："+table.GetFullName()+"r2前綴異常！！！！！LSN:" + LSN);
+				md.GetOutPut().Warning("更新日志警告："+table.GetFullName()+"r2前缀异常！！！！！LSN:" + LSN);
 			}
 			
 			MsColumn[] mcs = table.PrimaryKey.Fields;
@@ -341,7 +339,7 @@ public class MsLogUpdate extends MsLogInsert {
 		GenericLittleEndianAccessor glea_key = new GenericLittleEndianAccessor(r2);
 		byte prefix = glea_key.readByte();
 		if (prefix!=0x16) {
-			md.GetOutPut().Warning("更新日志警告："+table.GetFullName()+"r2前綴異常！！！！！LSN:" + LSN);
+			md.GetOutPut().Warning("更新日志警告："+table.GetFullName()+"r2前缀异常！！！！！LSN:" + LSN);
 		}
 		
 		MsColumn[] mcs = table.PrimaryKey.Fields;
@@ -459,7 +457,7 @@ public class MsLogUpdate extends MsLogInsert {
 		GenericLittleEndianAccessor glea = new GenericLittleEndianAccessor(r2);
 		byte prefix = glea.readByte();
 		if (prefix!=0x16) {
-			md.GetOutPut().Warning("更新日志警告："+table.GetFullName()+"r2前綴異常！！！！！LSN:" + LSN);
+			md.GetOutPut().Warning("更新日志警告："+table.GetFullName()+"r2前缀异常！！！！！LSN:" + LSN);
 		}
 		
 		MsColumn[] mcs = table.PrimaryKey.Fields;

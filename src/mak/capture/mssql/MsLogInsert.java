@@ -1,11 +1,12 @@
 package mak.capture.mssql;
 
 import java.util.ArrayList;
+import mak.capture.DBLogPriser;
 
 import mak.data.input.GenericLittleEndianAccessor;
 import mak.data.input.SeekOrigin;
 
-public class MsLogInsert {
+public class MsLogInsert implements DBLogPriser {
 	public MsDict md;
 	public MsTable table;
 	public String LSN;
@@ -20,8 +21,8 @@ public class MsLogInsert {
 
 	public byte[] LogRecord;  //  LOP_MODIFY_COLUMNS的数据全从这取
 
-	public ArrayList<MsColumn> Fields= new ArrayList<MsColumn>();
-	public ArrayList<byte[]> Values= new ArrayList<byte[]>();
+	public ArrayList<MsColumn> Fields= new ArrayList<>();
+	public ArrayList<byte[]> Values= new ArrayList<>();
 	
 	public boolean PriseInsertLog_LOP_INSERT_ROWS() {
 		// 	   | 30 00  | 08 00 |..............	| 04 00 |	........	| 02 00 | 00 00 |...............|
@@ -153,4 +154,14 @@ public class MsLogInsert {
 		String result = String.format("INSERT into %s(%s) values(%s)", table.GetFullName(), s1, s2);
 		return result;
 	}
+
+    @Override
+    public boolean Prepare() {
+        if (Fields.isEmpty()) {
+            if (!PriseInsertLog_LOP_INSERT_ROWS()) {
+                    return false;
+            }
+	}
+        return true;
+    }
 }
