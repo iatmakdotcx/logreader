@@ -1,0 +1,16 @@
+<root>
+  <src>
+    <type>DB</type>
+	<subtype>mssql</subtype>
+	<host>192.168.0.61</host>
+	<usrId>sa</usrId>
+	<pswd>xxk@20130220</pswd>
+	<dbName>MaktestDB</dbName>
+	<logtype>console,app</logtype>
+  </src>
+  <dst>
+    <type>log</type>
+	<subtype>sql</subtype>
+ 
+  </dst>
+</root>
