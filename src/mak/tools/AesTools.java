@@ -42,7 +42,9 @@ public class AesTools {
 		}
 		return res;
 	}
-	
+	public String Decode(byte[] buf){
+		return Decode(new String(buf));
+	}
 	public String Decode(String buf){
 		String res = "";
 		try {

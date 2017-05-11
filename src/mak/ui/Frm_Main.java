@@ -5,19 +5,30 @@
  */
 package mak.ui;
 
+import java.awt.Dialog;
+import javax.swing.JDialog;
+import mak.capture.log.OutputMgr;
+import mak.capture.log.OutputTypes;
+
 /**
  *
  * @author Chin
  */
 public class Frm_Main extends javax.swing.JFrame {
-
+    /**
+	 * 
+	 */
+	private static final long serialVersionUID = -8473221171486904564L;
+	private static final Frm_Main instance = new Frm_Main();
     /**
      * Creates new form Frm_Main
      */
     public Frm_Main() {
         initComponents();
     }
-
+    public static Frm_Main getInstance() {
+    	return instance;
+    }
     /**
      * This method is called from within the constructor to initialize the form.
      * WARNING: Do NOT modify this code. The content of this method is always
@@ -34,11 +45,13 @@ public class Frm_Main extends javax.swing.JFrame {
         jMenu7 = new javax.swing.JMenu();
         jMenuItem2 = new javax.swing.JMenuItem();
         jToolBar1 = new javax.swing.JToolBar();
-        jButton1 = new javax.swing.JButton();
-        jButton2 = new javax.swing.JButton();
         jButton3 = new javax.swing.JButton();
+        btn_start = new javax.swing.JButton();
+        btn_stop = new javax.swing.JButton();
         jScrollPane1 = new javax.swing.JScrollPane();
         jTable1 = new javax.swing.JTable();
+        jScrollPane2 = new javax.swing.JScrollPane();
+        logwnd = new javax.swing.JTextPane();
         jMenuBar1 = new javax.swing.JMenuBar();
         jMenu1 = new javax.swing.JMenu();
         jMenuItem1 = new javax.swing.JMenuItem();
@@ -60,25 +73,54 @@ public class Frm_Main extends javax.swing.JFrame {
         setDefaultCloseOperation(javax.swing.WindowConstants.EXIT_ON_CLOSE);
         setLocationByPlatform(true);
 
+        jToolBar1.setFloatable(false);
         jToolBar1.setRollover(true);
+        jToolBar1.setMaximumSize(new java.awt.Dimension(130, 44));
+        jToolBar1.setMinimumSize(new java.awt.Dimension(130, 44));
+        jToolBar1.setPreferredSize(new java.awt.Dimension(130, 44));
 
-        jButton1.setText("jButton1");
-        jButton1.setFocusable(false);
-        jButton1.setHorizontalTextPosition(javax.swing.SwingConstants.CENTER);
-        jButton1.setVerticalTextPosition(javax.swing.SwingConstants.BOTTOM);
-        jToolBar1.add(jButton1);
-
-        jButton2.setText("jButton2");
-        jButton2.setFocusable(false);
-        jButton2.setHorizontalTextPosition(javax.swing.SwingConstants.CENTER);
-        jButton2.setVerticalTextPosition(javax.swing.SwingConstants.BOTTOM);
-        jToolBar1.add(jButton2);
-
-        jButton3.setText("jButton3");
+        jButton3.setText("新增");
         jButton3.setFocusable(false);
         jButton3.setHorizontalTextPosition(javax.swing.SwingConstants.CENTER);
         jButton3.setVerticalTextPosition(javax.swing.SwingConstants.BOTTOM);
+        jButton3.addMouseListener(new java.awt.event.MouseAdapter() {
+            public void mouseClicked(java.awt.event.MouseEvent evt) {
+                jButton3MouseClicked(evt);
+            }
+        });
         jToolBar1.add(jButton3);
+
+        btn_start.setIcon(new javax.swing.ImageIcon(getClass().getResource("/mak/res/run_16.png"))); // NOI18N
+        btn_start.setText("开始");
+        btn_start.setFocusable(false);
+        btn_start.setHorizontalTextPosition(javax.swing.SwingConstants.CENTER);
+        btn_start.setMaximumSize(new java.awt.Dimension(40, 41));
+        btn_start.setMinimumSize(new java.awt.Dimension(40, 41));
+        btn_start.setPreferredSize(new java.awt.Dimension(40, 41));
+        btn_start.setVerticalTextPosition(javax.swing.SwingConstants.BOTTOM);
+        btn_start.addMouseListener(new java.awt.event.MouseAdapter() {
+            public void mouseClicked(java.awt.event.MouseEvent evt) {
+                btn_startMouseClicked(evt);
+            }
+        });
+        jToolBar1.add(btn_start);
+
+        btn_stop.setIcon(new javax.swing.ImageIcon(getClass().getResource("/mak/res/stop_16.png"))); // NOI18N
+        btn_stop.setText("停止");
+        btn_stop.setToolTipText("");
+        btn_stop.setEnabled(false);
+        btn_stop.setFocusable(false);
+        btn_stop.setHorizontalTextPosition(javax.swing.SwingConstants.CENTER);
+        btn_stop.setMaximumSize(new java.awt.Dimension(40, 41));
+        btn_stop.setMinimumSize(new java.awt.Dimension(40, 41));
+        btn_stop.setPreferredSize(new java.awt.Dimension(40, 41));
+        btn_stop.setVerticalTextPosition(javax.swing.SwingConstants.BOTTOM);
+        btn_stop.addMouseListener(new java.awt.event.MouseAdapter() {
+            public void mouseClicked(java.awt.event.MouseEvent evt) {
+                btn_stopMouseClicked(evt);
+            }
+        });
+        jToolBar1.add(btn_stop);
 
         jTable1.setModel(new javax.swing.table.DefaultTableModel(
             new Object [][] {
@@ -92,6 +134,10 @@ public class Frm_Main extends javax.swing.JFrame {
             }
         ));
         jScrollPane1.setViewportView(jTable1);
+
+        logwnd.setFont(new java.awt.Font("宋体", 0, 14)); // NOI18N
+        jScrollPane2.setViewportView(logwnd);
+        logwnd.getAccessibleContext().setAccessibleName("");
 
         jMenu1.setText("File");
 
@@ -112,20 +158,44 @@ public class Frm_Main extends javax.swing.JFrame {
         getContentPane().setLayout(layout);
         layout.setHorizontalGroup(
             layout.createParallelGroup(javax.swing.GroupLayout.Alignment.LEADING)
+            .addComponent(jScrollPane2)
             .addComponent(jScrollPane1, javax.swing.GroupLayout.DEFAULT_SIZE, 746, Short.MAX_VALUE)
             .addComponent(jToolBar1, javax.swing.GroupLayout.DEFAULT_SIZE, javax.swing.GroupLayout.DEFAULT_SIZE, Short.MAX_VALUE)
         );
         layout.setVerticalGroup(
             layout.createParallelGroup(javax.swing.GroupLayout.Alignment.LEADING)
             .addGroup(layout.createSequentialGroup()
-                .addComponent(jToolBar1, javax.swing.GroupLayout.PREFERRED_SIZE, 25, javax.swing.GroupLayout.PREFERRED_SIZE)
+                .addComponent(jToolBar1, javax.swing.GroupLayout.PREFERRED_SIZE, javax.swing.GroupLayout.DEFAULT_SIZE, javax.swing.GroupLayout.PREFERRED_SIZE)
                 .addPreferredGap(javax.swing.LayoutStyle.ComponentPlacement.RELATED)
-                .addComponent(jScrollPane1, javax.swing.GroupLayout.DEFAULT_SIZE, 510, Short.MAX_VALUE))
+                .addComponent(jScrollPane1, javax.swing.GroupLayout.PREFERRED_SIZE, 219, javax.swing.GroupLayout.PREFERRED_SIZE)
+                .addPreferredGap(javax.swing.LayoutStyle.ComponentPlacement.RELATED)
+                .addComponent(jScrollPane2, javax.swing.GroupLayout.DEFAULT_SIZE, 374, Short.MAX_VALUE))
         );
 
         pack();
         setLocationRelativeTo(null);
     }// </editor-fold>//GEN-END:initComponents
+
+    private void btn_startMouseClicked(java.awt.event.MouseEvent evt) {//GEN-FIRST:event_btn_startMouseClicked
+        btn_start.setEnabled(false);
+        btn_stop.setEnabled(true);
+        
+        //JobMgr.getInstance().CreateNewJob(aJobStr)
+        
+    }//GEN-LAST:event_btn_startMouseClicked
+
+    private void btn_stopMouseClicked(java.awt.event.MouseEvent evt) {//GEN-FIRST:event_btn_stopMouseClicked
+        btn_start.setEnabled(true);
+        btn_stop.setEnabled(false);
+    }//GEN-LAST:event_btn_stopMouseClicked
+
+    private void jButton3MouseClicked(java.awt.event.MouseEvent evt) {//GEN-FIRST:event_jButton3MouseClicked
+        // TODO add your handling code here:
+        Frm_AddJob fAddJob = new Frm_AddJob();
+        fAddJob.setModal(true);
+        fAddJob.setVisible(true);
+        System.out.print("cccccccc");
+    }//GEN-LAST:event_jButton3MouseClicked
 
     /**
      * @param args the command line arguments
@@ -157,14 +227,17 @@ public class Frm_Main extends javax.swing.JFrame {
         /* Create and display the form */
         java.awt.EventQueue.invokeLater(new Runnable() {
             public void run() {
-                new Frm_Main().setVisible(true);
+                instance.setVisible(true);
             }
         });
+        
+        
+        new OutputMgr(OutputTypes.MainWnd, OutputTypes.Console).Error("dddddddddddddddddddd");
     }
 
     // Variables declaration - do not modify//GEN-BEGIN:variables
-    private javax.swing.JButton jButton1;
-    private javax.swing.JButton jButton2;
+    private javax.swing.JButton btn_start;
+    private javax.swing.JButton btn_stop;
     private javax.swing.JButton jButton3;
     private javax.swing.JMenu jMenu1;
     private javax.swing.JMenu jMenu2;
@@ -178,7 +251,9 @@ public class Frm_Main extends javax.swing.JFrame {
     private javax.swing.JMenuItem jMenuItem1;
     private javax.swing.JMenuItem jMenuItem2;
     private javax.swing.JScrollPane jScrollPane1;
+    private javax.swing.JScrollPane jScrollPane2;
     private javax.swing.JTable jTable1;
     private javax.swing.JToolBar jToolBar1;
+    public javax.swing.JTextPane logwnd;
     // End of variables declaration//GEN-END:variables
 }

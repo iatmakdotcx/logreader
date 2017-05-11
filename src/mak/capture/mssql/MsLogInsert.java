@@ -6,20 +6,7 @@ import mak.capture.DBLogPriser;
 import mak.data.input.GenericLittleEndianAccessor;
 import mak.data.input.SeekOrigin;
 
-public class MsLogInsert implements DBLogPriser {
-	public MsDict md;
-	public MsTable table;
-	public String LSN;
-	
-	public String operation;
-	public String context;
-	
-	public byte[] r0;  //  old value
-	public byte[] r1;  //  new Value
-	public byte[] r2;  //  Paramkey
-	public int Offset_in_Row = 0;	
-
-	public byte[] LogRecord;  //  LOP_MODIFY_COLUMNS的数据全从这取
+public class MsLogInsert extends MsLogRowData implements DBLogPriser {
 
 	public ArrayList<MsColumn> Fields= new ArrayList<>();
 	public ArrayList<byte[]> Values= new ArrayList<>();

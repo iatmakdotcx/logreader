@@ -19,6 +19,7 @@ public class MsDict extends DBDict {
 //    private HashMap list_MsSyn = new HashMap();  //MsSyn() Õ¨“Â¥ 
 //    private HashMap list_MsDBView = new HashMap();  //dBView()  ”Õº
 	
+	
 	public MsDict(MsDatabase _Db) {
 		super(_Db);
 	}
@@ -189,7 +190,7 @@ public class MsDict extends DBDict {
 		        }
             }
             Rs.close();
-            
+            statement.close();
             
             return true;
 		} catch (SQLException e) {

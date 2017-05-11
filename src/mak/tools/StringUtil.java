@@ -115,4 +115,15 @@ public class StringUtil {
         t.printStackTrace(ps);
         return "\r\n"+sw.toString();
     }
+    
+	public static String getXmlValueFromStr(String Src, String NodeName) {
+		String res = "";
+		int leftIdx = Src.indexOf("<" + NodeName + ">");
+		int RightIdx = Src.indexOf("</" + NodeName + ">");
+		if (leftIdx > 0 && RightIdx > 0 && RightIdx > leftIdx) {
+			leftIdx += NodeName.length();
+			res = Src.substring(leftIdx, RightIdx - leftIdx);
+		}
+		return res;
+	}
 }

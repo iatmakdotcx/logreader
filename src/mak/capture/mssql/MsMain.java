@@ -8,7 +8,7 @@ public class MsMain {
 	private MsDict md;
 	
 	public MsMain(){
-		MsDatabase _Db = new MsDatabase(new ConsoleOutput(), "192.168.0.61","sa","xxk@20130220","MaktestDB");
+		MsDatabase _Db = new MsDatabase(ConsoleOutput.getInstance(), "192.168.0.61","sa","xxk@20130220","MaktestDB");
 		
 		md = new MsDict(_Db);
 		if (md.CheckDBState()){

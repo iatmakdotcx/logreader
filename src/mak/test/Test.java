@@ -14,17 +14,23 @@ import mak.tools.AesTools;
 import mak.tools.HexTool;
 
 public class Test {
-	public static ConsoleOutput log = new ConsoleOutput();
+	public static ConsoleOutput log = ConsoleOutput.getInstance();
 	
 	public static void main(String[] args) {
 		// TODO Auto-generated method stub
 
+		
+		
+		
+		
+		
+		
 //		byte[] bb = HexTool.getByteArrayFromHexString("01 F2 00 00 00 00 00 00 00");
 //		double dsdd = new MsMain().msConvert_Bytes2Float(bb,4);
 //		System.out.println(dsdd);
 		
-		System.out.println(AesTools.getInstance().Encode("123456"));
-		System.out.println(AesTools.getInstance().Decode("KaJznD2QuERU7DWEXsgsWQ=="));
+		//log.Info(AesTools.getInstance().Encode("123456"));
+		//log.Error(AesTools.getInstance().Decode("KaJznD2QuERU7DWEXsgsWQ=="));
 		
 		
 		//new MsMain().testUpdate();
