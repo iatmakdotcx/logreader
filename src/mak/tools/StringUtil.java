@@ -4,11 +4,11 @@ import java.io.PrintWriter;
 import java.io.StringWriter;
 
 public class StringUtil {
-	
+
     /**
      * Gets a string padded from the left to <code>length</code> by
      * <code>padchar</code>.
-     * 
+     *
      * @param in The input string to be padded.
      * @param padchar The character to pad with.
      * @param length The length to pad to.
@@ -26,7 +26,7 @@ public class StringUtil {
     /**
      * Gets a string padded from the right to <code>length</code> by
      * <code>padchar</code>.
-     * 
+     *
      * @param in The input string to be padded.
      * @param padchar The character to pad with.
      * @param length The length to pad to.
@@ -41,9 +41,9 @@ public class StringUtil {
     }
 
     /**
-     * Joins an array of strings starting from string <code>start</code> with
-     * a space.
-     * 
+     * Joins an array of strings starting from string <code>start</code> with a
+     * space.
+     *
      * @param arr The array of strings to join.
      * @param start Starting from which string.
      * @return The joined strings.
@@ -55,7 +55,7 @@ public class StringUtil {
     /**
      * Joins an array of strings starting from string <code>start</code> with
      * <code>sep</code> as a seperator.
-     * 
+     *
      * @param arr The array of strings to join.
      * @param start Starting from which string.
      * @return The joined strings.
@@ -73,7 +73,7 @@ public class StringUtil {
 
     /**
      * Makes an enum name human readable (fixes spaces, capitalization, etc)
-     * 
+     *
      * @param enumName The name of the enum to neaten up.
      * @return The human-readable enum name.
      */
@@ -94,7 +94,7 @@ public class StringUtil {
 
     /**
      * Counts the number of <code>chr</code>'s in <code>str</code>.
-     * 
+     *
      * @param str The string to check for instances of <code>chr</code>.
      * @param chr The character to check for.
      * @return The number of times <code>chr</code> occurs in <code>str</code>.
@@ -113,17 +113,17 @@ public class StringUtil {
         StringWriter sw = new StringWriter();
         PrintWriter ps = new PrintWriter(sw);
         t.printStackTrace(ps);
-        return "\r\n"+sw.toString();
+        return "\r\n" + sw.toString();
     }
-    
-	public static String getXmlValueFromStr(String Src, String NodeName) {
-		String res = "";
-		int leftIdx = Src.indexOf("<" + NodeName + ">");
-		int RightIdx = Src.indexOf("</" + NodeName + ">");
-		if (leftIdx > 0 && RightIdx > 0 && RightIdx > leftIdx) {
-			leftIdx += NodeName.length();
-			res = Src.substring(leftIdx, RightIdx - leftIdx);
-		}
-		return res;
-	}
+
+    public static String getXmlValueFromStr(String Src, String NodeName) {
+        String res = "";
+        int leftIdx = Src.indexOf("<" + NodeName + ">");
+        int RightIdx = Src.indexOf("</" + NodeName + ">");
+        if (leftIdx >= 0 && RightIdx > 0 && RightIdx > leftIdx) {
+            leftIdx += NodeName.length() + 2;
+            res = Src.substring(leftIdx, RightIdx);
+        }
+        return res;
+    }
 }

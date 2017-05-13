@@ -5,30 +5,35 @@
  */
 package mak.ui;
 
-import java.awt.Dialog;
-import javax.swing.JDialog;
-import mak.capture.log.OutputMgr;
+import javax.swing.ImageIcon;
+import mak.capture.log.MainWndOutput;
+import mak.capture.log.OutPutMgr;
+import mak.capture.log.Output;
 import mak.capture.log.OutputTypes;
+import mak.tools.StringUtil;
 
 /**
  *
  * @author Chin
  */
 public class Frm_Main extends javax.swing.JFrame {
+    
     /**
-	 * 
-	 */
-	private static final long serialVersionUID = -8473221171486904564L;
-	private static final Frm_Main instance = new Frm_Main();
+     *
+     */
+    private static final long serialVersionUID = -8473221171486904564L;
+    private static final Frm_Main instance = new Frm_Main();
     /**
      * Creates new form Frm_Main
      */
     public Frm_Main() {
         initComponents();
     }
+
     public static Frm_Main getInstance() {
-    	return instance;
+        return instance;
     }
+
     /**
      * This method is called from within the constructor to initialize the form.
      * WARNING: Do NOT modify this code. The content of this method is always
@@ -45,9 +50,12 @@ public class Frm_Main extends javax.swing.JFrame {
         jMenu7 = new javax.swing.JMenu();
         jMenuItem2 = new javax.swing.JMenuItem();
         jToolBar1 = new javax.swing.JToolBar();
-        jButton3 = new javax.swing.JButton();
+        btn_new = new javax.swing.JButton();
         btn_start = new javax.swing.JButton();
         btn_stop = new javax.swing.JButton();
+        jButton1 = new javax.swing.JButton();
+        jButton2 = new javax.swing.JButton();
+        jButton3 = new javax.swing.JButton();
         jScrollPane1 = new javax.swing.JScrollPane();
         jTable1 = new javax.swing.JTable();
         jScrollPane2 = new javax.swing.JScrollPane();
@@ -79,16 +87,16 @@ public class Frm_Main extends javax.swing.JFrame {
         jToolBar1.setMinimumSize(new java.awt.Dimension(130, 44));
         jToolBar1.setPreferredSize(new java.awt.Dimension(130, 44));
 
-        jButton3.setText("新增");
-        jButton3.setFocusable(false);
-        jButton3.setHorizontalTextPosition(javax.swing.SwingConstants.CENTER);
-        jButton3.setVerticalTextPosition(javax.swing.SwingConstants.BOTTOM);
-        jButton3.addMouseListener(new java.awt.event.MouseAdapter() {
-            public void mouseClicked(java.awt.event.MouseEvent evt) {
-                jButton3MouseClicked(evt);
+        btn_new.setText("新增");
+        btn_new.setFocusable(false);
+        btn_new.setHorizontalTextPosition(javax.swing.SwingConstants.CENTER);
+        btn_new.setVerticalTextPosition(javax.swing.SwingConstants.BOTTOM);
+        btn_new.addActionListener(new java.awt.event.ActionListener() {
+            public void actionPerformed(java.awt.event.ActionEvent evt) {
+                btn_newActionPerformed(evt);
             }
         });
-        jToolBar1.add(jButton3);
+        jToolBar1.add(btn_new);
 
         btn_start.setIcon(new javax.swing.ImageIcon(getClass().getResource("/mak/res/run_16.png"))); // NOI18N
         btn_start.setText("开始");
@@ -98,9 +106,9 @@ public class Frm_Main extends javax.swing.JFrame {
         btn_start.setMinimumSize(new java.awt.Dimension(40, 41));
         btn_start.setPreferredSize(new java.awt.Dimension(40, 41));
         btn_start.setVerticalTextPosition(javax.swing.SwingConstants.BOTTOM);
-        btn_start.addMouseListener(new java.awt.event.MouseAdapter() {
-            public void mouseClicked(java.awt.event.MouseEvent evt) {
-                btn_startMouseClicked(evt);
+        btn_start.addActionListener(new java.awt.event.ActionListener() {
+            public void actionPerformed(java.awt.event.ActionEvent evt) {
+                btn_startActionPerformed(evt);
             }
         });
         jToolBar1.add(btn_start);
@@ -115,12 +123,45 @@ public class Frm_Main extends javax.swing.JFrame {
         btn_stop.setMinimumSize(new java.awt.Dimension(40, 41));
         btn_stop.setPreferredSize(new java.awt.Dimension(40, 41));
         btn_stop.setVerticalTextPosition(javax.swing.SwingConstants.BOTTOM);
-        btn_stop.addMouseListener(new java.awt.event.MouseAdapter() {
-            public void mouseClicked(java.awt.event.MouseEvent evt) {
-                btn_stopMouseClicked(evt);
+        btn_stop.addActionListener(new java.awt.event.ActionListener() {
+            public void actionPerformed(java.awt.event.ActionEvent evt) {
+                btn_stopActionPerformed(evt);
             }
         });
         jToolBar1.add(btn_stop);
+
+        jButton1.setText("RefreshList");
+        jButton1.setFocusable(false);
+        jButton1.setHorizontalTextPosition(javax.swing.SwingConstants.CENTER);
+        jButton1.setVerticalTextPosition(javax.swing.SwingConstants.BOTTOM);
+        jButton1.addActionListener(new java.awt.event.ActionListener() {
+            public void actionPerformed(java.awt.event.ActionEvent evt) {
+                jButton1ActionPerformed(evt);
+            }
+        });
+        jToolBar1.add(jButton1);
+
+        jButton2.setText("SaveCfg");
+        jButton2.setFocusable(false);
+        jButton2.setHorizontalTextPosition(javax.swing.SwingConstants.CENTER);
+        jButton2.setVerticalTextPosition(javax.swing.SwingConstants.BOTTOM);
+        jButton2.addActionListener(new java.awt.event.ActionListener() {
+            public void actionPerformed(java.awt.event.ActionEvent evt) {
+                jButton2ActionPerformed(evt);
+            }
+        });
+        jToolBar1.add(jButton2);
+
+        jButton3.setText("LoadCfg");
+        jButton3.setFocusable(false);
+        jButton3.setHorizontalTextPosition(javax.swing.SwingConstants.CENTER);
+        jButton3.setVerticalTextPosition(javax.swing.SwingConstants.BOTTOM);
+        jButton3.addActionListener(new java.awt.event.ActionListener() {
+            public void actionPerformed(java.awt.event.ActionEvent evt) {
+                jButton3ActionPerformed(evt);
+            }
+        });
+        jToolBar1.add(jButton3);
 
         jTable1.setModel(new javax.swing.table.DefaultTableModel(
             new Object [][] {
@@ -130,9 +171,26 @@ public class Frm_Main extends javax.swing.JFrame {
                 {null, null, null, null}
             },
             new String [] {
-                "Title 1", "Title 2", "Title 3", "Title 4"
+                "状态", "名称", "捕获起始点", "Title 4"
             }
-        ));
+        ) {
+            Class[] types = new Class [] {
+                java.lang.String.class, java.lang.String.class, java.lang.String.class, java.lang.Object.class
+            };
+            boolean[] canEdit = new boolean [] {
+                false, false, false, false
+            };
+
+            public Class getColumnClass(int columnIndex) {
+                return types [columnIndex];
+            }
+
+            public boolean isCellEditable(int rowIndex, int columnIndex) {
+                return canEdit [columnIndex];
+            }
+        });
+        jTable1.setRowHeight(18);
+        jTable1.setSelectionMode(javax.swing.ListSelectionModel.SINGLE_SELECTION);
         jScrollPane1.setViewportView(jTable1);
 
         logwnd.setFont(new java.awt.Font("宋体", 0, 14)); // NOI18N
@@ -176,26 +234,111 @@ public class Frm_Main extends javax.swing.JFrame {
         setLocationRelativeTo(null);
     }// </editor-fold>//GEN-END:initComponents
 
-    private void btn_startMouseClicked(java.awt.event.MouseEvent evt) {//GEN-FIRST:event_btn_startMouseClicked
+    private Object[][] getModelData() {
+//        Object [][]  res = new Object [][] {
+//                {1, 2, 3, 4},
+//                {'a', "b", "c", "d"},
+//            };
+        Object[][] res = new Object[JobMgr.getInstance().JobList().size()][4];
+        for (int i = 0; i < JobMgr.getInstance().JobList().size(); i++) {
+            Job job = JobMgr.getInstance().JobList().get(i);
+            res[i][0] = job.state.ordinal();
+
+            String cfgStr = StringUtil.getXmlValueFromStr(job.aJobStr, ConstString.cfgTagName);
+            res[i][1] = StringUtil.getXmlValueFromStr(cfgStr, ConstString.JobName);
+            res[i][2] = StringUtil.getXmlValueFromStr(cfgStr, ConstString.StartTime);
+        }
+        return res;
+    }
+
+    public void SetTableViewData() {
+        jTable1.setModel(new javax.swing.table.DefaultTableModel(
+                getModelData(),
+                new String[]{
+                    "状态", "名称", "捕获起始点", "Title 4"
+                }
+        ) {
+            Class[] types = new Class[]{
+                ImageIcon.class, java.lang.String.class, java.lang.String.class, java.lang.Object.class
+            };
+            boolean[] canEdit = new boolean[]{
+                false, false, false, false
+            };
+
+            @Override
+            public Class getColumnClass(int columnIndex) {
+                return types[columnIndex];
+            }
+
+            @Override
+            public boolean isCellEditable(int rowIndex, int columnIndex) {
+                return canEdit[columnIndex];
+            }
+
+            @Override
+            public Object getValueAt(int rowidx, int colIdx) {
+                if (colIdx == 0) {
+                    int state = (int) super.getValueAt(rowidx, colIdx);
+                    JobState js = JobState.values()[state];
+                    ImageIcon ii = null;
+                    switch (js) {
+                        case Uninitialized:
+                            ii = new ImageIcon(Frm_Main.class.getResource("../res/exclamation.png"));
+                            break;
+                        case Stoped:
+                            ii = new ImageIcon(Frm_Main.class.getResource("../res/stop_16.png"));
+                            break;
+                        case Running:
+                            ii = new ImageIcon(Frm_Main.class.getResource("../res/tick.png"));
+                            break;
+                        case Error:
+                            ii = new ImageIcon(Frm_Main.class.getResource("../res/cross_octagon.png"));
+                            break;
+                    }
+                    return ii;
+                } else {
+                    return super.getValueAt(rowidx, colIdx);
+                }
+            }
+        });
+    }
+
+    private void jButton1ActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_jButton1ActionPerformed
+        SetTableViewData();
+    }//GEN-LAST:event_jButton1ActionPerformed
+
+    private void btn_startActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_btn_startActionPerformed
         btn_start.setEnabled(false);
         btn_stop.setEnabled(true);
-        
-        //JobMgr.getInstance().CreateNewJob(aJobStr)
-        
-    }//GEN-LAST:event_btn_startMouseClicked
+    }//GEN-LAST:event_btn_startActionPerformed
 
-    private void btn_stopMouseClicked(java.awt.event.MouseEvent evt) {//GEN-FIRST:event_btn_stopMouseClicked
+    private void btn_stopActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_btn_stopActionPerformed
         btn_start.setEnabled(true);
         btn_stop.setEnabled(false);
-    }//GEN-LAST:event_btn_stopMouseClicked
+    }//GEN-LAST:event_btn_stopActionPerformed
 
-    private void jButton3MouseClicked(java.awt.event.MouseEvent evt) {//GEN-FIRST:event_jButton3MouseClicked
-        // TODO add your handling code here:
+    private void btn_newActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_btn_newActionPerformed
         Frm_AddJob fAddJob = new Frm_AddJob();
         fAddJob.setModal(true);
         fAddJob.setVisible(true);
-        System.out.print("cccccccc");
-    }//GEN-LAST:event_jButton3MouseClicked
+
+        if (fAddJob.ModalResult == 1) {
+            JobMgr.getInstance().CreateNewJob(fAddJob.ConStrSrc, fAddJob.ConStrDst, fAddJob.CfgStr);
+            SetTableViewData();
+        }
+    }//GEN-LAST:event_btn_newActionPerformed
+
+    private void jButton2ActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_jButton2ActionPerformed
+        JobMgr.getInstance().saveToCfg();
+        MainWndOutput.getInstance().Info("保存配置文件成功！");
+        SetTableViewData();
+    }//GEN-LAST:event_jButton2ActionPerformed
+
+    private void jButton3ActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_jButton3ActionPerformed
+        JobMgr.getInstance().loadFromCfg();
+        MainWndOutput.getInstance().Info("加载配置文件成功！");
+        SetTableViewData();
+    }//GEN-LAST:event_jButton3ActionPerformed
 
     /**
      * @param args the command line arguments
@@ -226,18 +369,21 @@ public class Frm_Main extends javax.swing.JFrame {
 
         /* Create and display the form */
         java.awt.EventQueue.invokeLater(new Runnable() {
+            @Override
             public void run() {
                 instance.setVisible(true);
             }
         });
-        
-        
-        new OutputMgr(OutputTypes.MainWnd, OutputTypes.Console).Error("dddddddddddddddddddd");
+
+        new OutPutMgr(OutputTypes.MainWnd, OutputTypes.Console).Error("dddddddddddddddddddd");
     }
 
     // Variables declaration - do not modify//GEN-BEGIN:variables
+    private javax.swing.JButton btn_new;
     private javax.swing.JButton btn_start;
     private javax.swing.JButton btn_stop;
+    private javax.swing.JButton jButton1;
+    private javax.swing.JButton jButton2;
     private javax.swing.JButton jButton3;
     private javax.swing.JMenu jMenu1;
     private javax.swing.JMenu jMenu2;

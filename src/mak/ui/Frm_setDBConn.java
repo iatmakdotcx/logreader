@@ -5,6 +5,8 @@
  */
 package mak.ui;
 
+import mak.tools.StringUtil;
+
 /**
  *
  * @author Chin
@@ -19,6 +21,20 @@ public class Frm_setDBConn extends javax.swing.JDialog {
      */
     public Frm_setDBConn() {
         initComponents();
+    }
+
+    public void SetConStr(String aConnStr) {
+        if (aConnStr == null || aConnStr.isEmpty()) {
+            return;
+        }
+        String st = StringUtil.getXmlValueFromStr(aConnStr, "subtype");
+        if (!st.isEmpty()) {
+            edt_dbType.setSelectedItem(st);
+            edt_host.setText(StringUtil.getXmlValueFromStr(aConnStr, "host"));
+            edt_usrid.setText(StringUtil.getXmlValueFromStr(aConnStr, "usrId"));
+            edt_pwd.setText(StringUtil.getXmlValueFromStr(aConnStr, "pswd"));
+            edt_dbName.setText(StringUtil.getXmlValueFromStr(aConnStr, "dbName"));
+        }
     }
 
     private void GenConstr() {

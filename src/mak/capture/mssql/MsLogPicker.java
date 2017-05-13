@@ -10,7 +10,7 @@ import java.util.HashMap;
 import java.util.LinkedList;
 
 import mak.capture.DBLogPicker;
-import mak.capture.log.OutputMgr;
+import mak.capture.log.OutPutMgr;
 import mak.tools.StringUtil;
 
 public class MsLogPicker implements DBLogPicker   {
@@ -43,7 +43,7 @@ public class MsLogPicker implements DBLogPicker   {
 		String dbName = StringUtil.getXmlValueFromStr(ConnStr, "dbName");
 		String logtype = StringUtil.getXmlValueFromStr(ConnStr, "logtype");
 		try{
-			MsDatabase _Db = new MsDatabase(new OutputMgr(logtype), host, usrid, pswd, dbName);
+			MsDatabase _Db = new MsDatabase(new OutPutMgr(logtype), host, usrid, pswd, dbName);
 			md = new MsDict(_Db);
 			if (md.CheckDBState()){
 				return md.RefreshDBDict();
