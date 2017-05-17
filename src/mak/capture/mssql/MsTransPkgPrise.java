@@ -9,7 +9,6 @@ import mak.capture.DBLogPriser;
 import mak.capture.data.DBOptInsert;
 import mak.data.input.GenericLittleEndianAccessor;
 import mak.data.input.SeekOrigin;
-import mak.triPart.zk;
 
 public class MsTransPkgPrise {
 	private static Logger logger = Logger.getLogger(MsTransPkgPrise.class);  

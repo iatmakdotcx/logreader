@@ -1,21 +1,7 @@
 package mak.test;
 
-import java.nio.charset.Charset;
-
-import mak.capture.log.ConsoleOutput;
-import mak.capture.mssql.MsColumn;
-import mak.capture.mssql.MsDict;
-import mak.capture.mssql.MsMain;
-import mak.capture.mssql.MsDatabase;
-import mak.capture.mssql.MsTable;
-import mak.data.input.GenericLittleEndianAccessor;
-import mak.data.input.SeekOrigin;
-import mak.tools.AesTools;
-import mak.tools.HexTool;
 
 public class Test {
-	public static ConsoleOutput log = ConsoleOutput.getInstance();
-	
 	public static void main(String[] args) {
 		// TODO Auto-generated method stub
 

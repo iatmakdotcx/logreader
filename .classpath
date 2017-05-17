@@ -4,7 +4,7 @@
 	<classpathentry kind="con" path="org.eclipse.jdt.launching.JRE_CONTAINER/org.eclipse.jdt.internal.debug.ui.launcher.StandardVMType/jdk1.8.0_121"/>
 	<classpathentry kind="lib" path="lib/sqljdbc42.jar"/>
 	<classpathentry kind="lib" path="lib/zkclient-0.10.jar"/>
-	<classpathentry kind="lib" path="lib/zookeeper-3.4.9.jar"/>
+	<classpathentry kind="lib" path="lib/zookeeper-3.4.9.jar" sourcepath="H:/Java/zookeeper-3.4.9/src/java/main"/>
 	<classpathentry kind="lib" path="lib/slf4j-log4j12-1.7.21.jar"/>
 	<classpathentry kind="lib" path="lib/slf4j-api-1.7.21.jar"/>
 	<classpathentry kind="lib" path="lib/log4j-1.2.17.jar"/>

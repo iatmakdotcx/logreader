@@ -39,21 +39,20 @@ public class zk {
 				}
 			}
 		}
-		LSN_PATH = "/mak/DBlog/picker" + key + "/LSN";
-		CONSTR_PATH = "/mak/DBlog/picker" + key + "/CONSTR";
+		LSN_PATH = "/mak/DBlog/picker/" + key + "/LSN";
+		CONSTR_PATH = "/mak/DBlog/picker/" + key + "/CONSTR";
 		inited = true;
 		return true;
 	}
-	
-	public String getLSN(){
+	public String getPathValue(String path){
 		if (!inited){
 			return "";
 		}
 		String ResStr = "";		
 		ZkClient zkClient = new ZkClient(CONNECT_ADDR, SESSION_TIMEOUT);
 		try {
-			if(zkClient.exists(LSN_PATH)){
-				ResStr = zkClient.readData(LSN_PATH);
+			if(zkClient.exists(path)){
+				ResStr = zkClient.readData(path);
 			}else{
 				ResStr = "";	
 			}
@@ -61,55 +60,41 @@ public class zk {
 			zkClient.close();
 		}
 		return ResStr;
+	}
+	public boolean setPathValue(String path, String vals){
+		if (!inited){
+			return false;
+		}
+		ZkClient zkClient = new ZkClient(CONNECT_ADDR, SESSION_TIMEOUT);
+		try {
+			if(!zkClient.exists(path)){
+				zkClient.createPersistent(path, true);
+			}
+			zkClient.writeData(path, vals);
+			return true;
+		} finally {
+			zkClient.close();
+		}
+	}
+	
+
+	public String getLSN(){
+		return getPathValue(LSN_PATH);
 	}
 	
 	public boolean setLSN(String vals){
-		if (!inited){
-			return false;
-		}
-		ZkClient zkClient = new ZkClient(CONNECT_ADDR, SESSION_TIMEOUT);
-		try {
-			zkClient.createPersistent(LSN_PATH, true);
-			zkClient.writeData(LSN_PATH, vals);
-			return true;
-		} finally {
-			zkClient.close();
-		}
+		return setPathValue(LSN_PATH, vals);
 	}
 	
 	public String getdbConStr(){
-		if (!inited){
-			return "";
-		}
-		String ResStr = "";		
-		ZkClient zkClient = new ZkClient(CONNECT_ADDR, SESSION_TIMEOUT);
-		try {
-			if(zkClient.exists(CONSTR_PATH)){
-				ResStr = zkClient.readData(CONSTR_PATH);
-			}else{
-				ResStr = "";	
-			}
-		} finally {
-			zkClient.close();
-		}
-		return ResStr;
+		return getPathValue(CONSTR_PATH);
 	}
 	
 	public boolean setdbConStr(String vals){
-		if (!inited){
-			return false;
-		}
-		ZkClient zkClient = new ZkClient(CONNECT_ADDR, SESSION_TIMEOUT);
-		try {
-			zkClient.createPersistent(CONSTR_PATH, true);
-			zkClient.writeData(CONSTR_PATH, vals);
-			return true;
-		} finally {
-			zkClient.close();
-		}
+		return setPathValue(CONSTR_PATH, vals);
 	}
 	
-	public static void main(String[] args){
+	public void testFunc(String[] args){
 		PropertyConfigurator.configure("config/log4j.properties");
 		
 		ZkClient zkClient = new ZkClient("127.0.0.1:2181", 5000);
@@ -147,10 +132,6 @@ public class zk {
 //        String cDataxx = zkClient.readData("/mak/c0/LSN");  
 //        System.out.println(cDataxx);  
 //        
-        
-        
-        
-  
         zkClient.close();  
 	}
 }

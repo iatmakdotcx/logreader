@@ -24,8 +24,6 @@ public class MsLogPriser implements Runnable {
 	private String jobKey;
 	
 	public MsLogPriser(){
-		
-		
 	}
 	
 	public boolean init(String jobKey){
@@ -89,9 +87,8 @@ public class MsLogPriser implements Runnable {
 				logger.info("==============================");
 				// consumer.commitSync();
 				
-				MsTransPkgPrise MTPP = new MsTransPkgPrise(mPkg, md);
-			
-				
+				MsTransPkgPrise MTPP = new MsTransPkgPrise(mPkg, md);			
+				MTPP.start();
 			}
 			if (isTerminated()) {
 				break;
