@@ -1,15 +1,20 @@
 package mak.capture.mssql;
 
-import java.util.Date;
+import java.io.Serializable;
 
-public class MsLogRowData {
+public class MsLogRowData implements Serializable{
+	/**
+	 * 
+	 */
+	private static final long serialVersionUID = 7689385570085866664L;
 	public MsDict md;
 	public MsTable table;
 	
 	public int obj_id;
-	public Date transtime;
+	public String transtime; //
 	public String transname;
 	public String transId;
+	public String TransactionBegin;
 	
 	public String LSN;
 	

@@ -10,6 +10,9 @@ import java.io.DataOutputStream;
 import java.io.FileInputStream;
 import java.io.FileOutputStream;
 import java.util.ArrayList;
+
+import com.sun.org.apache.xml.internal.resolver.helpers.PublicId;
+
 import mak.tools.AesTools;
 
 /**
@@ -88,5 +91,18 @@ public class JobMgr {
         Job job = new Job(aJobStr);
         pool.add(job);
         return true;
+    }
+    
+    public void Start(int idx){
+    	if (idx>=0 && idx<pool.size()) {
+			pool.get(idx).Start();
+		}	
+    
+    }
+    public void Stop(int idx){
+    	if (idx>=0 && idx<pool.size()) {
+    		pool.get(idx).Stop();
+    	}
+    	
     }
 }

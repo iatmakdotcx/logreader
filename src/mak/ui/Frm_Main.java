@@ -310,6 +310,9 @@ public class Frm_Main extends javax.swing.JFrame {
     private void btn_startActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_btn_startActionPerformed
         btn_start.setEnabled(false);
         btn_stop.setEnabled(true);
+        
+               
+        JobMgr.getInstance().Start(jTable1.getSelectedRow());
     }//GEN-LAST:event_btn_startActionPerformed
 
     private void btn_stopActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_btn_stopActionPerformed

@@ -90,9 +90,6 @@ public class MsLogInsert extends MsLogRowData implements DBLogPriser {
 							if ((ExtDataIdxList[idx] & 0x8000) > 0) {
 								//如果最高位是1说明数据在LCX_TEXT_MIX包中
 								
-								
-								
-								
 							}
 							Fields.add(mc);
 							Values.add(tmp);

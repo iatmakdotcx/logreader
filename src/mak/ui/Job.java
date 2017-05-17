@@ -3,17 +3,20 @@ package mak.ui;
 import mak.capture.DBLogPicker;
 import mak.capture.mssql.MsLogPicker;
 import mak.tools.StringUtil;
+import mak.triPart.zk;
 
 public class Job {
     public String aJobStr;
     public JobState state = JobState.Uninitialized;
-
+    private String jobKey;
     private DBLogPicker Logpicker = null;
-
+    private zk zkClient = new zk();
+    
     public Job(String aJobStr) {
         this.aJobStr = aJobStr;
         CreateSrc();
         CreateDst();
+        Createcfg();
         state = JobState.Stoped;
     }
     
@@ -29,17 +32,27 @@ public class Job {
         this.aJobStr = sbsb.toString();
         CreateSrc();
         CreateDst();
+        Createcfg();
         
         state = JobState.Stoped;
     }
-    
+    public boolean Createcfg() {
+    	String cfgStr = StringUtil.getXmlValueFromStr(aJobStr, "cfg");
+    	jobKey = StringUtil.getXmlValueFromStr(cfgStr, "jobkey");
+    	
+    	String srcStr = StringUtil.getXmlValueFromStr(aJobStr, "src");
+    	zkClient.initCfg(jobKey);
+    	zkClient.setdbConStr(srcStr);
+    	
+    	return true;
+    }
     public boolean CreateSrc() {
         String srcStr = StringUtil.getXmlValueFromStr(aJobStr, "src");
         String srcType = StringUtil.getXmlValueFromStr(srcStr, "type");
         if (srcType.equals("DB")) {
             String DBType = StringUtil.getXmlValueFromStr(srcStr, "subtype");
             if (DBType.equals("mssql")) {
-                Logpicker = new MsLogPicker(srcStr);
+                Logpicker = new MsLogPicker();
             } else if (DBType.equals("mysql")) {
                 //TODO:  mysql picker
                 throw new UnsupportedOperationException("Not supported yet.");
@@ -97,8 +110,8 @@ public class Job {
         state = JobState.Stoped;
     }
 
-    public boolean Start() {
-        if (Logpicker.init()) {
+    public boolean Start() {    	
+        if (Logpicker.init(jobKey, aJobStr)) {
             Thread thread = new Thread(Logpicker, "Logpicker");
             thread.start();
         }
