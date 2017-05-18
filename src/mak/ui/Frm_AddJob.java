@@ -62,6 +62,13 @@ public class Frm_AddJob extends javax.swing.JDialog {
         CfgStr = sbsb.toString();
     }
 
+    @Override
+    public void setVisible(boolean dd){
+    	if (dd) {
+    		displaytTodit();
+		}
+    	super.setVisible(dd);
+    }
     /**
      * This method is called from within the constructor to initialize the form.
      * WARNING: Do NOT modify this code. The content of this method is always
@@ -318,7 +325,6 @@ public class Frm_AddJob extends javax.swing.JDialog {
         if (singleMode) {
             jMenuItem2.setVisible(false);
         }
-        displaytTodit();
     }//GEN-LAST:event_formWindowActivated
 
 

@@ -7,6 +7,7 @@ package mak.ui;
 
 import java.text.DateFormat;
 import java.text.SimpleDateFormat;
+import java.util.ArrayList;
 import java.util.Date;
 import javax.swing.JOptionPane;
 import mak.tools.StringUtil;
@@ -98,9 +99,6 @@ public class Frm_jobCfg extends javax.swing.JFrame {
 
         jTable1.setModel(new javax.swing.table.DefaultTableModel(
             new Object [][] {
-                {null, null, null, null},
-                {null, null, null, null},
-                {null, null, null, null},
                 {null, null, null, null}
             },
             new String [] {
@@ -153,21 +151,27 @@ public class Frm_jobCfg extends javax.swing.JFrame {
         String jobStr = zkClient.getPathValue("/mak/DBlog/jobs");
         String[] jobKeys = jobStr.split(",");
 
-        Object[][] res = new Object[jobKeys.length][4];
+        //Object[][] res = new Object[jobKeys.length][4];
+        ArrayList<Object[]> aloArr = new ArrayList<>();
         
         for (int i = 0; i < jobKeys.length; i++) {
             String key = jobKeys[i];
-            res[i][0] = key ;
+            if (key.isEmpty()) {
+				continue;
+			}
+            Object[] res = new Object[4];
+            res[0] = key ;
             String ConstrPath = "/mak/DBlog/config/" + key + "/CONSTR";
             String ConStr = zkClient.getPathValue(ConstrPath);
             String srcStr = StringUtil.getXmlValueFromStr(ConStr, "src");
             String dstStr = StringUtil.getXmlValueFromStr(ConStr, "dst");
             String cfgStr = StringUtil.getXmlValueFromStr(ConStr, "cfg");
-            res[i][1] = StringUtil.getXmlValueFromStr(cfgStr, "JobName"); 
-            res[i][2] = StringUtil.getXmlValueFromStr(srcStr, "host")+"%"+StringUtil.getXmlValueFromStr(srcStr, "dbName"); 
-            res[i][3] = StringUtil.getXmlValueFromStr(dstStr, "host")+"%"+StringUtil.getXmlValueFromStr(dstStr, "dbName"); 
+            res[1] = StringUtil.getXmlValueFromStr(cfgStr, "JobName"); 
+            res[2] = StringUtil.getXmlValueFromStr(srcStr, "host")+"%"+StringUtil.getXmlValueFromStr(srcStr, "dbName"); 
+            res[3] = StringUtil.getXmlValueFromStr(dstStr, "host")+"%"+StringUtil.getXmlValueFromStr(dstStr, "dbName"); 
+            aloArr.add(res);
         }
-        return res;
+        return aloArr.toArray(new Object[0][4]);
     }
     public void SetTableViewData() {
         jTable1.setModel(new javax.swing.table.DefaultTableModel(
@@ -222,6 +226,7 @@ public class Frm_jobCfg extends javax.swing.JFrame {
                 jobStr += ","+key;
             }
             zkClient.setPathValue("/mak/DBlog/jobs", jobStr);
+            SetTableViewData();
         }
     }//GEN-LAST:event_jButton2ActionPerformed
 
@@ -246,9 +251,12 @@ public class Frm_jobCfg extends javax.swing.JFrame {
                     NewjobStr += ","+jobKey;
                 }
             }
-            NewjobStr = NewjobStr.substring(1);
+            if (!NewjobStr.isEmpty()) {
+            	NewjobStr = NewjobStr.substring(1);
+			}
             zkClient.setPathValue("/mak/DBlog/jobs",NewjobStr);        
             zkClient.deletePath("/mak/DBlog/config/" + key);
+            SetTableViewData();
         }
     }//GEN-LAST:event_jButton4ActionPerformed
 
@@ -282,6 +290,7 @@ public class Frm_jobCfg extends javax.swing.JFrame {
             sbsbsb.append("</root>");
             
             zkClient.setPathValue(ConstrPath, sbsbsb.toString());
+            SetTableViewData();
         }
     }//GEN-LAST:event_jButton1ActionPerformed
 
