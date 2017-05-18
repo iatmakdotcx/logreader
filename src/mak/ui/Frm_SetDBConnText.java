@@ -95,7 +95,7 @@ public class Frm_SetDBConnText extends javax.swing.JDialog {
     }// </editor-fold>//GEN-END:initComponents
 
     private void jButton1ActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_jButton1ActionPerformed
-        ModalResult = 1;
+        ModalResult = 1; 
         this.setVisible(false);      
     }//GEN-LAST:event_jButton1ActionPerformed
 

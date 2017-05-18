@@ -29,7 +29,7 @@ public class MsLogPriser implements Runnable {
 	public boolean init(String jobKey){
 		this.jobKey = jobKey;
 		zkClient.initCfg(jobKey);
-		ConnStr = zkClient.getdbConStr();
+		ConnStr = zkClient.getConStr();
 		
         props = new Properties();
         //…Ë÷√brokerServer(kafka)ipµÿ÷∑

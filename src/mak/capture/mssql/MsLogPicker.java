@@ -7,6 +7,8 @@ import java.sql.SQLException;
 import java.sql.Statement;
 import java.util.HashMap;
 
+import org.apache.log4j.Logger;
+
 import mak.capture.DBLogPicker;
 import mak.capture.log.OutPutMgr;
 import mak.tools.StringUtil;
@@ -14,7 +16,7 @@ import mak.triPart.KafkaLogDataProducer;
 import mak.triPart.zk;
 
 public class MsLogPicker implements DBLogPicker   {
-
+	private static Logger logger = Logger.getLogger(MsLogPicker.class); 
 	public volatile boolean flag = false;  	
 	private String ConnStr;
 	private MsDict md;
@@ -67,7 +69,7 @@ public class MsLogPicker implements DBLogPicker   {
            e.printStackTrace();  
         }  
 	}
-	public void ReadDBLog(MsLogRowData TransMlrd){
+	public ResultSet getLogResultSet(String start, String end){
 		try {
 			Statement statement = md.Db.conn.createStatement();
 			String SqlStr = "Select (Select top 1 object_id from sys.partitions partitions INNER JOIN sys.allocation_units allocunits ON partitions.hobt_id = allocunits.container_id ";
@@ -76,12 +78,26 @@ public class MsLogPicker implements DBLogPicker   {
 			SqlStr += " (case when (operation in('LOP_MODIFY_HEADER')) then Description else null end) as note,[Offset in Row] as offset, ";
 			SqlStr += " [RowLog Contents 0] as r0,[RowLog Contents 1] as r1,[RowLog Contents 2] as r2,[RowLog Contents 3] as r3,[RowLog Contents 4] as r4 , ";
 			SqlStr += " (case when (operation in('LOP_MODIFY_COLUMNS')) then [Log Record] else null end) as [log],[Transaction Begin]  ";
-			SqlStr += " from ::fn_dblog ('0x"+TransMlrd.TransactionBegin+"','0x"+TransMlrd.LSN+"') ";
+			if (end==null|| end.isEmpty()) {
+				SqlStr += " from ::fn_dblog ('0x"+start+"',null) ";
+			}else{
+				SqlStr += " from ::fn_dblog ('0x"+start+"','0x"+end+"') ";
+			}
 			SqlStr += " where (operation in('LOP_INSERT_ROWS','LOP_DELETE_ROWS','LOP_MODIFY_ROW','LOP_MODIFY_COLUMNS') ";
 			SqlStr += " and context in('LCX_HEAP','LCX_CLUSTERED','LCX_MARK_AS_GHOST','LCX_TEXT_MIX','LCX_REMOVE_VERSION_INFO') ";
 			SqlStr += " and description <> 'COMPENSATION' ";
 			SqlStr += " )or (operation in('LOP_BEGIN_XACT','LOP_COMMIT_XACT','LOP_ABORT_XACT') and context='LCX_NULL')";
 			ResultSet Rs = statement.executeQuery(SqlStr);
+			statement.close();
+			return Rs;
+		} catch (SQLException e) {
+			logger.error("读取数据库日志失败！", e);
+		}
+		return null;
+	}
+	public MsTransPkg ReadDBLogPkg(MsLogRowData TransMlrd){
+		try {
+			ResultSet Rs = getLogResultSet(TransMlrd.TransactionBegin, TransMlrd.LSN); 
 			MsTransPkg mtp = new MsTransPkg();
 			while (Rs.next()) {
 				String transId = Rs.getString(6);
@@ -113,19 +129,14 @@ public class MsLogPicker implements DBLogPicker   {
 					mtp.actions.add(mlrd);
 				}
 			}
-			//发送数据到kafka
-			logProducer.SendData(mtp);
-			//在zookeeper上保存lsn
-			zkClient.setLSN(TransMlrd.LSN);			
-			LSN = TransMlrd.LSN;
 			Rs.close();
-			statement.close();
+			return mtp;
 		} catch (SQLException e) {
-			e.printStackTrace();
+			logger.error("读取数据库日志失败！", e);
 		}
-		
+		return null;
 	}
-	
+
 	public void ReadDBLog(){
 		try {
 			if (LSN.equals("")) {
@@ -171,7 +182,10 @@ public class MsLogPicker implements DBLogPicker   {
 						//忽略未知开始的数据,根据最后的LOP_COMMIT_XACT修改数据
 						if (mlrd.operation.equals("LOP_COMMIT_XACT")) {
 							//，如果需要追踪可以根据 LOP_COMMIT_XACT的 transbegin lsn取值
-							ReadDBLog(mlrd);
+							MsTransPkg mPkg = ReadDBLogPkg(mlrd);
+							//发送数据到kafka
+							logProducer.SendData(mPkg);
+							zkClient.setLSN(mlrd.LSN);	
 						}
 						continue;
 					}

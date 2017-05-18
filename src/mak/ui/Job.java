@@ -42,7 +42,7 @@ public class Job {
     	
     	String srcStr = StringUtil.getXmlValueFromStr(aJobStr, "src");
     	zkClient.initCfg(jobKey);
-    	zkClient.setdbConStr(srcStr);
+    	zkClient.setConStr(srcStr);
     	
     	return true;
     }

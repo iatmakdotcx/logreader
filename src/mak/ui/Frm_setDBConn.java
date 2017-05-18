@@ -8,7 +8,7 @@ package mak.ui;
 import mak.tools.StringUtil;
 
 /**
- *
+ * 
  * @author Chin
  */
 public class Frm_setDBConn extends javax.swing.JDialog {
@@ -55,7 +55,6 @@ public class Frm_setDBConn extends javax.swing.JDialog {
         sb.append("<dbName>");
         sb.append(edt_dbName.getText());
         sb.append("</dbName>");
-        sb.append("<logtype>console,app</logtype>");
         ConnStr = sb.toString();
     }
 
@@ -96,6 +95,11 @@ public class Frm_setDBConn extends javax.swing.JDialog {
         jButton2.addMouseListener(new java.awt.event.MouseAdapter() {
             public void mouseClicked(java.awt.event.MouseEvent evt) {
                 jButton2MouseClicked(evt);
+            }
+        });
+        jButton2.addActionListener(new java.awt.event.ActionListener() {
+            public void actionPerformed(java.awt.event.ActionEvent evt) {
+                jButton2ActionPerformed(evt);
             }
         });
 
@@ -219,6 +223,10 @@ public class Frm_setDBConn extends javax.swing.JDialog {
         GenConstr();
         this.setVisible(false);
     }//GEN-LAST:event_jButton1MouseClicked
+
+    private void jButton2ActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_jButton2ActionPerformed
+        this.setVisible(false);
+    }//GEN-LAST:event_jButton2ActionPerformed
 
 
     // Variables declaration - do not modify//GEN-BEGIN:variables

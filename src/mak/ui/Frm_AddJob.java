@@ -16,6 +16,8 @@ public class Frm_AddJob extends javax.swing.JDialog {
     public String ConStrSrc;
     public String ConStrDst;
     public String CfgStr;
+    
+    public boolean singleMode = false;
 
     /**
      * Creates new form Frm_AddJob
@@ -30,6 +32,14 @@ public class Frm_AddJob extends javax.swing.JDialog {
         edt_dst.setText("");
         edt_src.setText("");
         edt_bkPnt.setText("");
+    }
+    
+    public void displaytTodit(){
+        edt_src.setText(DisPlayText(ConStrSrc));
+        edt_dst.setText(DisPlayText(ConStrDst));
+        
+        edt_name.setText(StringUtil.getXmlValueFromStr(CfgStr, ConstString.JobName));
+        edt_bkPnt.setText(StringUtil.getXmlValueFromStr(CfgStr, ConstString.StartTime));
     }
     
     private void getCfgStr(){
@@ -104,6 +114,11 @@ public class Frm_AddJob extends javax.swing.JDialog {
         jPopupMenu1.add(jMenuItem3);
 
         setResizable(false);
+        addWindowListener(new java.awt.event.WindowAdapter() {
+            public void windowActivated(java.awt.event.WindowEvent evt) {
+                formWindowActivated(evt);
+            }
+        });
 
         jLabel1.setText("ÈÎÎñÃû³Æ");
         jLabel1.setToolTipText("");
@@ -296,8 +311,15 @@ public class Frm_AddJob extends javax.swing.JDialog {
     }//GEN-LAST:event_jButton3ActionPerformed
 
     private void jButton4ActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_jButton4ActionPerformed
-        this.setVisible(true);
+        this.setVisible(false);
     }//GEN-LAST:event_jButton4ActionPerformed
+
+    private void formWindowActivated(java.awt.event.WindowEvent evt) {//GEN-FIRST:event_formWindowActivated
+        if (singleMode) {
+            jMenuItem2.setVisible(false);
+        }
+        displaytTodit();
+    }//GEN-LAST:event_formWindowActivated
 
 
     // Variables declaration - do not modify//GEN-BEGIN:variables
