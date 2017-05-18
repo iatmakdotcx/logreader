@@ -117,6 +117,9 @@ public class StringUtil {
     }
 
     public static String getXmlValueFromStr(String Src, String NodeName) {
+    	if (Src==null || Src.isEmpty()) {
+			return "";
+		}
         String res = "";
         int leftIdx = Src.indexOf("<" + NodeName + ">");
         int RightIdx = Src.indexOf("</" + NodeName + ">");
