@@ -28,4 +28,5 @@ public class DBOptInsert implements DBOpt {
 		String result = String.format("INSERT into %s(%s) values(%s)", tableName, s1, s2);
 		return result;
 	}
+	
 }

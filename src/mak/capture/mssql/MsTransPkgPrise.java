@@ -9,6 +9,8 @@ import mak.capture.DBLogPriser;
 import mak.capture.data.DBOptInsert;
 import mak.data.input.GenericLittleEndianAccessor;
 import mak.data.input.SeekOrigin;
+import mak.tools.HexTool;
+import mak.tools.StringUtil;
 
 public class MsTransPkgPrise {
 	private static Logger logger = Logger.getLogger(MsTransPkgPrise.class);  
@@ -34,42 +36,107 @@ public class MsTransPkgPrise {
 		}
 		
 		for (MsLogRowData mlrd : mPkg.actions) {
-			if (mlrd.operation.equals("LOP_INSERT_ROWS")) {
-				if (mlrd.context.equals("LCX_TEXT_MIX")) {
-					String Key = mlrd.pageFID +":" + mlrd.pagePID +":" +mlrd.slotid; 
-					LCX_TEXT_MIX.put(Key, mlrd.r0);
-				}else if (mlrd.context.equals("LCX_HEAP") || mlrd.context.equals("LCX_CLUSTERED")) {
-					mlrd.table = md.list_MsTable.get(mlrd.obj_id);
-					if (mlrd.table == null) {
-						logger.error("解析日志失败！LOP_INSERT_ROWS.obj_id无效 LSN：" + mlrd.LSN);
+			try{
+				if (mlrd.operation.equals("LOP_INSERT_ROWS")) {
+					if (mlrd.context.equals("LCX_TEXT_MIX")) {
+						String Key = mlrd.pageFID +":" + mlrd.pagePID +":" +mlrd.slotid; 
+						LCX_TEXT_MIX.put(Key, mlrd.r0);
+					}else if (mlrd.context.equals("LCX_HEAP") || mlrd.context.equals("LCX_CLUSTERED")) {
+						mlrd.table = md.list_MsTable.get(mlrd.obj_id);
+						if (mlrd.table == null) {
+							logger.error("解析日志失败！LOP_INSERT_ROWS.obj_id无效 LSN：" + mlrd.LSN);
+							return;
+						}
+						DBOptInsert dbi = PriseInsertLog_LOP_INSERT_ROWS(mlrd);
+						System.out.println(dbi.BuildSql());
+					}else{
+						logger.error("解析日志失败！LOP_INSERT_ROWS未知的context："+mlrd.context+" LSN：" + mlrd.LSN);
+						return;
 					}
-					DBOptInsert dbi = PriseInsertLog_LOP_INSERT_ROWS(mlrd);
-					System.out.println(dbi.BuildSql());
+					
+				}else if (mlrd.operation.equals("LOP_MODIFY_ROW")) {
+					//LOP_MODIFY_ROW的记录 Offset 作更新基准
+					if (mlrd.context.equals("LCX_TEXT_MIX")) {
+						String Key = mlrd.pageFID +":" + mlrd.pagePID +":" +mlrd.slotid; 
+						byte[] olddata = LCX_TEXT_MIX.get(Key);
+						byte[] newdata = new byte[mlrd.offset + mlrd.r1.length];
+						System.arraycopy(olddata, 0, newdata, 0, mlrd.offset);
+						System.arraycopy(mlrd.r1, 0, newdata, mlrd.offset, mlrd.r1.length);	
+						LCX_TEXT_MIX.replace(Key, newdata);
+					}else if (mlrd.context.equals("LCX_CLUSTERED")) {
+						
+						
+					}else{
+						logger.error("解析日志失败！LOP_MODIFY_ROW未知的context："+mlrd.context+" LSN：" + mlrd.LSN);
+						return;
+					}
+				}else if (mlrd.operation.equals("LOP_MODIFY_COLUMNS")) {
+					
+					
+					
+				}else if (mlrd.operation.equals("LOP_DELETE_ROWS")) {
+					if (mlrd.context.equals("LCX_TEXT_MIX")) {
+						//二进制数据，删除
+					}else if (mlrd.context.equals("LCX_HEAP") || mlrd.context.equals("LCX_MARK_AS_GHOST")){
+						//LOP_DELETE_ROWS	LCX_MARK_AS_GHOST
+						mlrd.table = md.list_MsTable.get(mlrd.obj_id);
+						if (mlrd.table == null) {
+							logger.error("解析日志失败！LOP_INSERT_ROWS.obj_id无效 LSN：" + mlrd.LSN);
+							return;
+						}
+						DBOptInsert dbi = PriseInsertLog_LOP_INSERT_ROWS(mlrd);
+						System.out.println(BuildDeleteSql(dbi, mlrd));
+						
+					}else if (mlrd.context.equals("LCX_MARK_AS_GHOST")){
+						
+						
+					}
+					
+					
+					
 				}
-				
-			}else if (mlrd.operation.equals("LOP_MODIFY_ROW")) {
-				//LOP_MODIFY_ROW的记录 Offset 作更新基准
-				if (mlrd.context.equals("LCX_TEXT_MIX")) {
-					String Key = mlrd.pageFID +":" + mlrd.pagePID +":" +mlrd.slotid; 
-					byte[] olddata = LCX_TEXT_MIX.get(Key);
-					byte[] newdata = new byte[mlrd.offset + mlrd.r1.length];
-					System.arraycopy(olddata, 0, newdata, 0, mlrd.offset);
-					System.arraycopy(mlrd.r1, 0, newdata, mlrd.offset, mlrd.r1.length);	
-					LCX_TEXT_MIX.replace(Key, newdata);
-				}
-				
-				
-			}else if (mlrd.operation.equals("LOP_MODIFY_COLUMNS")) {
-				
-				
-				
-			}else if (mlrd.operation.equals("LOP_DELETE_ROWS")) {
-				
-				
-				
+			}catch(Exception eee){
+				logger.error("解析日志失败！无效 LSN：" + mlrd.LSN, eee);
 			}
 		}
 	}
+	private String BuildDeleteSql(DBOptInsert dbi, MsLogRowData mlrd){
+		if (dbi == null) {
+			return "";
+		}
+		
+		String s2 = "";
+//		if (table.PrimaryKey != null) {
+//			//如果表有主键，这个就根据主键生成where
+//			for (MsColumn msColumn : table.PrimaryKey.Fields) {
+//				int idx = Fields.indexOf(msColumn);
+//				if (idx == -1) {
+//					md.GetOutPut().Warning("日志解析异常：Delete：试图删除NULL主键值！！LSN" + LSN);
+//					s2 += " and [" + Fields.get(idx).Name + "]=NULL";
+//				}else{
+//					s2 += " and " + MsFunc.BuildSegment(Fields.get(idx), Values.get(idx));
+//				}
+//			}
+//		}else
+		{
+			if (mlrd.table.PrimaryKey != null && mlrd.table.PrimaryKey.Fields != null && mlrd.table.PrimaryKey.Fields.length > 0) {
+				for (MsColumn msColumn : mlrd.table.PrimaryKey.Fields) {
+					int idx = dbi.Fields.indexOf(msColumn);
+					s2 += " and " + MsFunc.BuildSegment(msColumn, dbi.Values.get(idx));
+				}
+			}
+			else{
+				//没有主键就根据所有字段生成where
+				for (int i = 0; i < dbi.Fields.size(); i++) {
+					s2 += " and " + MsFunc.BuildSegment(dbi.Fields.get(i), dbi.Values.get(i));
+				}
+			}
+		}
+		s2 = s2.substring(5);
+		return String.format("DELETE %s where %s", mlrd.table.GetFullName(), s2);
+	}
+	
+	
 	public byte[] get_LCX_TEXT_MIX_DATA(int key1,int key2,int pageFID,int pagePID,int slotid, MsLogRowData mlrd, int dlen) {
 		String key = pageFID + ":" + pagePID + ":" + slotid;
 		byte[] data = LCX_TEXT_MIX.get(key);
@@ -140,6 +207,12 @@ public class MsTransPkgPrise {
 		
 		GenericLittleEndianAccessor glea = new GenericLittleEndianAccessor(mlrd.r0);
 		int LogType = glea.readShort();
+		if ((LogType&0x06)>0) {
+			logger.warn("==================会失败的数据====================");
+			logger.warn(HexTool.toString(mlrd.r0));
+			return null;
+		}
+		
 		/*if (LogType!=0x30) {
 			md.GetOutPut().Error("貌似不是Insert日志："+LSN);
 			return false;
@@ -149,7 +222,7 @@ public class MsTransPkgPrise {
 		glea.seek(inSideDataOffset, SeekOrigin.soFromBeginning);
 		int ColumnCount = glea.readShort();  //当前表列数
 		/*if (ColumnCount != mcs.length) {
-			//FIXME 这里应该重新加载当前表的  MsTable数据
+			//表删除列之后，日志里还是以前的数量
 			logger.error("列数与日志不匹配!" + mlrd.LSN);
 			return null;
 		}*/
@@ -209,6 +282,9 @@ public class MsTransPkgPrise {
 						}
 					}
 				}else{
+					if (isSkipColType(mc)) {
+						continue;
+					}
 					//开始读取数据
 					glea.seek(mc.leaf_pos, SeekOrigin.soFromBeginning);
 					byte[] tmp = glea.read(mc.max_length);
@@ -232,5 +308,16 @@ public class MsTransPkgPrise {
 		return res;
 	}
 	
-	
+	private boolean isSkipColType(MsColumn mc){
+		switch (mc.type_id) {
+			case MsTypes.UNIQUEIDENTIFIER:
+			case MsTypes.HIERARCHYID:
+			case MsTypes.GEOMETRY:
+			case MsTypes.GEOGRAPHY:
+			case MsTypes.TIMESTAMP://这种类型的值不能直接写入数据库
+			return true;
+		default:
+			return false;
+		}
+	}
 }

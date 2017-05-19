@@ -19,6 +19,17 @@ public class MsFunc {
 		return dd;
 	}
 	
+	private static double msConvert_Bytes2Momey(byte[] value, int scale) {
+		long tmplong = 0;
+		if (value.length == 4) {
+			tmplong = ArrayUtil.getBytesInt(value,0);
+		}else{
+			tmplong = ArrayUtil.getByteslong(value,0);
+		}
+		double dd = tmplong * 1.0 / Math.pow(10, scale);
+		return dd;
+	}
+	
 	private static String msConvert_Bytes2DatetimeStr(byte[] arrby) {
 		int ldate = ArrayUtil.getBytesInt(arrby, 0);
 		int hdate = ArrayUtil.getBytesInt(arrby, 4);
@@ -135,8 +146,6 @@ public class MsFunc {
 		}
 		String Result = "";
 		switch (msColumn.type_id) {
-			case MsTypes.IMAGE:throw new UnsupportedOperationException("Not supported yet.");
-			case MsTypes.UNIQUEIDENTIFIER:throw new UnsupportedOperationException("Not supported yet.");
 			case MsTypes.DATE:
 				Result += "'" + msConvert_Bytes2DateStr(value) + "'" ;
 				break;
@@ -183,19 +192,19 @@ public class MsFunc {
 				Result += value[0] == 0 ? "0" : "1";
 				break;
 			case MsTypes.REAL:
-			case MsTypes.MONEY:	
+				Result += Float.intBitsToFloat(ArrayUtil.getBytesInt(value, 0));
+				break;
 			case MsTypes.FLOAT:	
+				Result += Double.longBitsToDouble(ArrayUtil.getByteslong(value, 0));
+				break;
 			case MsTypes.DECIMAL:
 			case MsTypes.NUMERIC:
 				Result += msConvert_Bytes2Float(value, msColumn.scale);
 				break;
-			case MsTypes.SMALLMONEY:throw new UnsupportedOperationException("Not supported yet.");
-			case MsTypes.HIERARCHYID:throw new UnsupportedOperationException("Not supported yet.");
-			case MsTypes.GEOMETRY:throw new UnsupportedOperationException("Not supported yet.");
-			case MsTypes.GEOGRAPHY:throw new UnsupportedOperationException("Not supported yet.");
-			case MsTypes.VARBINARY:throw new UnsupportedOperationException("Not supported yet.");
-			case MsTypes.BINARY:throw new UnsupportedOperationException("Not supported yet.");
-			case MsTypes.TIMESTAMP:throw new UnsupportedOperationException("Not supported yet.");
+			case MsTypes.MONEY:	
+			case MsTypes.SMALLMONEY:
+				Result += msConvert_Bytes2Momey(value, msColumn.scale);
+				break;
 			case MsTypes.SQL_VARIANT:
 				String TmpSqlStr;
 				if (value.length >= 8) {
@@ -219,7 +228,19 @@ public class MsFunc {
 			case MsTypes.NTEXT:
 				Result += "'" + HexTool.toStringFromUnicode(value) + "'";
 				break;
-			case MsTypes.XML:throw new UnsupportedOperationException("Not supported yet.");
+			case MsTypes.XML:
+			case MsTypes.IMAGE:
+			case MsTypes.BINARY:
+			case MsTypes.VARBINARY:
+				Result += "0x"+HexTool.toString(value).replace(" ", "");
+				break;
+			case MsTypes.UNIQUEIDENTIFIER:throw new UnsupportedOperationException("Not supported yet.");
+			case MsTypes.HIERARCHYID:throw new UnsupportedOperationException("Not supported yet.");
+			case MsTypes.GEOMETRY:throw new UnsupportedOperationException("Not supported yet.");
+			case MsTypes.GEOGRAPHY:throw new UnsupportedOperationException("Not supported yet.");
+			case MsTypes.TIMESTAMP:
+				//TIMESTAMP的不能显示的insert值
+				throw new UnsupportedOperationException("Not supported yet.");
 		default:
 			break;
 		}
