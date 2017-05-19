@@ -39,30 +39,30 @@ public class GenericLittleEndianAccessor implements LittleEndianAccessor{
 
 	@Override
 	public short readShort() {
-		int byte1 = this.readByte();
-        int byte2 = this.readByte();
+		int byte1 = this.readByte() & 0xFF;
+        int byte2 = this.readByte() & 0xFF;
         return (short) ((byte2 << 8) + byte1);
 	}
 
 	@Override
 	public int readInt() {
-		int byte1 = this.readByte();
-        int byte2 = this.readByte();
-        int byte3 = this.readByte();
-        int byte4 = this.readByte();
+		int byte1 = this.readByte() & 0xFF;
+        int byte2 = this.readByte() & 0xFF;
+        int byte3 = this.readByte() & 0xFF;
+        int byte4 = this.readByte() & 0xFF;
         return (byte4 << 24) + (byte3 << 16) + (byte2 << 8) + byte1;
 	}
 
 	@Override
 	public long readLong() {
-        long byte1 = this.readByte();
-        long byte2 = this.readByte();
-        long byte3 = this.readByte();
-        long byte4 = this.readByte();
-        long byte5 = this.readByte();
-        long byte6 = this.readByte();
-        long byte7 = this.readByte();
-        long byte8 = this.readByte();
+        long byte1 = this.readByte() & 0xFF;
+        long byte2 = this.readByte() & 0xFF;
+        long byte3 = this.readByte() & 0xFF;
+        long byte4 = this.readByte() & 0xFF;
+        long byte5 = this.readByte() & 0xFF;
+        long byte6 = this.readByte() & 0xFF;
+        long byte7 = this.readByte() & 0xFF;
+        long byte8 = this.readByte() & 0xFF;
 
         return (byte8 << 56) + (byte7 << 48) + (byte6 << 40) + (byte5 << 32) + (byte4 << 24) + (byte3 << 16) + (byte2 << 8) + byte1;
 	}

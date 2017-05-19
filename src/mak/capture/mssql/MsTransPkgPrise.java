@@ -38,12 +38,13 @@ public class MsTransPkgPrise {
 				if (mlrd.context.equals("LCX_TEXT_MIX")) {
 					String Key = mlrd.pageFID +":" + mlrd.pagePID +":" +mlrd.slotid; 
 					LCX_TEXT_MIX.put(Key, mlrd.r0);
-				}else if (mlrd.context.equals("LCX_HEAP")) {
+				}else if (mlrd.context.equals("LCX_HEAP") || mlrd.context.equals("LCX_CLUSTERED")) {
 					mlrd.table = md.list_MsTable.get(mlrd.obj_id);
 					if (mlrd.table == null) {
 						logger.error("解析日志失败！LOP_INSERT_ROWS.obj_id无效 LSN：" + mlrd.LSN);
 					}
-					
+					DBOptInsert dbi = PriseInsertLog_LOP_INSERT_ROWS(mlrd);
+					System.out.println(dbi.BuildSql());
 				}
 				
 			}else if (mlrd.operation.equals("LOP_MODIFY_ROW")) {
@@ -132,6 +133,8 @@ public class MsTransPkgPrise {
 		// ⑨：
 		// |||||||
 		DBOptInsert res = new DBOptInsert();
+		res.obj_id = mlrd.obj_id;
+		res.tableName = mlrd.table.GetFullName();
 		
 		MsColumn[] mcs = mlrd.table.getNullMapSorted_Columns();
 		
@@ -145,13 +148,13 @@ public class MsTransPkgPrise {
 		int inSideDataOffset = glea.readShort();  //系统类型值 数据结尾
 		glea.seek(inSideDataOffset, SeekOrigin.soFromBeginning);
 		int ColumnCount = glea.readShort();  //当前表列数
-		if (ColumnCount != mcs.length) {
+		/*if (ColumnCount != mcs.length) {
 			//FIXME 这里应该重新加载当前表的  MsTable数据
 			logger.error("列数与日志不匹配!" + mlrd.LSN);
 			return null;
-		}
+		}*/
 		int boolbit = 0;
-		int NullMapLength = (mcs.length + 7) >>> 3;
+		int NullMapLength = (ColumnCount + 7) >>> 3;
 		byte[] NullMap = glea.read(NullMapLength);
 		int ExtDataCount = 0;
 		if (glea.available() > 2) {
@@ -168,7 +171,7 @@ public class MsTransPkgPrise {
 				if (mc.is_nullable) {
 					//判断列是否为null
 					int a = mc.nullmap >>> 3;
-					int b = (mc.nullmap & 7) - 1;
+					int b = mc.nullmap & 7;
 					if((NullMap[a] & (1 << b)) > 0){
 						//  cell is null
 						continue;
@@ -186,7 +189,9 @@ public class MsTransPkgPrise {
 						}
 						int datalen = (ExtDataIdxList[idx] & 0x7FFF) - dataBegin;
 						if (datalen <= 0 || datalen > glea.available()) {
-							//data is null
+							//空字符串
+							res.Fields.add(mc);
+							res.Values.add(new byte[0]);
 						}else{
 							glea.seek(dataBegin, SeekOrigin.soFromBeginning);
 							byte[] tmp;

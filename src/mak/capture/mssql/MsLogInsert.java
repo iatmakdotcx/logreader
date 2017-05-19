@@ -71,9 +71,6 @@ public class MsLogInsert extends MsLogRowData implements DBLogPriser {
 				if (mc.leaf_pos < 0) {
 					int idx = 0 - mc.leaf_pos - 1;
 					if (idx < ExtDataIdxList.length) {
-						
-						
-						
 						int dataBegin;
 						if (idx == 0) {
 							dataBegin = ExtDataBaseOffset;
@@ -82,7 +79,9 @@ public class MsLogInsert extends MsLogRowData implements DBLogPriser {
 						}
 						int datalen = (ExtDataIdxList[idx] & 0x7FFF) - dataBegin;
 						if (datalen <= 0 || datalen > glea.available()) {
-							//data is null
+							//¿Õ×Ö·û´®
+							Fields.add(mc);
+							Values.add(new byte[0]);
 						}else{
 							glea.seek(dataBegin, SeekOrigin.soFromBeginning);
 							byte[] tmp = glea.read(datalen);

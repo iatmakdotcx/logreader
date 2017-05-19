@@ -32,7 +32,13 @@ public class MsLogPicker implements DBLogPicker   {
 	
 	public MsLogPicker(){
 	}
-	
+	public boolean init(String jobKey, MsDict md){
+		this.md = md;
+		this.jobKey = jobKey;
+		logProducer.init(this.jobKey);
+		zkClient.initCfg(this.jobKey);
+		return true;
+	}
 	public boolean init(String jobKey, String aJobStr){
 		this.jobKey = jobKey;
 		logProducer.init(this.jobKey);
@@ -69,6 +75,25 @@ public class MsLogPicker implements DBLogPicker   {
            e.printStackTrace();  
         }  
 	}
+	public String getLogSql(String start, String end){
+		String SqlStr = "Select (Select top 1 object_id from sys.partitions partitions INNER JOIN sys.allocation_units allocunits ON partitions.hobt_id = allocunits.container_id ";
+		SqlStr += " where allocunits.allocation_unit_id = [AllocUnitId]) as objid,[RowFlags] as rowflag,[Transaction SID] as sid,[End Time] as transtime, ";
+		SqlStr += " [transaction name] as transname,[Transaction ID] as transid,[Current LSN] as lsn,[PAGE ID] as pageid,[Slot ID] as slotid,operation,context, ";
+		SqlStr += " (case when (operation in('LOP_MODIFY_HEADER')) then Description else null end) as note,[Offset in Row] as offset, ";
+		SqlStr += " [RowLog Contents 0] as r0,[RowLog Contents 1] as r1,[RowLog Contents 2] as r2,[RowLog Contents 3] as r3,[RowLog Contents 4] as r4 , ";
+		SqlStr += " (case when (operation in('LOP_MODIFY_COLUMNS')) then [Log Record] else null end) as [log],[Transaction Begin]  ";
+		if (end==null|| end.isEmpty()) {
+			SqlStr += " from ::fn_dblog ('0x"+start+"',null) ";
+		}else{
+			SqlStr += " from ::fn_dblog ('0x"+start+"','0x"+end+"') ";
+		}
+		SqlStr += " where (operation in('LOP_INSERT_ROWS','LOP_DELETE_ROWS','LOP_MODIFY_ROW','LOP_MODIFY_COLUMNS') ";
+		SqlStr += " and context in('LCX_HEAP','LCX_CLUSTERED','LCX_MARK_AS_GHOST','LCX_TEXT_MIX','LCX_REMOVE_VERSION_INFO') ";
+		SqlStr += " and description <> 'COMPENSATION' ";
+		SqlStr += " )or (operation in('LOP_BEGIN_XACT','LOP_COMMIT_XACT','LOP_ABORT_XACT') and context='LCX_NULL')";
+		return SqlStr;
+	}
+	
 	public ResultSet getLogResultSet(String start, String end){
 		try {
 			Statement statement = md.Db.conn.createStatement();
@@ -95,9 +120,11 @@ public class MsLogPicker implements DBLogPicker   {
 		}
 		return null;
 	}
+	
 	public MsTransPkg ReadDBLogPkg(MsLogRowData TransMlrd){
 		try {
-			ResultSet Rs = getLogResultSet(TransMlrd.TransactionBegin, TransMlrd.LSN); 
+			Statement statement = md.Db.conn.createStatement();
+			ResultSet Rs = statement.executeQuery(getLogSql(TransMlrd.TransactionBegin, TransMlrd.LSN));
 			MsTransPkg mtp = new MsTransPkg();
 			while (Rs.next()) {
 				String transId = Rs.getString(6);
@@ -130,6 +157,7 @@ public class MsLogPicker implements DBLogPicker   {
 				}
 			}
 			Rs.close();
+			statement.close();
 			return mtp;
 		} catch (SQLException e) {
 			logger.error("读取数据库日志失败！", e);

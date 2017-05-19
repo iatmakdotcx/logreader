@@ -25,12 +25,11 @@ public class MssqlSingleJob {
 	private String LSN = "";
 	private MsDict md;
 	
-	
 	public static void main(String[] args) {
 		PropertyConfigurator.configure("config/log4j.properties");
-		String jobkey = "";
-		String LSN = "00000021:000001ad:0010";
-		MssqlSingleJob job = new MssqlSingleJob(jobkey,LSN);
+		String jobkey = "20170518151930566";
+		String LSN = "00000021:00000279:0003";
+		MssqlSingleJob job = new MssqlSingleJob(jobkey, LSN);
 		job.run();
 		
 	}
@@ -60,6 +59,7 @@ public class MssqlSingleJob {
 			TransMlrd.TransactionBegin = Rs.getString(2);
 			
 			MsLogPicker logPicker = new MsLogPicker();
+			logPicker.init(jobkey, md);
 			MsTransPkg mpkg = logPicker.ReadDBLogPkg(TransMlrd);
 			
 			MsTransPkgPrise MTPP = new MsTransPkgPrise(mpkg, md);			

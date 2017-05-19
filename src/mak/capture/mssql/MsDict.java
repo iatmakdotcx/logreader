@@ -132,7 +132,7 @@ public class MsDict extends DBDict {
                 msColumn.scale = scale;
                 msColumn.is_nullable = is_nullable == 1;
                 msColumn.collation_Id = GetCollationId(collation_name);
-                msColumn.nullmap = nullmap;
+                msColumn.nullmap = nullmap - 1;
                 msColumn.leaf_pos = leaf_pos;
                 int Codepage = Rs.getInt(13);
                 if (!Rs.wasNull()) {
