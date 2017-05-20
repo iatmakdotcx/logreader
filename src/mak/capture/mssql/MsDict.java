@@ -180,12 +180,7 @@ public class MsDict extends DBDict {
 							msTable.PrimaryKey.Table = msTable;
 							msTable.PrimaryKey.IsCLUSTERED = string4.equals("CLUSTERED");
 	                	}
-	                	MsColumn[] msKeys = new MsColumn[msTable.PrimaryKey.Fields.length + 1];
-		                if (msTable.PrimaryKey.Fields.length > 0) {
-		                    System.arraycopy(msTable.PrimaryKey.Fields, 0, msKeys, 0, msTable.PrimaryKey.Fields.length);
-		                }
-		                msKeys[msTable.PrimaryKey.Fields.length] = msColumn;
-		                msTable.PrimaryKey.Fields = msKeys;		
+	                	msTable.PrimaryKey.Fields.add(msColumn);
                 	}
 		        }
             }

@@ -165,10 +165,9 @@ public class MsLogUpdate extends MsLogInsert {
 				md.GetOutPut().Warning("更新日志警告："+table.GetFullName()+"r2前缀异常！！！！！LSN:" + LSN);
 			}
 			
-			MsColumn[] mcs = table.PrimaryKey.Fields;
-			for (int i = 0; i < mcs.length; i++) {
-				byte[] datas = glea_key.read(mcs[i].max_length);
-				String TmpStr = MsFunc.BuildSegment(mcs[i], datas);
+			for (MsColumn mColumn : table.PrimaryKey.Fields) {
+				byte[] datas = glea_key.read(mColumn.max_length);
+				String TmpStr = MsFunc.BuildSegment(mColumn, datas);
 				KeyField.add(TmpStr);
 			}
 		}
@@ -342,10 +341,9 @@ public class MsLogUpdate extends MsLogInsert {
 			md.GetOutPut().Warning("更新日志警告："+table.GetFullName()+"r2前缀异常！！！！！LSN:" + LSN);
 		}
 		
-		MsColumn[] mcs = table.PrimaryKey.Fields;
-		for (int i = 0; i < mcs.length; i++) {
-			byte[] datas = glea_key.read(mcs[i].max_length);
-			String TmpStr = MsFunc.BuildSegment(mcs[i], datas);
+		for (MsColumn mColumn : table.PrimaryKey.Fields) {
+			byte[] datas = glea_key.read(mColumn.max_length);
+			String TmpStr = MsFunc.BuildSegment(mColumn, datas);
 			KeyField.add(TmpStr);
 		}
 		return true;
@@ -438,7 +436,7 @@ public class MsLogUpdate extends MsLogInsert {
 		}
 		MsColumn UpdateField = null;
 		for (MsColumn mc : table.GetFields()) {
-			if (mc.theRealPosition == Offset_in_Row) {
+			if (mc.theRealPosition == offset) {
 				UpdateField = mc;
 				break;
 			}
@@ -460,10 +458,9 @@ public class MsLogUpdate extends MsLogInsert {
 			md.GetOutPut().Warning("更新日志警告："+table.GetFullName()+"r2前缀异常！！！！！LSN:" + LSN);
 		}
 		
-		MsColumn[] mcs = table.PrimaryKey.Fields;
-		for (int i = 0; i < mcs.length; i++) {
-			byte[] datas = glea.read(mcs[i].max_length);
-			String TmpStr = MsFunc.BuildSegment(mcs[i], datas);
+		for (MsColumn mColumn : table.PrimaryKey.Fields) {
+			byte[] datas = glea.read(mColumn.max_length);
+			String TmpStr = MsFunc.BuildSegment(mColumn, datas);
 			KeyField.add(TmpStr);
 		}
 		return true;

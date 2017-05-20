@@ -33,6 +33,9 @@ public class zk {
 
                         CONNECT_ADDR = initialProp.getProperty("zookeeper.connect");
                         SESSION_TIMEOUT = Integer.parseInt(initialProp.getProperty("zookeeper.connection.timeout.ms"));
+                        if(SESSION_TIMEOUT == -1){
+                        	SESSION_TIMEOUT = Integer.MAX_VALUE;
+                        }
                         zkClient = new ZkClient(CONNECT_ADDR, SESSION_TIMEOUT);
                     } catch (IOException e) {
                         logger.error("≈‰÷√Œƒº˛∂¡»° ß∞‹£°", e);

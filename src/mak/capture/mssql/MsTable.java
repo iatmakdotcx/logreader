@@ -9,7 +9,8 @@ public class MsTable extends DBTable {
     private HashMap<Integer, MsColumn> Fields_id = new HashMap<Integer, MsColumn>();
     private HashMap<String, MsColumn> Fields_Name = new HashMap<String, MsColumn>();
     public MsIndex PrimaryKey = null;
-    private MsColumn[] nullMapSorted_Columns;
+    private MsColumn[] Sorted_PrimaryColumns = null;
+    private MsColumn[] nullMapSorted_Columns = null;
     
 	public long allocation_unit_id;
 	
@@ -62,8 +63,8 @@ public class MsTable extends DBTable {
     private void calcfldPosition(){
     	int TmpPosi = 0;
 		for (int i = 0; i < nullMapSorted_Columns.length; i++) {
-			if(nullMapSorted_Columns[i].leaf_pos > TmpPosi){
-				TmpPosi = nullMapSorted_Columns[i].leaf_pos;
+			if(nullMapSorted_Columns[i].leaf_pos+1 > TmpPosi){
+				TmpPosi = nullMapSorted_Columns[i].leaf_pos + nullMapSorted_Columns[i].max_length;
 			}
 		}
 		theVarFieldCount = 0;
@@ -104,5 +105,27 @@ public class MsTable extends DBTable {
 			}
     	}
     	return nullMapSorted_Columns;
+    }
+    
+    public MsColumn[] getSorted_PrimaryColumns(){
+    	if(Sorted_PrimaryColumns == null && PrimaryKey!=null && PrimaryKey.Fields.size()>0){
+    		synchronized (this) {
+    			if(Sorted_PrimaryColumns == null){
+    				getNullMapSorted_Columns();
+    				Sorted_PrimaryColumns = new MsColumn[PrimaryKey.Fields.size()];
+    				PrimaryKey.Fields.toArray(Sorted_PrimaryColumns);
+    				for (int i = 0; i < Sorted_PrimaryColumns.length; i++) {
+						for (int j = i + 1; j < Sorted_PrimaryColumns.length; j++) {
+							if (Sorted_PrimaryColumns[i].theRealPosition > Sorted_PrimaryColumns[j].theRealPosition) {
+								MsColumn tmpMc = Sorted_PrimaryColumns[i];
+								Sorted_PrimaryColumns[i] = Sorted_PrimaryColumns[j];
+								Sorted_PrimaryColumns[j] = tmpMc;
+							}
+						}
+					}
+    			}
+			}
+    	}
+    	return Sorted_PrimaryColumns;
     }
 }

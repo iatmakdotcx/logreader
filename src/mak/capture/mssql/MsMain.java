@@ -44,7 +44,7 @@ public class MsMain {
 		mmL.r0 = HexTool.getByteArrayFromHexString("6161616161");
 		mmL.r1 = HexTool.getByteArrayFromHexString("6262626262");
 		mmL.r2 = HexTool.getByteArrayFromHexString("1636433837444631332D454630362D343737332D423732372D444238434233423231443535010000");
-		mmL.Offset_in_Row = 65;
+		mmL.offset = 65;
 		mmL.LSN = "00000017:000000fa:0002";
 		mmL.md = md;
 		

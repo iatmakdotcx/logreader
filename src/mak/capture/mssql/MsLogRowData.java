@@ -25,8 +25,6 @@ public class MsLogRowData implements Serializable{
 	public String operation;
 	public String context;
 	
-	public int Offset_in_Row = 0;	
-	
 	public int offset = -1;
 	
 	public byte[] r0;  //  old value
