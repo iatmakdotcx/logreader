@@ -40,4 +40,8 @@ public class MsColumn extends DBColumn {
 		//TODO: 这里还是存储一下，不要每次都forName慢得慌
 		charset = Charset.forName("Cp"+CodePage);
 	}
+	
+	public String getSafeName(){
+		return "["+Name+"]";
+	}
 }

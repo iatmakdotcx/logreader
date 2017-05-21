@@ -24,7 +24,7 @@ public class MsDict extends DBDict {
 		super(_Db);
 	}
 	
-	private MsDatabase getDB(){
+	public MsDatabase getDB(){
 		return (MsDatabase)this.Db;
 	}
 	

@@ -65,6 +65,7 @@ public class MsTable extends DBTable {
 		for (int i = 0; i < nullMapSorted_Columns.length; i++) {
 			if(nullMapSorted_Columns[i].leaf_pos+1 > TmpPosi){
 				TmpPosi = nullMapSorted_Columns[i].leaf_pos + nullMapSorted_Columns[i].max_length;
+				nullMapSorted_Columns[i].theRealPosition = nullMapSorted_Columns[i].leaf_pos;
 			}
 		}
 		theVarFieldCount = 0;

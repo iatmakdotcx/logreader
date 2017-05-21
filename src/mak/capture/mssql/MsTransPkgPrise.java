@@ -290,9 +290,9 @@ public class MsTransPkgPrise {
 			}
 		}
 
-		if (MustReadPage || true) {
-			//必须读取page数据，生成全局更新！！！
-			if(!getFullUpdateDataByPrimaryKey(mlrd, res)){
+		if (MustReadPage) {
+			//必须读取原始行数据，生成全局更新！！！
+			if(!getFullUpdateDataByPrimaryKey(mlrd, res, null, false)){
 				return null;
 			}
 		}else{
@@ -372,15 +372,14 @@ public class MsTransPkgPrise {
 		res.obj_id = mlrd.table.id;
 		if (mlrd.r2==null || mlrd.r2.length==0) {
 			//TODO:!!!!!!!!没有主键，艹艹艹
-			logger.warn("数据库："+md.Db.GetFullDbName()+"，表:"+ mlrd.table.GetFullName()+"无主键！");
-			
-			
+			logger.warn("数据库："+md.Db.GetFullDbName()+"，表:"+ mlrd.table.GetFullName()+"无主键！更新操作取消！！！！");
+			return null;
 		}else{
 			int nullMapLength = (mlrd.table.getNullMapSorted_Columns().length + 7) >>> 3;
 			int varDataIdxOffset = mlrd.table.theFixedLength + 2 + nullMapLength;
 			if (mlrd.offset > varDataIdxOffset) {
 				//しまった、ここに入ってなら。リアデータを読む
-				if(!getFullUpdateDataByPrimaryKey(mlrd, res)){
+				if(!getFullUpdateDataByPrimaryKey(mlrd, res, null, true)){
 					return null;
 				}
 			}else if(mlrd.offset < mlrd.table.theFixedLength){
@@ -397,9 +396,10 @@ public class MsTransPkgPrise {
 							InitUpdatePrimarykey(mlrd, res);
 						}else if (mlrd.offset > mColumn.theRealPosition && mlrd.offset < mColumn.theRealPosition + mColumn.max_length){
 						    //在列值范围内！，需要访问数据库查找真实数据
-							
-							
-							
+							if(!getFullUpdateDataByPrimaryKey(mlrd, res, mColumn, false)){
+								return null;
+							}
+							break;
 						}
 					}
 				}
@@ -456,11 +456,13 @@ public class MsTransPkgPrise {
 			res.KeyField.add(TmpStr);
 		}
 	}
-	private String getFullUpdateDataFields(MsTable mTable){
+	private String getFullUpdateDataFields(MsTable mTable, boolean JustVarColumn){
 		String res = ""; 
 		for (MsColumn msColumn : mTable.GetFields()) {
 			if (!isSkipColType(msColumn)) {
-				res+= ",["+msColumn.Name+"]";
+				if (!JustVarColumn || msColumn.leaf_pos < 0) {
+					res+= ",["+msColumn.Name+"]";
+				}
 			}
 		}
 		if (!res.isEmpty()) {
@@ -469,21 +471,128 @@ public class MsTransPkgPrise {
 			return "";
 	}
 	
-	private boolean getFullUpdateDataByPrimaryKey(MsLogRowData mlrd, DBOptUpdate res){
-		if (mlrd.r2==null||mlrd.r2.length == 0) {
-			logger.error("解析日志失败！Update没有r2值无效 LSN：" + mlrd.LSN);
-			return false;
+	@SuppressWarnings("unused")
+	@Deprecated
+	private boolean getRowDataFromDbcc(MsLogRowData mlrd) {
+		//!!!不能通过dbcc去获取原始数据!!!!
+		//已知3种情况会得到错误数据
+		//1.如果原始行被删除，获取的将是其它行数据
+		//2.如果写入了聚合列，Slot将被重新排序，得到的也会是错误值！
+		//3.如果表被重建.......数据可能会被分配到其它页
+		
+//		try {
+//			Statement statement = md.Db.conn.createStatement();
+//			String Sql = String.format("dbcc page (%s,%d,%d,1)with tableresults", md.getDB().dbName, mlrd.pageFID, mlrd.pagePID);
+//			ResultSet Rs = statement.executeQuery(Sql);
+//			while (Rs.next()) {
+//			}
+//			Rs.close();
+//			statement.close();
+//			return true;
+//		} catch (SQLException e) {
+//			logger.error("读取数据库原始数据失败！" + mlrd.LSN, e);
+//		}
+		return false;
+	}
+	
+	private String getrsColValueString(ResultSetMetaData rsmd, ResultSet Rs, int i) throws SQLException{
+		String TStr = "["+rsmd.getColumnName(i)+"]=";
+		Rs.getObject(i);
+		if (Rs.wasNull()) {
+			TStr += "NULL";
+		}else{
+			switch (rsmd.getColumnType(i)) {
+			case java.sql.Types.BIT:
+			case java.sql.Types.BOOLEAN:
+				TStr += Rs.getBoolean(i)?"1":"0";
+				break;
+			case java.sql.Types.TINYINT:
+			case java.sql.Types.SMALLINT:
+			case java.sql.Types.INTEGER:
+			case java.sql.Types.BIGINT:
+				TStr += Rs.getInt(i);
+				break;
+			case java.sql.Types.FLOAT:
+			case java.sql.Types.REAL:
+			case java.sql.Types.DOUBLE:
+			case java.sql.Types.NUMERIC:
+			case java.sql.Types.DECIMAL:
+				TStr += Rs.getDouble(i);
+				break;
+			case java.sql.Types.CHAR:
+			case java.sql.Types.VARCHAR:
+			case java.sql.Types.LONGVARCHAR:
+			case java.sql.Types.NCHAR:
+			case java.sql.Types.NVARCHAR:
+			case java.sql.Types.LONGNVARCHAR:
+				TStr += "'" + Rs.getString(i) + "'";
+				break;	
+			case java.sql.Types.DATE:
+				TStr += "'" + Rs.getDate(i).toString() + "'";
+				break;
+			case java.sql.Types.TIME:
+				TStr += "'" + Rs.getTime(i).toString()+ "'";
+				break;
+			case java.sql.Types.TIMESTAMP:
+				DateFormat dateFormat = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss.SSS"); 
+				TStr += "'" + dateFormat.format(Rs.getTimestamp(i).getTime())+"'";
+				break;
+			case -155:
+				TStr += "'" + Rs.getTimestamp(i).toString();
+				int tzo = Rs.getTimestamp(i).getTimezoneOffset();
+				if (tzo<0) {
+					TStr += " +"+Math.abs(tzo)/60+":"+Math.abs(tzo)%60;
+				}else{
+					TStr += " -"+Math.abs(tzo)/60+":"+Math.abs(tzo)%60;
+				}
+				TStr +="'";
+				break;
+			case java.sql.Types.BINARY:
+			case java.sql.Types.VARBINARY:
+			case java.sql.Types.LONGVARBINARY:
+			case java.sql.Types.NULL:
+			case java.sql.Types.OTHER:
+			case java.sql.Types.JAVA_OBJECT:
+			case java.sql.Types.DISTINCT:
+			case java.sql.Types.STRUCT:
+			case java.sql.Types.ARRAY:
+			case java.sql.Types.BLOB:
+			case java.sql.Types.CLOB:
+			case java.sql.Types.REF:
+			case java.sql.Types.DATALINK:
+			case java.sql.Types.ROWID:
+			case java.sql.Types.NCLOB:
+			case java.sql.Types.SQLXML:
+			case java.sql.Types.REF_CURSOR:
+			case java.sql.Types.TIME_WITH_TIMEZONE:
+			case java.sql.Types.TIMESTAMP_WITH_TIMEZONE:
+				TStr += "0x" + HexTool.toString(Rs.getBytes(i)).replace(" ", "");
+				break;
+			default:
+				throw new UnsupportedOperationException("Not supported yet.530");
+			}
 		}
+		return TStr;
+	}
+	
+	private boolean getFullUpdateDataByPrimaryKey(MsLogRowData mlrd, DBOptUpdate res, MsColumn mColumn, boolean JustVarColumn){
 		InitUpdatePrimarykey(mlrd,res);
 		String WhereKey = "";
 		for (String string : res.KeyField) {
 			WhereKey += " and " + string;
 		}
 		WhereKey = WhereKey.substring(5);
-
+		
+		String SelectFields;
+		if (mColumn == null) {
+			SelectFields = getFullUpdateDataFields(mlrd.table, JustVarColumn);
+		}else{
+			SelectFields = mColumn.getSafeName();
+		}
+		
 		try {
 			Statement statement = md.Db.conn.createStatement();
-			String Sql = String.format("SELECT %s FROM %s WHERE %s", getFullUpdateDataFields(mlrd.table), mlrd.table.GetFullName(), WhereKey);
+			String Sql = String.format("SELECT %s FROM %s WHERE %s", SelectFields, mlrd.table.GetFullName(), WhereKey);
 			ResultSet Rs = statement.executeQuery(Sql);
 			if (!Rs.next()) {
 				logger.error("获取更新数据失败！行数据不存在！LSN:" + mlrd.LSN);
@@ -491,85 +600,9 @@ public class MsTransPkgPrise {
 			}
 			ResultSetMetaData rsmd = Rs.getMetaData();
 			for (int i = 1; i <= rsmd.getColumnCount(); i++) {
-				String TStr = "["+rsmd.getColumnName(i)+"]=";
-				Rs.getObject(i);
-				if (Rs.wasNull()) {
-					TStr += "NULL";
-				}else{
-					switch (rsmd.getColumnType(i)) {
-					case java.sql.Types.BIT:
-					case java.sql.Types.BOOLEAN:
-						TStr += Rs.getBoolean(i)?"1":"0";
-						break;
-					case java.sql.Types.TINYINT:
-					case java.sql.Types.SMALLINT:
-					case java.sql.Types.INTEGER:
-					case java.sql.Types.BIGINT:
-						TStr += Rs.getInt(i);
-						break;
-					case java.sql.Types.FLOAT:
-					case java.sql.Types.REAL:
-					case java.sql.Types.DOUBLE:
-					case java.sql.Types.NUMERIC:
-					case java.sql.Types.DECIMAL:
-						TStr += Rs.getDouble(i);
-						break;
-					case java.sql.Types.CHAR:
-					case java.sql.Types.VARCHAR:
-					case java.sql.Types.LONGVARCHAR:
-					case java.sql.Types.NCHAR:
-					case java.sql.Types.NVARCHAR:
-					case java.sql.Types.LONGNVARCHAR:
-						TStr += "'" + Rs.getString(i) + "'";
-						break;	
-					case java.sql.Types.DATE:
-						TStr += "'" + Rs.getDate(i).toString() + "'";
-						break;
-					case java.sql.Types.TIME:
-						TStr += "'" + Rs.getTime(i).toString()+ "'";
-						break;
-					case java.sql.Types.TIMESTAMP:
-						DateFormat dateFormat = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss.SSS"); 
-						TStr += "'" + dateFormat.format(Rs.getTimestamp(i).getTime())+"'";
-						break;
-					case -155:
-						TStr += "'" + Rs.getTimestamp(i).toString();
-						int tzo = Rs.getTimestamp(i).getTimezoneOffset();
-						if (tzo<0) {
-							TStr += " +"+Math.abs(tzo)/60+":"+Math.abs(tzo)%60;
-						}else{
-							TStr += " -"+Math.abs(tzo)/60+":"+Math.abs(tzo)%60;
-						}
-						TStr +="'";
-						break;
-					case java.sql.Types.BINARY:
-					case java.sql.Types.VARBINARY:
-					case java.sql.Types.LONGVARBINARY:
-					case java.sql.Types.NULL:
-					case java.sql.Types.OTHER:
-					case java.sql.Types.JAVA_OBJECT:
-					case java.sql.Types.DISTINCT:
-					case java.sql.Types.STRUCT:
-					case java.sql.Types.ARRAY:
-					case java.sql.Types.BLOB:
-					case java.sql.Types.CLOB:
-					case java.sql.Types.REF:
-					case java.sql.Types.DATALINK:
-					case java.sql.Types.ROWID:
-					case java.sql.Types.NCLOB:
-					case java.sql.Types.SQLXML:
-					case java.sql.Types.REF_CURSOR:
-					case java.sql.Types.TIME_WITH_TIMEZONE:
-					case java.sql.Types.TIMESTAMP_WITH_TIMEZONE:
-						TStr += "0x" + HexTool.toString(Rs.getBytes(i)).replace(" ", "");
-						break;
-					default:
-						throw new UnsupportedOperationException("Not supported yet.530");
-					}
-				}
+				String TStr = getrsColValueString(rsmd, Rs, i);
 				res.NewValues.add(TStr);
 			}
-			
 			Rs.close();
 			statement.close();
 			return true;
