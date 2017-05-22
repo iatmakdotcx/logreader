@@ -10,7 +10,7 @@ package mak.capture;
  * @author Chin
  */
 public interface DBLogPicker extends Runnable {
-	public boolean init(String jobKey, String aJobStr);
+	public boolean init(String jobKey);
 	public void Terminate();
 	public boolean isTerminated();
 	

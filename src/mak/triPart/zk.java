@@ -99,6 +99,11 @@ public class zk {
     public String getConStr() {
         return getPathValue(CONSTR_PATH);
     }
+    
+    public String getConStr(String jobKey) {
+    	String ConstrPath = "/mak/DBlog/config/" + jobKey + "/CONSTR";
+        return getPathValue(ConstrPath);
+    }
 
     /**
      * set configure String

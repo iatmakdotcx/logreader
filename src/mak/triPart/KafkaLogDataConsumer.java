@@ -42,7 +42,6 @@ public class KafkaLogDataConsumer {
         KafkaConsumer<String ,MsTransPkg> consumer = new KafkaConsumer<String ,MsTransPkg>(props);
         consumer.subscribe(Arrays.asList("ssss"));
         while (true) {
-        	
              ConsumerRecords<String, MsTransPkg> records = consumer.poll(100);
              for (ConsumerRecord<String, MsTransPkg> record : records) {
             	 Logger.info(record.key());

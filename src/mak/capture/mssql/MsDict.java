@@ -160,15 +160,40 @@ public class MsDict extends DBDict {
             }
             Rs.close();
             
-            SqlStr = "select sa.object_id,kc.object_id,kc.name,ac.name,ac.column_id,si.type_desc,sc.stats_column_id from sys.key_constraints kc,sys.indexes si,sys.schemas ss,sys.all_objects sa,sys.stats_columns sc,sys.all_columns ac where kc.type = 'PK' and kc.schema_id = ss.schema_id and kc.parent_object_id = sa.object_id and kc.parent_object_id = sc.object_id and kc.unique_index_id = sc.stats_id and sc.column_id = ac.column_id and sc.object_id = ac.object_id and kc.parent_object_id = si.object_id and kc.name = si.name order by kc.object_id,sc.stats_column_id";
+//            SqlStr = "select sa.object_id,kc.object_id,kc.name,ac.name,ac.column_id,si.type_desc,sc.stats_column_id from sys.key_constraints kc,sys.indexes si,sys.schemas ss,sys.all_objects sa,sys.stats_columns sc,sys.all_columns ac where kc.type = 'PK' and kc.schema_id = ss.schema_id and kc.parent_object_id = sa.object_id and kc.parent_object_id = sc.object_id and kc.unique_index_id = sc.stats_id and sc.column_id = ac.column_id and sc.object_id = ac.object_id and kc.parent_object_id = si.object_id and kc.name = si.name order by kc.object_id,sc.stats_column_id";
+//            Rs = statement.executeQuery(SqlStr);
+//            while (Rs.next()) {
+//                int Table_Id = Rs.getInt(1);
+//                int PKobject_id = Rs.getInt(2);
+//                String PK_Name = Rs.getString(3);
+//                //String ColumnName = Rs.getString(4);
+//                int Column_Id = Rs.getInt(5);
+//                String string4 = Rs.getString(6);
+//                msTable = (MsTable)this.list_MsTable.get(Table_Id);
+//                if (msTable != null){
+//                	MsColumn msColumn = msTable.GetColumnbyId(Column_Id);
+//                	if (msColumn != null) {
+//	                	if (msTable.PrimaryKey == null) {
+//							msTable.PrimaryKey = new MsIndex();
+//							msTable.PrimaryKey.id = PKobject_id;
+//							msTable.PrimaryKey.Name = PK_Name;
+//							msTable.PrimaryKey.Table = msTable;
+//							msTable.PrimaryKey.IsCLUSTERED = string4.equals("CLUSTERED");
+//	                	}
+//	                	msTable.PrimaryKey.Fields.add(msColumn);
+//                	}
+//		        }
+//            }
+//            Rs.close();
+            
+            SqlStr = "SELECT i.object_id,i.index_id,i.name,ic.column_id,type_desc,ic.key_ordinal FROM sys.indexes AS i INNER JOIN sys.index_columns AS ic ON i.object_id = ic.object_id AND i.index_id = ic.index_id AND [type]=1 order by i.object_id,ic.key_ordinal";
             Rs = statement.executeQuery(SqlStr);
             while (Rs.next()) {
                 int Table_Id = Rs.getInt(1);
                 int PKobject_id = Rs.getInt(2);
                 String PK_Name = Rs.getString(3);
-                //String ColumnName = Rs.getString(4);
-                int Column_Id = Rs.getInt(5);
-                String string4 = Rs.getString(6);
+                int Column_Id = Rs.getInt(4);
+                String string4 = Rs.getString(5);
                 msTable = (MsTable)this.list_MsTable.get(Table_Id);
                 if (msTable != null){
                 	MsColumn msColumn = msTable.GetColumnbyId(Column_Id);
@@ -178,7 +203,7 @@ public class MsDict extends DBDict {
 							msTable.PrimaryKey.id = PKobject_id;
 							msTable.PrimaryKey.Name = PK_Name;
 							msTable.PrimaryKey.Table = msTable;
-							msTable.PrimaryKey.IsCLUSTERED = string4.equals("CLUSTERED");
+							msTable.PrimaryKey.IsCLUSTERED = "CLUSTERED".equals(string4);
 	                	}
 	                	msTable.PrimaryKey.Fields.add(msColumn);
                 	}

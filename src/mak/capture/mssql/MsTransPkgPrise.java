@@ -35,7 +35,7 @@ public class MsTransPkgPrise {
 	}
 	
 	/**
-	 * 开始分解日志二进制
+	 * 开干！
 	 */
 	public void start(){
 		if (mPkg.actions.size() <= 2) {
@@ -219,9 +219,14 @@ public class MsTransPkgPrise {
 							while(true){
 								if (datalen > 0) {
 									msColumn = mlrd.table.getSorted_VariantColumns()[ColIdx];
-									byte[] sval = value_glea.read(datalen);
-									String TmpStr = MsFunc.BuildSegment(msColumn, sval);
-									res.NewValues.add(TmpStr);
+									if (datalen>glea.available()) {
+										UnLocalValCol.add(msColumn);
+										break;
+									}else{
+										byte[] sval = value_glea.read(datalen);
+										String TmpStr = MsFunc.BuildSegment(msColumn, sval);
+										res.NewValues.add(TmpStr);
+									}
 								}
 								if (value_glea.available() > 0) {
 									datalen = idxs[ColIdx + 1] - idxs[ColIdx];
@@ -242,7 +247,7 @@ public class MsTransPkgPrise {
 //								String TmpStr = MsFunc.BuildSegment(mColumn, mlrd.r0);
 //								res.OldValues.add(TmpStr);
 								
-								if (newValue.length < mColumn.max_length) {
+								if (value_glea.available() < mColumn.max_length) {
 									//只记录了数据前半部分
 									
 									UnLocalValCol.add(mColumn);
@@ -295,9 +300,14 @@ public class MsTransPkgPrise {
 						while(true){
 							if (datalen > 0) {
 								MsColumn msColumn = mlrd.table.getSorted_VariantColumns()[ColIdx];
-								byte[] sval = value_glea.read(datalen);
-								String TmpStr = MsFunc.BuildSegment(msColumn, sval);
-								res.NewValues.add(TmpStr);
+								if (datalen > glea.available()) {
+									UnLocalValCol.add(msColumn);
+									break;
+								}else{
+									byte[] sval = value_glea.read(datalen);
+									String TmpStr = MsFunc.BuildSegment(msColumn, sval);
+									res.NewValues.add(TmpStr);
+								}
 							}
 							if (value_glea.available() > 0) {
 								datalen = idxs[ColIdx + 1] - idxs[ColIdx];
@@ -312,7 +322,13 @@ public class MsTransPkgPrise {
 		}
 		
 		if (includeVarCol || UnLocalValCol.size()>0) {
-			getFullUpdateDataByPrimaryKey(mlrd, res, includeVarCol, UnLocalValCol.toArray(new MsColumn[0]));
+			if ("sys".equals(mlrd.table.Owner)) {
+				//系统表最终还是要用dbcc page读取页数据
+				
+				
+			}else{
+				getFullUpdateDataByPrimaryKey(mlrd, res, includeVarCol, UnLocalValCol.toArray(new MsColumn[0]));
+			}
 		}
 
 		InitUpdatePrimarykey(mlrd, res);
@@ -384,9 +400,16 @@ public class MsTransPkgPrise {
 							while(true){
 								if (datalen > 0) {
 									MsColumn msColumn = mlrd.table.getSorted_VariantColumns()[ColIdx];
-									byte[] sval = glea.read(datalen);
-									String TmpStr = MsFunc.BuildSegment(msColumn, sval);
-									res.NewValues.add(TmpStr);
+									if (datalen>glea.available()) {
+										if(!getFullUpdateDataByPrimaryKey(mlrd, res, false, msColumn)){
+											return null;
+										}
+										break;
+									}else{
+										byte[] sval = glea.read(datalen);
+										String TmpStr = MsFunc.BuildSegment(msColumn, sval);
+										res.NewValues.add(TmpStr);
+									}
 								}
 								if (glea.available() > 0) {
 									datalen = idxs[ColIdx + 1] - idxs[ColIdx];

@@ -7,10 +7,8 @@ import mak.ui.JobMgr;
 public class Start {
 
 	public static void main(String[] args) {
-		PropertyConfigurator.configure("config/log4j.properties");
-		
-		JobMgr.getInstance().loadFromCfg();
-		JobMgr.getInstance().Start(0);
+		PropertyConfigurator.configure("config/log4j.properties");	
+		JobMgr.getInstance().RefreshJob();
+		JobMgr.getInstance().Start("20170522194326941");
 	}
-
 }

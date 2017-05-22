@@ -1,7 +1,5 @@
 package mak.capture.mssql;
 
-import java.io.FileOutputStream;
-import java.io.ObjectOutputStream;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Statement;
@@ -17,12 +15,12 @@ import mak.triPart.zk;
 
 public class MsLogPicker implements DBLogPicker   {
 	private static Logger logger = Logger.getLogger(MsLogPicker.class); 
-	public volatile boolean flag = false;  	
+	private volatile boolean flag = false;  	
 	private String ConnStr;
 	private MsDict md;
-	public String LSN = "00000021:00000129:0001";
+	private String LSN = "00000021:00000129:0001";
 	private KafkaLogDataProducer logProducer = new KafkaLogDataProducer();
-	private zk zkClient = new zk();
+	private zk zkClient = null;
 	private String jobKey = "";
 	/**
 	 * 待完成的集合
@@ -30,8 +28,10 @@ public class MsLogPicker implements DBLogPicker   {
 	 */
 	private HashMap<String, MsTransPkg> TempTransList = new HashMap<>();
 	
-	public MsLogPicker(){
+	public MsLogPicker(zk zkClient){
+		this.zkClient = zkClient;
 	}
+	
 	public boolean init(String jobKey, MsDict md){
 		this.md = md;
 		this.jobKey = jobKey;
@@ -39,19 +39,19 @@ public class MsLogPicker implements DBLogPicker   {
 		zkClient.initCfg(this.jobKey);
 		return true;
 	}
-	public boolean init(String jobKey, String aJobStr){
+	
+	public boolean init(String jobKey){
 		this.jobKey = jobKey;
 		logProducer.init(this.jobKey);
 		zkClient.initCfg(this.jobKey);
 		
-		ConnStr = aJobStr;
+		ConnStr = zkClient.getConStr();
 		String host = StringUtil.getXmlValueFromStr(ConnStr, "host");
 		String usrid = StringUtil.getXmlValueFromStr(ConnStr, "usrId");
 		String pswd = StringUtil.getXmlValueFromStr(ConnStr, "pswd");
 		String dbName = StringUtil.getXmlValueFromStr(ConnStr, "dbName");
-		String logtype = StringUtil.getXmlValueFromStr(ConnStr, "logtype");
 		try{
-			MsDatabase _Db = new MsDatabase(new OutPutMgr(logtype), host, usrid, pswd, dbName);
+			MsDatabase _Db = new MsDatabase(new OutPutMgr(), host, usrid, pswd, dbName);
 			md = new MsDict(_Db);
 			return md.CheckDBState();
 //			if (md.CheckDBState()){
@@ -65,16 +65,14 @@ public class MsLogPicker implements DBLogPicker   {
 		}
 	}
 	
-	public void saveAll(){
-		try    
-        {     
-           ObjectOutputStream o = new ObjectOutputStream( new FileOutputStream("logInfo.out"));     
-           o.writeObject(TempTransList);   //写入数据  
-           o.close();     
-        }catch(Exception e) {  
-           e.printStackTrace();  
-        }  
+	private void ProducerTheData(MsTransPkg mPkg){
+		//TODO:发送数据到MQ Server
+		//logProducer.SendData(mPkg);
+		
+		MsTransPkgPrise MTPP = new MsTransPkgPrise(mPkg, md);			
+		MTPP.start();
 	}
+	
 	public String getLogSql(String start, String end){
 		String SqlStr = "Select (Select top 1 object_id from sys.partitions partitions INNER JOIN sys.allocation_units allocunits ON partitions.hobt_id = allocunits.container_id ";
 		SqlStr += " where allocunits.allocation_unit_id = [AllocUnitId]) as objid,[RowFlags] as rowflag,[Transaction SID] as sid,[End Time] as transtime, ";
@@ -120,10 +118,10 @@ public class MsLogPicker implements DBLogPicker   {
 					mlrd.r4 = Rs.getBytes(18);
 					mlrd.LogRecord = Rs.getBytes(19);
 					mlrd.TransactionBegin = Rs.getString(20);
-					if (mlrd.operation.equals("LOP_BEGIN_XACT")) {
+					if ("LOP_BEGIN_XACT".equals(mlrd.operation)) {
 						mtp.BeginLSN = mlrd.LSN;
 						mtp.TransName = mlrd.transname;	
-					} else if (mlrd.operation.equals("LOP_COMMIT_XACT")) {			
+					} else if ("LOP_COMMIT_XACT".equals(mlrd.operation)) {			
 						mtp.EndLSN = mlrd.LSN;
 					}
 					mtp.actions.add(mlrd);
@@ -162,7 +160,7 @@ public class MsLogPicker implements DBLogPicker   {
 				
 				MsTransPkg mtp = TempTransList.get(mlrd.transId);
 				if (mtp == null) {
-					if (mlrd.operation.equals("LOP_BEGIN_XACT")) {
+					if ("LOP_BEGIN_XACT".equals(mlrd.operation)) {
 						mtp = new MsTransPkg();
 						mtp.BeginLSN = mlrd.LSN;
 						mtp.TransName = mlrd.transname;
@@ -170,11 +168,10 @@ public class MsLogPicker implements DBLogPicker   {
 					}else{
 						//不是事务的开始，且临时列表中不存在
 						//忽略未知开始的数据,根据最后的LOP_COMMIT_XACT修改数据
-						if (mlrd.operation.equals("LOP_COMMIT_XACT")) {
+						if ("LOP_COMMIT_XACT".equals(mlrd.operation)) {
 							//，如果需要追踪可以根据 LOP_COMMIT_XACT的 transbegin lsn取值
 							MsTransPkg mPkg = ReadDBLogPkg(mlrd);
-							//发送数据到kafka
-							logProducer.SendData(mPkg);
+							ProducerTheData(mPkg);
 							zkClient.setLSN(mlrd.LSN);	
 						}
 						continue;
@@ -188,12 +185,11 @@ public class MsLogPicker implements DBLogPicker   {
 				mlrd.LogRecord = Rs.getBytes(19);
 				mtp.addAction(mlrd);
 				
-				if (mlrd.operation.equals("LOP_COMMIT_XACT")) {
+				if ("LOP_COMMIT_XACT".equals(mlrd.operation)) {
 					TempTransList.remove(mlrd.transId);					
 					mtp.EndLSN = mlrd.LSN;
 					 
-					//发送数据到kafka
-					logProducer.SendData(mtp);
+					ProducerTheData(mtp);
 					//在zookeeper上保存lsn
 					zkClient.setLSN(mlrd.LSN);			
 				}

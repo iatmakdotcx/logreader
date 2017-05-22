@@ -5,10 +5,16 @@ import mak.capture.mssql.MsLogPicker;
 import mak.tools.StringUtil;
 import mak.triPart.zk;
 
+/**
+ * 每一个Job包含至少三个线程，1个logpicker, 1个logPriser, 1个sqlExecutor
+ * 
+ * @author Chin
+ *
+ */
 public class Job {
     public String aJobStr;
     public JobState state = JobState.Uninitialized;
-    private String jobKey;
+    public String jobKey;
     private DBLogPicker Logpicker = null;
     private zk zkClient = new zk();
     
@@ -20,6 +26,7 @@ public class Job {
         state = JobState.Stoped;
     }
     
+    @Deprecated
     public Job(String ConSrc, String Condst, String cfgStr) {
         StringBuilder sbsb = new StringBuilder();
         sbsb.append("<root><src>");
@@ -36,23 +43,21 @@ public class Job {
         
         state = JobState.Stoped;
     }
+    
     public boolean Createcfg() {
     	String cfgStr = StringUtil.getXmlValueFromStr(aJobStr, "cfg");
     	jobKey = StringUtil.getXmlValueFromStr(cfgStr, "jobkey");
-    	
-    	String srcStr = StringUtil.getXmlValueFromStr(aJobStr, "src");
     	zkClient.initCfg(jobKey);
-    	zkClient.setConStr(srcStr);
-    	
     	return true;
     }
+    
     public boolean CreateSrc() {
         String srcStr = StringUtil.getXmlValueFromStr(aJobStr, "src");
         String srcType = StringUtil.getXmlValueFromStr(srcStr, "type");
         if (srcType.equals("DB")) {
             String DBType = StringUtil.getXmlValueFromStr(srcStr, "subtype");
             if (DBType.equals("mssql")) {
-                Logpicker = new MsLogPicker();
+                Logpicker = new MsLogPicker(zkClient);
             } else if (DBType.equals("mysql")) {
                 //TODO:  mysql picker
                 throw new UnsupportedOperationException("Not supported yet.");
@@ -111,7 +116,7 @@ public class Job {
     }
 
     public boolean Start() {    	
-        if (Logpicker.init(jobKey, aJobStr)) {
+        if (Logpicker.init(jobKey)) {
             Thread thread = new Thread(Logpicker, "Logpicker");
             thread.start();
         }
