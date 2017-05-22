@@ -11,7 +11,7 @@ import org.slf4j.LoggerFactory;
 import mak.capture.mssql.MsTransPkg;
 
 public class MsTransPkgSerializer implements org.apache.kafka.common.serialization.Serializer<MsTransPkg> {
-	private static Logger Logger = LoggerFactory.getLogger(MsTransPkgSerializer.class);
+	private static Logger logger = LoggerFactory.getLogger(MsTransPkgSerializer.class);
 	@Override
 	public void close() {
 		// TODO Auto-generated method stub
@@ -36,9 +36,9 @@ public class MsTransPkgSerializer implements org.apache.kafka.common.serializati
 			bos.close();
 			return b;
 		} catch (IOException e) {
-			Logger.error("序列化失败！", e);
+			logger.error("序列化失败！", e);
 		}     
-		return null;
+		return new byte[0];
 	}
 
 }

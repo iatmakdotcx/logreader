@@ -6,10 +6,6 @@ import mak.constants.AppConstants;
 
 public class GenericLittleEndianAccessor implements LittleEndianAccessor{
 	private ByteInputStream bs;
-	/**
-	 * 如果读取到数据末尾，之后的读取全部返回0不报EOF错
-	 */
-	public boolean PaddingZeroOnEof = false; 
 
     public GenericLittleEndianAccessor(ByteInputStream bs) {
         this.bs = bs;
@@ -20,16 +16,8 @@ public class GenericLittleEndianAccessor implements LittleEndianAccessor{
     }
     
 	@Override
-	public byte readByte() {
-		if (PaddingZeroOnEof) {
-			if (available() == 0) {
-				return 0;
-			}else{
-				return (byte) this.bs.readByte();
-			}
-		}else{		
-		    return (byte) this.bs.readByte();
-		}
+	public byte readByte() {	
+		return (byte) this.bs.readByte();
 	}
 
 	@Override

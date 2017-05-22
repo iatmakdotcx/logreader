@@ -28,7 +28,7 @@ public class MssqlSingleJob {
 	public static void main(String[] args) {
 		PropertyConfigurator.configure("config/log4j.properties");
 		String jobkey = "20170518151930566";
-		String LSN = "00000029:000000f7:0003";
+		String LSN = "00000029:00000122:0003";
 		MssqlSingleJob job = new MssqlSingleJob(jobkey, LSN);
 		job.run();
 		
@@ -65,6 +65,9 @@ public class MssqlSingleJob {
 			MsTransPkgPrise MTPP = new MsTransPkgPrise(mpkg, md);			
 			MTPP.start();
 			
+			
+			Rs.close();
+			statement.close();
 		} catch (SQLException e) {
 			logger.error("读取数据库日志失败！", e);
 		}

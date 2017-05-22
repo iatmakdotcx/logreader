@@ -24,7 +24,7 @@ public class MsTransPkgPrise {
 	private MsTransPkg mPkg;
 	private MsDict md;
 	
-	public ArrayList<DBLogPriser> Values= new ArrayList<>();
+	private ArrayList<DBLogPriser> Values= new ArrayList<>();
 	private HashMap<String, byte[]> LCX_TEXT_MIX = new HashMap<>();
 	public String aJobStr;
 	
@@ -44,11 +44,11 @@ public class MsTransPkgPrise {
 		
 		for (MsLogRowData mlrd : mPkg.actions) {
 			try{
-				if (mlrd.operation.equals("LOP_INSERT_ROWS")) {
-					if (mlrd.context.equals("LCX_TEXT_MIX")) {
+				if ("LOP_INSERT_ROWS".equals(mlrd.operation)) {
+					if ("LCX_TEXT_MIX".equals(mlrd.context)) {
 						String Key = mlrd.pageFID +":" + mlrd.pagePID +":" +mlrd.slotid; 
 						LCX_TEXT_MIX.put(Key, mlrd.r0);
-					}else if (mlrd.context.equals("LCX_HEAP") || mlrd.context.equals("LCX_CLUSTERED")) {
+					}else if ("LCX_HEAP".equals(mlrd.context) || "LCX_CLUSTERED".equals(mlrd.context)) {
 						mlrd.table = md.list_MsTable.get(mlrd.obj_id);
 						if (mlrd.table == null) {
 							logger.error("解析日志失败！LOP_INSERT_ROWS.obj_id无效 LSN：" + mlrd.LSN);
@@ -61,16 +61,16 @@ public class MsTransPkgPrise {
 						return;
 					}
 					
-				}else if (mlrd.operation.equals("LOP_MODIFY_ROW")) {
+				}else if ("LOP_MODIFY_ROW".equals(mlrd.operation)) {
 					//LOP_MODIFY_ROW的记录 Offset 作更新基准
-					if (mlrd.context.equals("LCX_TEXT_MIX")) {
+					if ("LCX_TEXT_MIX".equals(mlrd.context)) {
 						String Key = mlrd.pageFID +":" + mlrd.pagePID +":" +mlrd.slotid; 
 						byte[] olddata = LCX_TEXT_MIX.get(Key);
 						byte[] newdata = new byte[mlrd.offset + mlrd.r1.length];
 						System.arraycopy(olddata, 0, newdata, 0, mlrd.offset);
 						System.arraycopy(mlrd.r1, 0, newdata, mlrd.offset, mlrd.r1.length);	
 						LCX_TEXT_MIX.replace(Key, newdata);
-					}else if (mlrd.context.equals("LCX_HEAP") || mlrd.context.equals("LCX_CLUSTERED")) {
+					}else if ("LCX_HEAP".equals(mlrd.context) || "LCX_CLUSTERED".equals(mlrd.context)) {
 						mlrd.table = md.list_MsTable.get(mlrd.obj_id);
 						if (mlrd.table == null) {
 							logger.error("解析日志失败！LOP_INSERT_ROWS.obj_id无效 LSN：" + mlrd.LSN);
@@ -83,8 +83,8 @@ public class MsTransPkgPrise {
 						logger.error("解析日志失败！LOP_MODIFY_ROW未知的context："+mlrd.context+" LSN：" + mlrd.LSN);
 						return;
 					}
-				}else if (mlrd.operation.equals("LOP_MODIFY_COLUMNS")) {
-					if (mlrd.context.equals("LCX_CLUSTERED")) {
+				}else if ("LOP_MODIFY_COLUMNS".equals(mlrd.operation)) {
+					if ("LCX_CLUSTERED".equals(mlrd.context)) {
 						mlrd.table = md.list_MsTable.get(mlrd.obj_id);
 						if (mlrd.table == null) {
 							logger.error("解析日志失败！LOP_INSERT_ROWS.obj_id无效 LSN：" + mlrd.LSN);
@@ -96,10 +96,10 @@ public class MsTransPkgPrise {
 						logger.error("解析日志失败！LOP_MODIFY_COLUMNS未知的context："+mlrd.context+" LSN：" + mlrd.LSN);
 						return;
 					}
-				}else if (mlrd.operation.equals("LOP_DELETE_ROWS")) {
-					if (mlrd.context.equals("LCX_TEXT_MIX")) {
+				}else if ("LOP_DELETE_ROWS".equals(mlrd.operation)) {
+					if ("LCX_TEXT_MIX".equals(mlrd.context)) {
 						//二进制数据，删除
-					}else if (mlrd.context.equals("LCX_HEAP") || mlrd.context.equals("LCX_MARK_AS_GHOST")){
+					}else if ("LCX_HEAP".equals(mlrd.context) || "LCX_MARK_AS_GHOST".equals(mlrd.context)){
 						//LOP_DELETE_ROWS	LCX_MARK_AS_GHOST
 						mlrd.table = md.list_MsTable.get(mlrd.obj_id);
 						if (mlrd.table == null) {
@@ -146,93 +146,25 @@ public class MsTransPkgPrise {
 		int position = glea.getBytesRead();
 		glea.seek((position+3)&0xFFFFFFFC, SeekOrigin.soFromBeginning);
 	}
-	/**
-	 * 解析一个包含nullMap和数据索引的Update数据块
-	 * @param isOldValue  
-	 * @param nullMapLen  
-	 * @param BufBlock  数据块
-	 * @param ValueStartOffset
-	 */
-	public void PriseMixedUpdateBlock(MsLogRowData mlrd,DBOptUpdate res,boolean isOldValue, int nullMapLength, int ValueStartOffset, byte[] BufBlock)
-	{
-		//覆盖的nullMap长度
-		int OverlapNullMapLen = nullMapLength - (ValueStartOffset - mlrd.table.theFixedLength);
-		if (OverlapNullMapLen < 0) {
-			//！！！有情况，，特么的都覆盖到fixed数据了
-			md.GetOutPut().Error("解析Update日志出错！！覆盖到fixed数据：LSN：" + mlrd.LSN);
-			return;
-		}
-		
-		if (BufBlock != null && BufBlock.length >= OverlapNullMapLen) {
-			GenericLittleEndianAccessor glea = new GenericLittleEndianAccessor(BufBlock);
-			glea.PaddingZeroOnEof = true;
-			glea.skip(OverlapNullMapLen);//跳过覆盖的nullMap
-			if (glea.available()>0) {
-				//索引块大小,这个是数据存储的variant字段索引表
-				int idxsCount = glea.readShort();
-				short[] idxs = new short[idxsCount];
-				for (int i = 0; i < idxsCount; i++) {
-					idxs[i] = glea.readShort();
-				}
-				
-				PriseValues(mlrd, res, isOldValue, nullMapLength, idxs, glea);
-			}
-		}
-	}
-	
-	private void PriseValues(MsLogRowData mlrd,DBOptUpdate res,boolean isOldValue, int nullMapLength, short[] ValueIdx, GenericLittleEndianAccessor buf){
-		MsColumn msColumn = null;
-		//计算开始更新的列，挨到更新的两个列是放到一块里面的
-		int ColIdx = -1;
-		int dataBaseOffset = mlrd.table.theFixedLength + nullMapLength + ValueIdx.length * 2 + 2;
-		for (int i = 0; i < ValueIdx.length; i++) {
-			int Prv_Datalen = 0;
-			if (i == 0) {
-				Prv_Datalen = ValueIdx[0] - dataBaseOffset;
-			}else{
-				Prv_Datalen = ValueIdx[i] - ValueIdx[i - 1];
-			}
-			if (Prv_Datalen > 0 && ValueIdx[i] > dataBaseOffset) {
-				ColIdx = (mlrd.table.getNullMapSorted_Columns().length - mlrd.table.theVarFieldCount) + i;
-				if (ColIdx < 0 || ColIdx > mlrd.table.getNullMapSorted_Columns().length) {
-					md.GetOutPut().Error("列索引获取失败！！！");
-					return;
-				}
-				msColumn = mlrd.table.getNullMapSorted_Columns()[ColIdx];
-				byte[] data = buf.read(Prv_Datalen); 
-				String TmpStr = MsFunc.BuildSegment(msColumn, data);
-				if (isOldValue) {
-					res.OldValues.add(TmpStr);
-				}else{
-					res.NewValues.add(TmpStr);
-				}
-			}
-		}
-	}
-	
+
 	private DBOptUpdate PriseUpdateLog_LOP_MODIFY_COLUMNS2(MsLogRowData mlrd) {
 		DBOptUpdate res = new DBOptUpdate();
 		res.tableName = mlrd.table.GetFullName();
 		res.obj_id = mlrd.table.id;
-		mlrd.table.getNullMapSorted_Columns();
 		GenericLittleEndianAccessor glea = new GenericLittleEndianAccessor(mlrd.LogRecord);
 		glea.skip(2);
 		int NumElementsOffset = glea.readShort();
 		glea.seek(NumElementsOffset, SeekOrigin.soFromBeginning);
 		
 		int NumElements = glea.readShort();
-		if (NumElements == 4) {
-			//LOP_MODIFY_ROW
-		}else if (NumElements == 8) {
-			//LOP_MODIFY_COLUMNS 更新一个段
-		}else  if (NumElements > 8) {
-			//LOP_MODIFY_COLUMNS 更新多个段
-		}else{
-			//这尼玛就不知道是啥了
-		}
 		short[] elements = new short[NumElements]; 
 		for (int i = 0; i < NumElements; i++) {
 			elements[i] = glea.readShort();
+		}
+		if(elements[2] == 0){
+			//TODO:!!!!!!!!没有主键，艹艹艹
+			logger.warn("数据库："+md.Db.GetFullDbName()+"，表:"+ mlrd.table.GetFullName()+"无主键！更新操作取消！！！");
+			return null;
 		}
 		//开始的索引长度一般 = 2+更新区域*2。第一、二位分别是老数据和新数据的nullmap开始位置
 		byte[] offsetOfUpdatedCell = glea.read(elements[0]);
@@ -243,126 +175,147 @@ public class MsTransPkgPrise {
 		byte[] TableInfo = glea.read(elements[3]);//更新表的主要信息，如表的Object_id
 		align4Byte(glea);
 		
-		byte[] idxOfcells_Old = glea.read(elements[4]);
-		align4Byte(glea);
-		byte[] idxOfcells_New = glea.read(elements[5]);
-		align4Byte(glea);
-		
-		
 		//更新区域数。相邻的字段合并到一个区域
-		int UpdateRangeCount = (NumElements - 6) / 2;
-		//nullMap长度  (	
+		int UpdateRangeCount = elements[0] / 4;
 		int nullMapLength = (mlrd.table.getNullMapSorted_Columns().length + 7) >>> 3;
-		int valIdx = glea.getBytesRead();
-		//指向var列idx（大于这个值的，就不能通过日志获取东西了，必须根据page页获取原始数据！！
-		int varDataIdxOffset = mlrd.table.theFixedLength + 2 + ((mlrd.table.getNullMapSorted_Columns().length + 7) >>> 3);
+		int varDataIdxOffset = mlrd.table.theFixedLength + nullMapLength + 2;
 		
-		boolean MustReadPage = false;
-		//offsetOfUpdatedCell的第一、二位是索引的开始覆盖位置，（如果等于0 的话，就取后面的数据块值
-		int OldOverlapIdxStartOffset = ArrayUtil.getBytesShort(offsetOfUpdatedCell, 0);//一般情况下，这里取老值没有明显意义，忽略了
-		int NewOverlapIdxStartOffset = ArrayUtil.getBytesShort(offsetOfUpdatedCell, 2);
-		if (OldOverlapIdxStartOffset == 0) {
-			for (int i = 0; i < UpdateRangeCount; i++) {
-				int OldValueStartOffset = ArrayUtil.getBytesShort(offsetOfUpdatedCell, 4 + i * 2);
-				if (OldValueStartOffset > varDataIdxOffset) {
-					MustReadPage = true;
-					break;
-				}
-			}
-		}else{
-			if (OldOverlapIdxStartOffset > varDataIdxOffset) {
-				MustReadPage = true;
-			}
-		}
-		if (MustReadPage == false) {
-			if (NewOverlapIdxStartOffset == 0) {
-				for (int i = 0; i < UpdateRangeCount; i++) {
-					int NewValueStartOffset = ArrayUtil.getBytesShort(offsetOfUpdatedCell, 6 + i * 2);	
-					if (NewValueStartOffset > varDataIdxOffset) {
-						MustReadPage = true;
-						break;
-					}
-				}
-			}else{
-				if (NewOverlapIdxStartOffset > varDataIdxOffset) {
-					MustReadPage = true;
-				}
-			}
-		}
-
-		if (MustReadPage) {
-			//必须读取原始行数据，生成全局更新！！！
-			if(!getFullUpdateDataByPrimaryKey(mlrd, res, null, false)){
-				return null;
-			}
-		}else{
-			//lucky！！！，可以根据日志解析，更新前后的值
-			glea.seek(valIdx,SeekOrigin.soFromBeginning);
-			for (int i = 0; i < UpdateRangeCount; i++) {
-
-				byte[] oldValue = glea.read(elements[6 + i * 2]);
-				align4Byte(glea);
-				byte[] newValue = glea.read(elements[6 + i * 2 + 1]);
-				align4Byte(glea);
-	
-				int OldValueStartOffset = ArrayUtil.getBytesShort(offsetOfUpdatedCell, 4 + i * 2);
-				int NewValueStartOffset = ArrayUtil.getBytesShort(offsetOfUpdatedCell, 6 + i * 2);
-				
-				if (OldOverlapIdxStartOffset == 0) {
-					//nullmap等信息在values里面
-					PriseMixedUpdateBlock(mlrd, res, true, nullMapLength, OldValueStartOffset, oldValue);
-				}else{
-					int OverlapNullMapLen = nullMapLength - (OldOverlapIdxStartOffset - mlrd.table.theFixedLength);
-					if (OverlapNullMapLen < 0) {
-						//！！！有情况，，特么的都覆盖到fixed数据了
-						md.GetOutPut().Error("解析Update日志出错！！覆盖到fixed数据：LSN：" + mlrd.LSN);
-						return null;
-					}
-					
-					
-					GenericLittleEndianAccessor glea_idx_old = new GenericLittleEndianAccessor(idxOfcells_Old);
-					glea_idx_old.PaddingZeroOnEof = true;
-					byte[] nullMap = glea_idx_old.read(OverlapNullMapLen);
-					
-					int idxsCount = glea_idx_old.readShort();
-					short[] idxs = new short[idxsCount];
-					for (int j = 0; j < idxsCount; j++) {
-						idxs[j] = glea_idx_old.readShort();
-					}
-					
-					GenericLittleEndianAccessor glea_idx_oldValue = new GenericLittleEndianAccessor(oldValue);
-					PriseValues(mlrd,res, true, OldValueStartOffset, idxs, glea_idx_oldValue);
-				}
-				if (NewOverlapIdxStartOffset == 0) {
-					//nullmap等信息在values里面
-					PriseMixedUpdateBlock(mlrd,res,  true, nullMapLength, NewValueStartOffset, newValue);
-				}else{
-					int OverlapNullMapLen = nullMapLength - (NewOverlapIdxStartOffset - mlrd.table.theFixedLength);
-					if (OverlapNullMapLen < 0) {
-						//！！！有情况，，特么的都覆盖到fixed数据了
-						md.GetOutPut().Error("解析Update日志出错！！覆盖到fixed数据：LSN：" + mlrd.LSN);
-						return null;
-					}
-					
-					GenericLittleEndianAccessor glea_idx_new = new GenericLittleEndianAccessor(idxOfcells_New);
-					glea_idx_new.PaddingZeroOnEof = true;
-					byte[] nullMap = glea_idx_new.read(OverlapNullMapLen);
-					
-					int idxsCount = glea_idx_new.readShort();
-					short[] idxs = new short[idxsCount];
-					for (int j = 0; j < idxsCount; j++) {
-						idxs[j] = glea_idx_new.readShort();
-					}
-					
-					GenericLittleEndianAccessor glea_idx_newValue = new GenericLittleEndianAccessor(newValue);
-					PriseValues(mlrd, res, false, NewValueStartOffset, idxs, glea_idx_newValue);
-				}
-				
-			}
+		boolean includeVarCol = false;
+		ArrayList<MsColumn> UnLocalValCol = new ArrayList<>();
+		short[] idxs = null;
+		//lucky！！！，可以根据日志解析，更新前后的值
+		for (int i = 0; i < UpdateRangeCount; i++) {
+			byte[] oldValue = glea.read(elements[4 + i * 2]);
+			align4Byte(glea);
+			byte[] newValue = glea.read(elements[4 + i * 2 + 1]);
+			align4Byte(glea);
 			
-			InitUpdatePrimarykey(mlrd, res);
+			GenericLittleEndianAccessor value_glea = new GenericLittleEndianAccessor(newValue);
+//			int OldValueStartOffset = ArrayUtil.getBytesShort(offsetOfUpdatedCell, i * 2);
+
+			int NewValueStartOffset = ArrayUtil.getBytesShort(offsetOfUpdatedCell, i * 4 + 2);				
+			if (NewValueStartOffset != 0) {
+				if (NewValueStartOffset > varDataIdxOffset) {
+					//变长列，而且又没有目录表，数据必须要读数据库取值了！
+					if (idxs == null || idxs.length == 0) {
+						includeVarCol = true;
+					}else{
+						//目录表有效，说明可能还有救
+						MsColumn msColumn = null;
+						//计算开始更新的列，挨到更新的两个列是放到一块里面的
+						int ColIdx = -1;
+						int datalen = -1;
+						for (int j = 0; j < idxs.length; j++) {
+							if(idxs[j] == NewValueStartOffset){
+								ColIdx = j + 1;
+								datalen = idxs[j + 1] - idxs[j];
+								break;
+							}
+						}
+						if (ColIdx < 0) {
+							//从列数据中间位置开始写的，卵。。。
+							includeVarCol = true;
+						}else{
+							while(true){
+								if (datalen > 0) {
+									msColumn = mlrd.table.getSorted_VariantColumns()[ColIdx];
+									byte[] sval = value_glea.read(datalen);
+									String TmpStr = MsFunc.BuildSegment(msColumn, sval);
+									res.NewValues.add(TmpStr);
+								}
+								if (value_glea.available() > 0) {
+									datalen = idxs[ColIdx + 1] - idxs[ColIdx];
+									ColIdx += 1;
+								}else{
+									break;
+								}
+							}
+						}
+					}
+				}else if (NewValueStartOffset < mlrd.table.theFixedLength) {
+					//定长列，
+					int writeOffset = NewValueStartOffset;
+					for (MsColumn mColumn : mlrd.table.getNullMapSorted_Columns()) {
+						if (mColumn.leaf_pos > 0) {
+							if (writeOffset == mColumn.theRealPosition) {
+								//找到列
+//								String TmpStr = MsFunc.BuildSegment(mColumn, mlrd.r0);
+//								res.OldValues.add(TmpStr);
+								
+								if (newValue.length < mColumn.max_length) {
+									//只记录了数据前半部分
+									
+									UnLocalValCol.add(mColumn);
+									break;
+								}else{
+									byte[] sval = value_glea.read(mColumn.max_length);
+									String TmpStr = MsFunc.BuildSegment(mColumn, sval);
+									res.NewValues.add(TmpStr);
+									
+									if (value_glea.available() > 0) {
+										//说明列后面还有其它列数据
+										writeOffset = mColumn.theRealPosition + mColumn.max_length;
+									}else{
+										break;
+									}
+								}
+							}else if (writeOffset > mColumn.theRealPosition && writeOffset < mColumn.theRealPosition + mColumn.max_length){
+							    //在列值范围内！，需要访问数据库查找真实数据
+								UnLocalValCol.add(mColumn);
+								int dlen = Math.min(mColumn.theRealPosition + mColumn.max_length - writeOffset, value_glea.available());
+								value_glea.skip(dlen);
+								if (value_glea.available() > 0) {
+									//说明列后面还有其它列数据
+									writeOffset = writeOffset - mColumn.theRealPosition + mColumn.max_length;
+								}else{
+									break;
+								}
+							}
+						}
+					}
+				}else{
+					//覆盖了NullMap，看看有没有完整的变长列目录（有的话就能直接取值，
+					int OverlapNullMapLen = nullMapLength - (NewValueStartOffset - mlrd.table.theFixedLength);
+					byte[] nullMap = value_glea.read(OverlapNullMapLen);
+					int idxsCount = value_glea.readShort();
+					idxs = new short[idxsCount];
+					for (int j = 0; j < idxsCount; j++) {
+						if (value_glea.available() < 2) {
+							break;
+						}
+						idxs[j] = value_glea.readShort();
+					}
+					if (value_glea.available()>0) {
+						//读完目录表，如果还有值，就是数据列了
+						NewValueStartOffset +=  OverlapNullMapLen + 2 + idxs.length * 2; 
+						
+						//计算开始更新的列，挨到更新的两个列是放到一块里面的
+						int ColIdx = 0;
+						int datalen = idxs[0] - NewValueStartOffset;
+						while(true){
+							if (datalen > 0) {
+								MsColumn msColumn = mlrd.table.getSorted_VariantColumns()[ColIdx];
+								byte[] sval = value_glea.read(datalen);
+								String TmpStr = MsFunc.BuildSegment(msColumn, sval);
+								res.NewValues.add(TmpStr);
+							}
+							if (value_glea.available() > 0) {
+								datalen = idxs[ColIdx + 1] - idxs[ColIdx];
+								ColIdx += 1;
+							}else{
+								break;
+							}
+						}
+					}			
+				}
+			}
 		}
 		
+		if (includeVarCol || UnLocalValCol.size()>0) {
+			getFullUpdateDataByPrimaryKey(mlrd, res, includeVarCol, UnLocalValCol.toArray(new MsColumn[0]));
+		}
+
+		InitUpdatePrimarykey(mlrd, res);
 		return res;
 	}
 	
@@ -376,10 +329,10 @@ public class MsTransPkgPrise {
 			return null;
 		}else{
 			int nullMapLength = (mlrd.table.getNullMapSorted_Columns().length + 7) >>> 3;
-			int varDataIdxOffset = mlrd.table.theFixedLength + 2 + nullMapLength;
+			int varDataIdxOffset = mlrd.table.theFixedLength + nullMapLength + 2;
 			if (mlrd.offset > varDataIdxOffset) {
 				//しまった、ここに入ってなら。リアデータを読む
-				if(!getFullUpdateDataByPrimaryKey(mlrd, res, null, true)){
+				if(!getFullUpdateDataByPrimaryKey(mlrd, res, true)){
 					return null;
 				}
 			}else if(mlrd.offset < mlrd.table.theFixedLength){
@@ -396,7 +349,7 @@ public class MsTransPkgPrise {
 							InitUpdatePrimarykey(mlrd, res);
 						}else if (mlrd.offset > mColumn.theRealPosition && mlrd.offset < mColumn.theRealPosition + mColumn.max_length){
 						    //在列值范围内！，需要访问数据库查找真实数据
-							if(!getFullUpdateDataByPrimaryKey(mlrd, res, mColumn, false)){
+							if(!getFullUpdateDataByPrimaryKey(mlrd, res, false, mColumn)){
 								return null;
 							}
 							break;
@@ -405,9 +358,47 @@ public class MsTransPkgPrise {
 				}
 			}else{
 				//覆盖了nullMap
-				PriseMixedUpdateBlock(mlrd, res, true, nullMapLength, mlrd.offset, mlrd.r0);
-				PriseMixedUpdateBlock(mlrd, res, false, nullMapLength, mlrd.offset, mlrd.r1);
+				//PriseMixedUpdateBlock(mlrd, res, true, nullMapLength, mlrd.offset, mlrd.r0);  //old数据没什么用~不要了
+				//PriseMixedUpdateBlock(mlrd, res, false, nullMapLength, mlrd.offset, mlrd.r1);
 				
+				int OverlapNullMapLen = nullMapLength - (mlrd.offset - mlrd.table.theFixedLength);
+				if (mlrd.r1 != null && mlrd.r1.length >= OverlapNullMapLen) {
+					GenericLittleEndianAccessor glea = new GenericLittleEndianAccessor(mlrd.r1);
+					glea.skip(OverlapNullMapLen);//跳过覆盖的nullMap
+					if (glea.available()>0) {
+						//索引块大小,这个是数据存储的variant字段索引表
+						int idxsCount = glea.readShort();
+						short[] idxs = new short[idxsCount];
+						for (int i = 0; i < idxsCount; i++) {
+							if (glea.available() < 2) {
+								break;
+							}
+							idxs[i] = glea.readShort();
+						}
+						
+						//PriseValues(mlrd, res, false, nullMapLength, idxs, glea);
+						if (glea.available()>0) {
+							//计算开始更新的列，挨到更新的两个列是放到一块里面的
+							int ColIdx = 0;
+							int datalen = idxs[0] - (mlrd.offset + OverlapNullMapLen + 2 + idxs.length * 2);
+							while(true){
+								if (datalen > 0) {
+									MsColumn msColumn = mlrd.table.getSorted_VariantColumns()[ColIdx];
+									byte[] sval = glea.read(datalen);
+									String TmpStr = MsFunc.BuildSegment(msColumn, sval);
+									res.NewValues.add(TmpStr);
+								}
+								if (glea.available() > 0) {
+									datalen = idxs[ColIdx + 1] - idxs[ColIdx];
+									ColIdx += 1;
+								}else{
+									break;
+								}
+							}
+						}
+					}
+				}
+
 				InitUpdatePrimarykey(mlrd, res);
 			}
 		}
@@ -415,6 +406,10 @@ public class MsTransPkgPrise {
 	}
 	
 	private void InitUpdatePrimarykey(MsLogRowData mlrd, DBOptUpdate res){
+		if (res.KeyField!=null && res.KeyField.size() > 0) {
+			return;
+		}
+		
 		GenericLittleEndianAccessor glea_key = new GenericLittleEndianAccessor(mlrd.r2);
 		byte prefix = glea_key.readByte();
 		//16定长主键列，36变长主键列
@@ -456,12 +451,28 @@ public class MsTransPkgPrise {
 			res.KeyField.add(TmpStr);
 		}
 	}
-	private String getFullUpdateDataFields(MsTable mTable, boolean JustVarColumn){
+	/**
+	 * 获取所有的变长列
+	 * @param mTable
+	 * @return
+	 */
+	private String getFullUpdateDataVarFields(MsTable mTable, MsColumn... itemList){
 		String res = ""; 
 		for (MsColumn msColumn : mTable.GetFields()) {
 			if (!isSkipColType(msColumn)) {
-				if (!JustVarColumn || msColumn.leaf_pos < 0) {
-					res+= ",["+msColumn.Name+"]";
+				if (msColumn.leaf_pos < 0) {
+					boolean containsInList = false;
+					if (itemList!=null && itemList.length>0) {
+						for (MsColumn item : itemList) {
+							if (item.equals(msColumn)) {
+								containsInList = true;
+								break;
+							}
+						}
+					}
+					if (!containsInList) {
+						res+= ",["+msColumn.Name+"]";
+					}
 				}
 			}
 		}
@@ -575,7 +586,16 @@ public class MsTransPkgPrise {
 		return TStr;
 	}
 	
-	private boolean getFullUpdateDataByPrimaryKey(MsLogRowData mlrd, DBOptUpdate res, MsColumn mColumn, boolean JustVarColumn){
+	/**
+	 * 
+	 * 通过select访问数据库，获取列最新值
+	 * @param mlrd
+	 * @param res
+	 * @param includeVarColumn 是否包含变长列
+	 * @param mColumn 要更新的定长列集合
+	 * @return
+	 */
+	private boolean getFullUpdateDataByPrimaryKey(MsLogRowData mlrd, DBOptUpdate res, boolean includeVarColumn, MsColumn... mColumn){
 		InitUpdatePrimarykey(mlrd,res);
 		String WhereKey = "";
 		for (String string : res.KeyField) {
@@ -583,11 +603,13 @@ public class MsTransPkgPrise {
 		}
 		WhereKey = WhereKey.substring(5);
 		
-		String SelectFields;
-		if (mColumn == null) {
-			SelectFields = getFullUpdateDataFields(mlrd.table, JustVarColumn);
-		}else{
-			SelectFields = mColumn.getSafeName();
+		String SelectFields = includeVarColumn?getFullUpdateDataVarFields(mlrd.table, mColumn):"";
+		for (MsColumn item : mColumn) {
+			if(SelectFields.isEmpty()){
+				SelectFields += item.getSafeName();
+			}else{
+				SelectFields += "," + item.getSafeName();
+			}
 		}
 		
 		try {
@@ -721,7 +743,7 @@ public class MsTransPkgPrise {
 					//判断列是否为null
 					int a = mc.nullmap >>> 3;
 					int b = mc.nullmap & 7;
-					if((NullMap[a] & (1 << b)) > 0){
+					if(((NullMap[a] & 0xFF) & (1 << b)) > 0){
 						//  cell is null
 						continue;
 					}

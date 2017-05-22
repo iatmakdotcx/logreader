@@ -10,9 +10,10 @@ package mak.ui;
  * @author Chin
  */
 public class ConstString {
+	private ConstString() {
+	}
     public static final String cfgTagName = "cfg";
     public static final String JobName = "JobName";
     public static final String StartTime = "StartTime";
-    
-    
+
 }

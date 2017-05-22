@@ -1,6 +1,8 @@
 package mak.capture.mssql;
 
 public class MsTypes {
+	private MsTypes() {
+	}
 	public static final int IMAGE = 34;
 	public static final int TEXT = 35;
 	public static final int UNIQUEIDENTIFIER = 36;

@@ -120,7 +120,6 @@ public class MsLogUpdate extends MsLogInsert {
 					
 					
 					GenericLittleEndianAccessor glea_idx_old = new GenericLittleEndianAccessor(idxOfcells_Old);
-					glea_idx_old.PaddingZeroOnEof = true;
 					byte[] nullMap = glea_idx_old.read(OverlapNullMapLen);
 					
 					int idxsCount = glea_idx_old.readShort();
@@ -144,7 +143,6 @@ public class MsLogUpdate extends MsLogInsert {
 					}
 					
 					GenericLittleEndianAccessor glea_idx_new = new GenericLittleEndianAccessor(idxOfcells_New);
-					glea_idx_new.PaddingZeroOnEof = true;
 					byte[] nullMap = glea_idx_new.read(OverlapNullMapLen);
 					
 					int idxsCount = glea_idx_new.readShort();
@@ -194,7 +192,6 @@ public class MsLogUpdate extends MsLogInsert {
 		
 		if (BufBlock != null && BufBlock.length >= OverlapNullMapLen) {
 			GenericLittleEndianAccessor glea = new GenericLittleEndianAccessor(BufBlock);
-			glea.PaddingZeroOnEof = true;
 			glea.skip(OverlapNullMapLen);//跳过覆盖的nullMap
 			if (glea.available()>0) {
 				//索引块大小,这个是数据存储的variant字段索引表
@@ -304,7 +301,7 @@ public class MsLogUpdate extends MsLogInsert {
 				PriseMixedUpdateBlock(true, OldNullMapLength, oldValue, OldValueStartOffset);
 			}else{
 				GenericLittleEndianAccessor glea_idx_old = new GenericLittleEndianAccessor(idxOfcells_Old);
-				glea_idx_old.PaddingZeroOnEof = true;
+
 				byte[] nullMap = glea_idx_old.read(OldNullMapLength);
 				
 				int idxsCount = glea_idx_old.readShort();
@@ -321,7 +318,6 @@ public class MsLogUpdate extends MsLogInsert {
 				PriseMixedUpdateBlock(false, NewNullMapLength, newValue, NewValueStartOffset);
 			}else{
 				GenericLittleEndianAccessor glea_idx_new = new GenericLittleEndianAccessor(idxOfcells_New);
-				glea_idx_new.PaddingZeroOnEof = true;
 				byte[] nullMap = glea_idx_new.read(NewNullMapLength);
 				
 				int idxsCount = glea_idx_new.readShort();
@@ -360,7 +356,6 @@ public class MsLogUpdate extends MsLogInsert {
 	{
 		if (BufBlock != null && BufBlock.length >= nullMapLen) {
 			GenericLittleEndianAccessor glea = new GenericLittleEndianAccessor(BufBlock);
-			glea.PaddingZeroOnEof = true;
 			byte[] nullMap = glea.read(nullMapLen);
 			if (glea.available()>0) {
 				//索引块大小,这个是数据存储的variant字段索引表

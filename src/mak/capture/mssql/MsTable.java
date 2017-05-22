@@ -1,5 +1,6 @@
 package mak.capture.mssql;
 
+import java.util.ArrayList;
 import java.util.HashMap;
 
 import mak.capture.DBTable;
@@ -11,6 +12,7 @@ public class MsTable extends DBTable {
     public MsIndex PrimaryKey = null;
     private MsColumn[] Sorted_PrimaryColumns = null;
     private MsColumn[] nullMapSorted_Columns = null;
+    private MsColumn[] Sorted_VariantColumns = null;
     
 	public long allocation_unit_id;
 	
@@ -129,4 +131,23 @@ public class MsTable extends DBTable {
     	}
     	return Sorted_PrimaryColumns;
     }
+    
+    
+    
+	public MsColumn[] getSorted_VariantColumns() {
+		if (Sorted_VariantColumns == null) {
+			synchronized (this) {
+				if (Sorted_VariantColumns == null) {
+					ArrayList<MsColumn> tmpList = new ArrayList<>();
+					for (MsColumn msColumn : getNullMapSorted_Columns()) {
+						if (msColumn.leaf_pos < 0) {
+							tmpList.add(msColumn);
+						}
+					}
+					Sorted_VariantColumns = tmpList.toArray(new MsColumn[0]);
+				}
+			}
+		}
+		return Sorted_VariantColumns;
+	}
 }

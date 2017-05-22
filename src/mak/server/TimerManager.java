@@ -125,7 +125,7 @@ public class TimerManager {
         public void run() {
             try {
                 r.run();
-            } catch (Throwable t) {
+            } catch (Exception t) {
                 t.printStackTrace();
             }
         }

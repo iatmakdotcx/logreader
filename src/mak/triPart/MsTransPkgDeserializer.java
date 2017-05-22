@@ -11,7 +11,7 @@ import org.slf4j.LoggerFactory;
 import mak.capture.mssql.MsTransPkg;
 
 public class MsTransPkgDeserializer implements org.apache.kafka.common.serialization.Deserializer<MsTransPkg>  {
-	private static Logger Logger = LoggerFactory.getLogger(MsTransPkgDeserializer.class);
+	private static Logger logger = LoggerFactory.getLogger(MsTransPkgDeserializer.class);
 	@Override
 	public void close() {
 		// TODO Auto-generated method stub
@@ -34,7 +34,7 @@ public class MsTransPkgDeserializer implements org.apache.kafka.common.serializa
 			ois.close();
 			return mTransPkg;
 		} catch (IOException | ClassNotFoundException e) {
-			Logger.error("反序列化失败！", e);
+			logger.error("反序列化失败！", e);
 		}  
 		return null;
 	}

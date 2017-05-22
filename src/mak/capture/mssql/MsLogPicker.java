@@ -81,7 +81,7 @@ public class MsLogPicker implements DBLogPicker   {
 		SqlStr += " [transaction name] as transname,[Transaction ID] as transid,[Current LSN] as lsn,[PAGE ID] as pageid,[Slot ID] as slotid,operation,context, ";
 		SqlStr += " (case when (operation in('LOP_MODIFY_HEADER')) then Description else null end) as note,[Offset in Row] as offset, ";
 		SqlStr += " [RowLog Contents 0] as r0,[RowLog Contents 1] as r1,[RowLog Contents 2] as r2,[RowLog Contents 3] as r3,[RowLog Contents 4] as r4 , ";
-		SqlStr += " (case when (operation in('LOP_MODIFY_COLUMNS','LOP_MODIFY_ROW')) then [Log Record] else null end) as [log],[Transaction Begin]  ";
+		SqlStr += " (case when (operation in('LOP_MODIFY_COLUMNS')) then [Log Record] else null end) as [log],[Transaction Begin]  ";
 		if (end==null|| end.isEmpty()) {
 			SqlStr += " from ::fn_dblog ('0x"+start+"',null) ";
 		}else{
