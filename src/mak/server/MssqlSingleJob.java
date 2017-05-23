@@ -27,9 +27,9 @@ public class MssqlSingleJob {
 	
 	public static void main(String[] args) {
 		PropertyConfigurator.configure("config/log4j.properties");
-		String jobkey = "20170518151930566"; //0.61
-		//String jobkey = "20170522194728472";  //0.22	
-		String LSN = "00000029:00000158:0003";
+		//String jobkey = "20170518151930566"; //0.61
+		String jobkey = "20170522194728472";  //0.22	
+		String LSN = "0000a45d:00000100:0137";
 		MssqlSingleJob job = new MssqlSingleJob(jobkey, LSN);
 		job.run();
 		

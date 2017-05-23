@@ -162,7 +162,7 @@ public class MsTransPkgPrise {
 			elements[i] = glea.readShort();
 		}
 		if(elements[2] == 0){
-			//TODO:!!!!!!!!没有主键，艹艹艹
+			//!!!!!!!!没有主键，艹艹艹
 			logger.warn("数据库："+md.Db.GetFullDbName()+"，表:"+ mlrd.table.GetFullName()+"无主键！更新操作取消！！！");
 			return null;
 		}
@@ -179,6 +179,8 @@ public class MsTransPkgPrise {
 		int UpdateRangeCount = elements[0] / 4;
 		int nullMapLength = (mlrd.table.getNullMapSorted_Columns().length + 7) >>> 3;
 		int varDataIdxOffset = mlrd.table.theFixedLength + nullMapLength + 2;
+		
+		byte[] RealNullMap = new byte[nullMapLength];
 		
 		boolean includeVarCol = false;
 		ArrayList<MsColumn> UnLocalValCol = new ArrayList<>();
@@ -217,8 +219,14 @@ public class MsTransPkgPrise {
 							includeVarCol = true;
 						}else{
 							while(true){
-								if (datalen > 0) {
-									msColumn = mlrd.table.getSorted_VariantColumns()[ColIdx];
+								msColumn = mlrd.table.getSorted_VariantColumns()[ColIdx];						
+								if (datalen == 0){	
+									if(ColisNull(RealNullMap, msColumn)){
+										res.NewValues.add(msColumn.getSafeName()+"=NULL");
+									}else{
+										res.NewValues.add(msColumn.getSafeName()+"=''");
+									}
+								}else if (datalen > 0) {
 									if (datalen>glea.available()) {
 										UnLocalValCol.add(msColumn);
 										break;
@@ -249,8 +257,8 @@ public class MsTransPkgPrise {
 								
 								if (value_glea.available() < mColumn.max_length) {
 									//只记录了数据前半部分
-									
 									UnLocalValCol.add(mColumn);
+									value_glea.skip(value_glea.available());
 									break;
 								}else{
 									byte[] sval = value_glea.read(mColumn.max_length);
@@ -278,73 +286,113 @@ public class MsTransPkgPrise {
 							}
 						}
 					}
+					if (value_glea.available()>0) {
+						//包含nullMap
+						value_glea.skip(2);
+						byte[] TmlNullMap = value_glea.read(value_glea.available());
+						System.arraycopy(TmlNullMap, 0, RealNullMap, 0, Math.min(TmlNullMap.length, RealNullMap.length));
+					}
 				}else{
 					//覆盖了NullMap，看看有没有完整的变长列目录（有的话就能直接取值，
 					int OverlapNullMapLen = nullMapLength - (NewValueStartOffset - mlrd.table.theFixedLength);
 					byte[] nullMap = value_glea.read(OverlapNullMapLen);
-					int idxsCount = value_glea.readShort();
-					idxs = new short[idxsCount];
-					for (int j = 0; j < idxsCount; j++) {
-						if (value_glea.available() < 2) {
-							break;
-						}
-						idxs[j] = value_glea.readShort();
-					}
-					if (value_glea.available()>0) {
-						//读完目录表，如果还有值，就是数据列了
-						NewValueStartOffset +=  OverlapNullMapLen + 2 + idxs.length * 2; 
-						
-						//计算开始更新的列，挨到更新的两个列是放到一块里面的
-						int ColIdx = 0;
-						int datalen = idxs[0] - NewValueStartOffset;
-						while(true){
-							if (datalen > 0) {
-								MsColumn msColumn = mlrd.table.getSorted_VariantColumns()[ColIdx];
-								if (datalen > glea.available()) {
-									UnLocalValCol.add(msColumn);
-									break;
-								}else{
-									byte[] sval = value_glea.read(datalen);
-									String TmpStr = MsFunc.BuildSegment(msColumn, sval);
-									res.NewValues.add(TmpStr);
-								}
-							}
-							if (value_glea.available() > 0) {
-								datalen = idxs[ColIdx + 1] - idxs[ColIdx];
-								ColIdx += 1;
-							}else{
+					System.arraycopy(nullMap, 0, RealNullMap, RealNullMap.length-OverlapNullMapLen, Math.min(nullMap.length, RealNullMap.length));
+					if (value_glea.available() > 2){
+						//说明nullMap后面还有变成列目录
+						int idxsCount = value_glea.readShort();
+						idxs = new short[idxsCount];
+						for (int j = 0; j < idxsCount; j++) {
+							if (value_glea.available() < 2) {
 								break;
 							}
+							idxs[j] = value_glea.readShort();
 						}
-					}			
+						if (value_glea.available()>0) {
+							//读完目录表，如果还有值，就是数据列了
+							NewValueStartOffset +=  OverlapNullMapLen + 2 + idxs.length * 2; 
+							
+							//计算开始更新的列，挨到更新的两个列是放到一块里面的
+							int ColIdx = 0;
+							int datalen = idxs[0] - NewValueStartOffset;
+							while(true){
+								MsColumn msColumn = mlrd.table.getSorted_VariantColumns()[ColIdx];							
+								if (datalen == 0){	
+									if(ColisNull(RealNullMap, msColumn)){
+										res.NewValues.add(msColumn.getSafeName()+"=NULL");
+									}else{
+										res.NewValues.add(msColumn.getSafeName()+"=''");
+									}
+								}else if (datalen > 0) {
+									if (datalen > glea.available()) {
+										UnLocalValCol.add(msColumn);
+										break;
+									}else{
+										byte[] sval = value_glea.read(datalen);
+										String TmpStr = MsFunc.BuildSegment(msColumn, sval);
+										res.NewValues.add(TmpStr);
+									}
+								}
+								if (value_glea.available() > 0) {
+									datalen = idxs[ColIdx + 1] - idxs[ColIdx];
+									ColIdx += 1;
+								}else{
+									break;
+								}
+							}
+						}	
+					}
 				}
 			}
 		}
 		
 		if (includeVarCol || UnLocalValCol.size()>0) {
 			if ("sys".equals(mlrd.table.Owner)) {
-				//系统表最终还是要用dbcc page读取页数据
-				
-				
+				//TODO:系统表最终还是要用dbcc page读取页数据
 			}else{
 				getFullUpdateDataByPrimaryKey(mlrd, res, includeVarCol, UnLocalValCol.toArray(new MsColumn[0]));
 			}
 		}
-
+		ClearNullFlagCol(mlrd, res, RealNullMap);
 		InitUpdatePrimarykey(mlrd, res);
 		return res;
+	}
+	
+	private boolean ColisNull(byte[] NullMap, MsColumn mCol){
+		int a = mCol.nullmap >>> 3;
+		int b = mCol.nullmap & 7;
+		if(((NullMap[a] & 0xFF) & (1 << b)) > 0){
+			return true;			
+		}else {
+			return false;
+		}
+	}
+	
+	private void ClearNullFlagCol(MsLogRowData mlrd, DBOptUpdate res, byte[] NullMap){
+		for (MsColumn mCol : mlrd.table.getNullMapSorted_Columns()) {
+			if (ColisNull(NullMap,mCol)) {
+				for (int i = 0; i < res.NewValues.size() ; i++) {
+					String fldStr = res.NewValues.get(i);
+					if (fldStr.startsWith(mCol.getSafeName())) {
+						res.NewValues.set(i, mCol.getSafeName()+"=NULL");
+						break;
+					}
+				}
+			}
+		}
 	}
 	
 	private DBOptUpdate PriseUpdateLog_LOP_MODIFY_ROW(MsLogRowData mlrd) {
 		DBOptUpdate res = new DBOptUpdate();
 		res.tableName = mlrd.table.GetFullName();
 		res.obj_id = mlrd.table.id;
+		byte[] RealNullMap;
 		if (mlrd.r2==null || mlrd.r2.length==0) {
-			//TODO:!!!!!!!!没有主键，艹艹艹
+			//!!!!!!!!没有主键，艹艹艹
 			logger.warn("数据库："+md.Db.GetFullDbName()+"，表:"+ mlrd.table.GetFullName()+"无主键！更新操作取消！！！！");
 			return null;
 		}else{
 			int nullMapLength = (mlrd.table.getNullMapSorted_Columns().length + 7) >>> 3;
+			RealNullMap = new byte[nullMapLength];
 			int varDataIdxOffset = mlrd.table.theFixedLength + nullMapLength + 2;
 			if (mlrd.offset > varDataIdxOffset) {
 				//しまった、ここに入ってなら。リアデータを読む
@@ -353,16 +401,45 @@ public class MsTransPkgPrise {
 				}
 			}else if(mlrd.offset < mlrd.table.theFixedLength){
 				//修改范围是固定长度字段
-			    for (MsColumn mColumn : mlrd.table.getNullMapSorted_Columns()) {
+			    for (int i = 0; i < mlrd.table.getNullMapSorted_Columns().length; i++) {
+			    	MsColumn mColumn = mlrd.table.getNullMapSorted_Columns()[i];
 					if (mColumn.leaf_pos > 0) {
 						if (mlrd.offset == mColumn.theRealPosition) {
 							//找到列
-							String TmpStr = MsFunc.BuildSegment(mColumn, mlrd.r0);
-							res.OldValues.add(TmpStr);
-							TmpStr = MsFunc.BuildSegment(mColumn, mlrd.r1);
-							res.NewValues.add(TmpStr);
-							
+//							String TmpStr = MsFunc.BuildSegment(mColumn, mlrd.r0);
+//							res.OldValues.add(TmpStr);
+							GenericLittleEndianAccessor glea = new GenericLittleEndianAccessor(mlrd.r1);
+							while(true){
+								if (glea.available() < mColumn.max_length) {
+									//只记录了数据前半部分
+									if(!getFullUpdateDataByPrimaryKey(mlrd, res, false, mColumn)){
+										return null;
+									}
+									break;
+								}else{
+									byte[] sval = glea.read(mColumn.max_length);
+									String TmpStr = MsFunc.BuildSegment(mColumn, sval);
+									res.NewValues.add(TmpStr);
+									if (glea.available()>0) {
+										i++;
+										if (i >= mlrd.table.getNullMapSorted_Columns().length) {
+											//后续的是NullMap
+											glea.skip(2);//跳过2个字段数
+											byte[] TmlNullMap = glea.read(glea.available());
+											System.arraycopy(TmlNullMap, 0, RealNullMap, 0, Math.min(TmlNullMap.length, RealNullMap.length));
+											break;
+										}else{
+											//后续的是字段
+											mColumn = mlrd.table.getNullMapSorted_Columns()[i]; 
+										}									
+									}else{
+										break;
+									}
+								}
+							}
+							ClearNullFlagCol(mlrd, res, RealNullMap);
 							InitUpdatePrimarykey(mlrd, res);
+							break;
 						}else if (mlrd.offset > mColumn.theRealPosition && mlrd.offset < mColumn.theRealPosition + mColumn.max_length){
 						    //在列值范围内！，需要访问数据库查找真实数据
 							if(!getFullUpdateDataByPrimaryKey(mlrd, res, false, mColumn)){
@@ -380,7 +457,8 @@ public class MsTransPkgPrise {
 				int OverlapNullMapLen = nullMapLength - (mlrd.offset - mlrd.table.theFixedLength);
 				if (mlrd.r1 != null && mlrd.r1.length >= OverlapNullMapLen) {
 					GenericLittleEndianAccessor glea = new GenericLittleEndianAccessor(mlrd.r1);
-					glea.skip(OverlapNullMapLen);//跳过覆盖的nullMap
+					byte[] TmlNullMap = glea.read(OverlapNullMapLen);
+					System.arraycopy(TmlNullMap, 0, RealNullMap, RealNullMap.length-OverlapNullMapLen, Math.min(TmlNullMap.length, RealNullMap.length));
 					if (glea.available()>0) {
 						//索引块大小,这个是数据存储的variant字段索引表
 						int idxsCount = glea.readShort();
@@ -390,17 +468,22 @@ public class MsTransPkgPrise {
 								break;
 							}
 							idxs[i] = glea.readShort();
-						}
-						
-						//PriseValues(mlrd, res, false, nullMapLength, idxs, glea);
-						if (glea.available()>0) {
+						}						
+						//if (glea.available()>0) 
+						{
 							//计算开始更新的列，挨到更新的两个列是放到一块里面的
 							int ColIdx = 0;
 							int datalen = idxs[0] - (mlrd.offset + OverlapNullMapLen + 2 + idxs.length * 2);
 							while(true){
-								if (datalen > 0) {
-									MsColumn msColumn = mlrd.table.getSorted_VariantColumns()[ColIdx];
-									if (datalen>glea.available()) {
+								MsColumn msColumn = mlrd.table.getSorted_VariantColumns()[ColIdx];
+								if (datalen == 0) {
+									if(ColisNull(RealNullMap, msColumn)){
+										res.NewValues.add(msColumn.getSafeName()+"=NULL");
+									}else{
+										res.NewValues.add(msColumn.getSafeName()+"=''");
+									}
+								}else if (datalen > 0) {
+									if (datalen > glea.available()) {
 										if(!getFullUpdateDataByPrimaryKey(mlrd, res, false, msColumn)){
 											return null;
 										}
@@ -421,7 +504,6 @@ public class MsTransPkgPrise {
 						}
 					}
 				}
-
 				InitUpdatePrimarykey(mlrd, res);
 			}
 		}
