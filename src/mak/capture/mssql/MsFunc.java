@@ -33,6 +33,10 @@ public class MsFunc {
 	private static String msConvert_Bytes2DatetimeStr(byte[] arrby) {
 		int ldate = ArrayUtil.getBytesInt(arrby, 0);
 		int hdate = ArrayUtil.getBytesInt(arrby, 4);
+		if (ldate == 0 || ldate == 0) {
+			return "NULL";
+		}
+		
 		Calendar cale = Calendar.getInstance();  
 		cale.set(1900, 0, 1, 0, 0, 0);
 		cale.add(Calendar.DAY_OF_YEAR, hdate);
@@ -186,7 +190,11 @@ public class MsFunc {
 				Result += "'" + msConvert_Bytes2smallDatetimeStr(value) + "'" ;
 				break;
 			case MsTypes.DATETIME:
-				Result += "'" + msConvert_Bytes2DatetimeStr(value) + "'" ;
+				String ssDATETIME = msConvert_Bytes2DatetimeStr(value);
+				if ("NULL".equals(ssDATETIME)) {
+					Result += "NULL" ;
+				}else
+					Result += "'" + ssDATETIME + "'" ;
 				break;
 			case MsTypes.BIT:
 				Result += value[0] == 0 ? "0" : "1";
@@ -246,6 +254,59 @@ public class MsFunc {
 		}
 		
 		return Result;
+	}
+	
+	public static boolean isSkipColType(MsColumn mc){
+		switch (mc.type_id) {
+			//case MsTypes.UNIQUEIDENTIFIER:
+			case MsTypes.HIERARCHYID:
+			case MsTypes.GEOMETRY:
+			case MsTypes.GEOGRAPHY:
+			case MsTypes.SQL_VARIANT:
+			case MsTypes.XML:
+			case MsTypes.TIMESTAMP://这种类型的值不能直接写入数据库
+			return true;
+		default:
+			return false;
+		}
+	}
+	
+	/**
+	 * 能够作为where条件的字段类型
+	 * @param mc
+	 * @return
+	 */
+	public static boolean canBeWhereSegColType(MsColumn mc){
+		switch (mc.type_id) {
+		case MsTypes.DATE:
+		case MsTypes.TIME:
+		case MsTypes.DATETIME2:
+		case MsTypes.DATETIMEOFFSET:
+		case MsTypes.TINYINT:
+		case MsTypes.SMALLINT:
+		case MsTypes.INT:
+		case MsTypes.BIGINT:
+		case MsTypes.SMALLDATETIME:
+		case MsTypes.DATETIME:
+		case MsTypes.BIT:
+		case MsTypes.DECIMAL:
+		case MsTypes.NUMERIC:
+		case MsTypes.MONEY:	
+		case MsTypes.SMALLMONEY:
+		case MsTypes.VARCHAR:
+		case MsTypes.CHAR:
+		//case MsTypes.TEXT:  //虽然可以作为条件，但是这个字段内容比较多，不安全
+		//case MsTypes.NTEXT:
+		//case MsTypes.REAL:  //内容为不安全的“近似”值.
+		//case MsTypes.FLOAT:	
+		case MsTypes.NVARCHAR:
+		case MsTypes.NCHAR:
+		case MsTypes.SYSNAME:
+
+			return true;
+		default:
+			return false;
+		}
 	}
 	
 }

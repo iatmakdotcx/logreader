@@ -12,6 +12,7 @@ import java.util.HashMap;
 import org.apache.log4j.Logger;
 
 import mak.capture.DBLogPriser;
+import mak.capture.data.DBOptDelete;
 import mak.capture.data.DBOptInsert;
 import mak.capture.data.DBOptUpdate;
 import mak.data.input.GenericLittleEndianAccessor;
@@ -106,8 +107,8 @@ public class MsTransPkgPrise {
 							logger.error("解析日志失败！LOP_INSERT_ROWS.obj_id无效 LSN：" + mlrd.LSN);
 							return;
 						}
-						DBOptInsert dbi = PriseInsertLog_LOP_INSERT_ROWS(mlrd);
-						System.out.println(BuildDeleteSql(dbi, mlrd));
+						DBOptDelete dbd = PriseInsertLog_LOP_DELETE_ROWS(mlrd);
+						System.out.println(dbd.BuildDeleteSql(mlrd));
 						
 					}else{
 						logger.error("解析日志失败！LOP_DELETE_ROWS未知的context："+mlrd.context+" LSN：" + mlrd.LSN);
@@ -118,28 +119,6 @@ public class MsTransPkgPrise {
 				logger.error("解析日志失败！无效 LSN：" + mlrd.LSN, eee);
 			}
 		}
-	}
-	private String BuildDeleteSql(DBOptInsert dbi, MsLogRowData mlrd){
-		if (dbi == null) {
-			return "";
-		}
-		String s2 = "";
-		if (mlrd.table.PrimaryKey != null && mlrd.table.PrimaryKey.Fields != null && mlrd.table.PrimaryKey.Fields.size() > 0) {
-			for (MsColumn msColumn : mlrd.table.PrimaryKey.Fields) {
-				int idx = dbi.Fields.indexOf(msColumn);
-				s2 += " and " + MsFunc.BuildSegment(msColumn, dbi.Values.get(idx));
-			}
-		}
-		else{
-			//没有主键就根据所有字段生成where
-			for (int i = 0; i < dbi.Fields.size(); i++) {
-				if (canBeWhereSegColType(dbi.Fields.get(i))) {
-					s2 += " and " + MsFunc.BuildSegment(dbi.Fields.get(i), dbi.Values.get(i));
-				}
-			}
-		}
-		s2 = s2.substring(5);
-		return String.format("DELETE %s where %s", mlrd.table.GetFullName(), s2);
 	}
 	
 	private void align4Byte(GenericLittleEndianAccessor glea){
@@ -294,9 +273,10 @@ public class MsTransPkgPrise {
 					}
 				}else{
 					//覆盖了NullMap，看看有没有完整的变长列目录（有的话就能直接取值，
-					int OverlapNullMapLen = nullMapLength - (NewValueStartOffset - mlrd.table.theFixedLength);
-					byte[] nullMap = value_glea.read(OverlapNullMapLen);
-					System.arraycopy(nullMap, 0, RealNullMap, RealNullMap.length-OverlapNullMapLen, Math.min(nullMap.length, RealNullMap.length));
+					int OverlapNullMapOffset = nullMapLength - (NewValueStartOffset - mlrd.table.theFixedLength);
+					OverlapNullMapOffset = Math.min(OverlapNullMapOffset, value_glea.available());
+					byte[] nullMap = value_glea.read(OverlapNullMapOffset);
+					System.arraycopy(nullMap, 0, RealNullMap, RealNullMap.length-OverlapNullMapOffset, Math.min(nullMap.length, RealNullMap.length));
 					if (value_glea.available() > 2){
 						//说明nullMap后面还有变成列目录
 						int idxsCount = value_glea.readShort();
@@ -309,7 +289,7 @@ public class MsTransPkgPrise {
 						}
 						if (value_glea.available()>0) {
 							//读完目录表，如果还有值，就是数据列了
-							NewValueStartOffset +=  OverlapNullMapLen + 2 + idxs.length * 2; 
+							NewValueStartOffset +=  OverlapNullMapOffset + 2 + idxs.length * 2; 
 							
 							//计算开始更新的列，挨到更新的两个列是放到一块里面的
 							int ColIdx = 0;
@@ -564,7 +544,7 @@ public class MsTransPkgPrise {
 	private String getFullUpdateDataVarFields(MsTable mTable, MsColumn... itemList){
 		String res = ""; 
 		for (MsColumn msColumn : mTable.GetFields()) {
-			if (!isSkipColType(msColumn)) {
+			if (!MsFunc.isSkipColType(msColumn)) {
 				if (msColumn.leaf_pos < 0) {
 					boolean containsInList = false;
 					if (itemList!=null && itemList.length>0) {
@@ -885,7 +865,7 @@ public class MsTransPkgPrise {
 						}
 					}
 				}else{
-					if (isSkipColType(mc)) {
+					if (MsFunc.isSkipColType(mc)) {
 						continue;
 					}
 					//开始读取数据
@@ -911,56 +891,22 @@ public class MsTransPkgPrise {
 		return res;
 	}
 	
-	private boolean isSkipColType(MsColumn mc){
-		switch (mc.type_id) {
-			case MsTypes.UNIQUEIDENTIFIER:
-			case MsTypes.HIERARCHYID:
-			case MsTypes.GEOMETRY:
-			case MsTypes.GEOGRAPHY:
-			case MsTypes.SQL_VARIANT:
-			case MsTypes.XML:
-			case MsTypes.TIMESTAMP://这种类型的值不能直接写入数据库
-			return true;
-		default:
-			return false;
+	public DBOptDelete PriseInsertLog_LOP_DELETE_ROWS(MsLogRowData mlrd){
+		DBOptDelete res = new DBOptDelete();
+		res.obj_id = mlrd.obj_id;
+		res.tableName = mlrd.table.GetFullName();
+		
+		GenericLittleEndianAccessor glea = new GenericLittleEndianAccessor(mlrd.r0);
+		int LogType = glea.readShort();
+		if ((LogType & 0x06)>0) {
+			
+		}else{
+			
 		}
+		
+		
+		return res;
 	}
 	
-	/**
-	 * 能够作为where条件的字段类型
-	 * @param mc
-	 * @return
-	 */
-	private boolean canBeWhereSegColType(MsColumn mc){
-		switch (mc.type_id) {
-		case MsTypes.DATE:
-		case MsTypes.TIME:
-		case MsTypes.DATETIME2:
-		case MsTypes.DATETIMEOFFSET:
-		case MsTypes.TINYINT:
-		case MsTypes.SMALLINT:
-		case MsTypes.INT:
-		case MsTypes.BIGINT:
-		case MsTypes.SMALLDATETIME:
-		case MsTypes.DATETIME:
-		case MsTypes.BIT:
-		case MsTypes.DECIMAL:
-		case MsTypes.NUMERIC:
-		case MsTypes.MONEY:	
-		case MsTypes.SMALLMONEY:
-		case MsTypes.VARCHAR:
-		case MsTypes.CHAR:
-		//case MsTypes.TEXT:  //虽然可以作为条件，但是这个字段内容比较多，不安全
-		//case MsTypes.NTEXT:
-		//case MsTypes.REAL:  //内容为不安全的“近似”值.
-		//case MsTypes.FLOAT:	
-		case MsTypes.NVARCHAR:
-		case MsTypes.NCHAR:
-		case MsTypes.SYSNAME:
 
-			return true;
-		default:
-			return false;
-		}
-	}
 }
