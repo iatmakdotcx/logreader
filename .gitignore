@@ -1,5 +1,11 @@
 *.class
-
+*.exe
+*.exp
+*.dll
+*.pdb
+*.lib
+*.iobj
+*.ipdb
 # Package Files #
 *.jar
 *.war
