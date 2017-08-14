@@ -1,6 +1,8 @@
 program logReader;
 
 uses
+  FastMM4 in 'H:\Delphi\FastMMnew\FastMM4.pas',
+  FastMM4Messages in 'H:\Delphi\FastMMnew\FastMM4Messages.pas',
   Forms,
   p_main in 'p_main.pas' {Form1},
   I_logReader in 'logReader\I_logReader.pas',
@@ -13,7 +15,13 @@ uses
   LocalDbLogProvider in 'LogProvider\LocalDbLogProvider.pas',
   pluginlog in 'H:\Delphi\通用的自定义单元\pluginlog.pas',
   MakCommonfuncs in 'H:\Delphi\通用的自定义单元\MakCommonfuncs.pas',
-  Memory_Common in 'H:\Delphi\通用的自定义单元\Memory_Common.pas';
+  Memory_Common in 'H:\Delphi\通用的自定义单元\Memory_Common.pas',
+  databaseConnection in 'databaseConnection.pas',
+  dbConnectionCfg in 'UI\dbConnectionCfg.pas' {frm_dbConnectionCfg},
+  dbHelper in 'dbHelper.pas',
+  ConstString in 'ConstString.pas',
+  comm_func in 'comm_func.pas',
+  MakStrUtils in 'H:\Delphi\通用的自定义单元\MakStrUtils.pas';
 
 {$R *.res}
 

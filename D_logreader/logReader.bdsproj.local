@@ -17,5 +17,11 @@
     <Transaction>2017-07-29 11:37:46.377.pas,C:\Users\Chin\Desktop\logReadProject\LogProvider\OnlineDbLogProvider.pas=C:\Users\Chin\Desktop\logReadProject\LogProvider\RemoteDbLogProvider.pas</Transaction>
     <Transaction>2017-08-10 23:13:27.759.pas,C:\Users\Chin\Desktop\logReadProject\Unit1.pas=C:\Users\Chin\Desktop\logReadProject\p_localProcessHelper.pas</Transaction>
     <Transaction>2017-08-11 10:21:37.101.pas,C:\Users\Chin\Desktop\logReadProject\p_localProcessHelper.pas=</Transaction>
+    <Transaction>2017-08-11 18:40:14.535.pas,H:\Java\workspace\logreaderV2.0\D_logreader\Unit1.pas=H:\Java\workspace\logreaderV2.0\D_logreader\databaseConnection.pas</Transaction>
+    <Transaction>2017-08-11 18:49:59.575.pas,H:\Java\workspace\logreaderV2.0\D_logreader\Unit2.pas=H:\Java\workspace\logreaderV2.0\D_logreader\UI\dbConnectionCfg.pas</Transaction>
+    <Transaction>2017-08-11 18:49:59.575.dfm,H:\Java\workspace\logreaderV2.0\D_logreader\Unit2.dfm=H:\Java\workspace\logreaderV2.0\D_logreader\UI\dbConnectionCfg.dfm</Transaction>
+    <Transaction>2017-08-11 19:00:36.011.pas,H:\Java\workspace\logreaderV2.0\D_logreader\Unit1.pas=H:\Java\workspace\logreaderV2.0\D_logreader\dbHelper.pas</Transaction>
+    <Transaction>2017-08-11 19:35:47.867.pas,H:\Java\workspace\logreaderV2.0\D_logreader\Unit1.pas=H:\Java\workspace\logreaderV2.0\D_logreader\ConstString.pas</Transaction>
+    <Transaction>2017-08-11 20:06:51.214.pas,H:\Java\workspace\logreaderV2.0\D_logreader\Unit1.pas=H:\Java\workspace\logreaderV2.0\D_logreader\comm_func.pas</Transaction>
   </Transactions>
 </BorlandProject>

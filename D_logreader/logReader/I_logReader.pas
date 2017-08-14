@@ -3,12 +3,15 @@ unit I_logReader;
 interface
 
 uses
-  I_LogProvider;
+  I_LogProvider, p_structDefine, Types, databaseConnection;
 
 type
    TlogReader = class
-     function read(position:Integer;size:Integer;var data):Boolean;virtual;abstract; 
-     procedure listBigLogBlock;virtual;abstract;
+      function GetRawLogByLSN(LSN:Tlog_LSN; vlfs:PVLF_Info ;OutBuffer:TMemory_data):Boolean;virtual;abstract;
+
+      function init(dbc: TdatabaseConnection): Boolean;virtual;abstract;
+      procedure listVlfs;virtual;abstract;
+      procedure listLogBlock(vlfs:PVLF_Info);virtual;abstract;
    end; 
 
 implementation

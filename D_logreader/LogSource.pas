@@ -3,62 +3,151 @@ unit LogSource;
 interface
 
 uses
-  I_LogProvider, I_logReader;
-
+  I_LogProvider, I_logReader, databaseConnection, p_structDefine, Types;
 
 type
   TLogSource = class(TObject)
   private
-    FlogProvider:TlogProvider;
-    FLogReader :TlogReader;
+    FLogReader: TlogReader;
+    procedure ClrLogSource;
+    function DupSqlLdfHandle: Boolean;
   public
-    function init_LDF(fileName:string):Boolean;
-    function init:Boolean;
+    Fdbc: TdatabaseConnection;
     constructor Create;
     destructor Destroy; override;
+    function init(dbc: TdatabaseConnection): Boolean;
+    function GetVlf_LSN(LSN: Tlog_LSN): PVLF_Info;
+    function GetVlf_SeqNo(SeqNo:DWORD): PVLF_Info;
+    function GetRawLogByLSN(LSN: Tlog_LSN;OutBuffer: TMemory_data): Boolean;
     //test func
-
-    procedure listBigLogBlock;
+    procedure listVlfs;
+    procedure listLogBlock(SeqNo:DWORD);
+    function init_Process(Pid, hdl: Cardinal): Boolean;
   end;
 
 implementation
 
 uses
-  LdfLogProvider, Classes, Sql2014LogReader;
+  LdfLogProvider, Classes, Sql2014LogReader, LocalDbLogProvider, MakCommonfuncs,
+  Windows, pluginlog, SysUtils;
 
 { TLogSource }
+
+procedure TLogSource.ClrLogSource;
+begin
+  if Fdbc <> nil then
+    Fdbc.Free;
+  if FLogReader <> nil then
+    FLogReader.free;
+end;
 
 constructor TLogSource.Create;
 begin
   inherited;
-
 end;
 
 destructor TLogSource.Destroy;
 begin
-
+  ClrLogSource;
   inherited;
 end;
 
-function TLogSource.init: Boolean;
+function TLogSource.DupSqlLdfHandle: Boolean;
 begin
-
+  Fdbc.getDb_dbInfo;
+  Fdbc.getDb_allLogFiles;
 end;
 
-function TLogSource.init_LDF(fileName: string): Boolean;
+function TLogSource.GetVlf_LSN(LSN: Tlog_LSN): PVLF_Info;
 var
-  ldf:TLdfLogProvider;
+  I: Integer;
 begin
-  ldf := TLdfLogProvider.Create;
-  ldf.init(fileName);
-  FlogProvider := ldf;
-
-  FLogReader := TSql2014LogReader.Create(FlogProvider);
+  Result := nil;
+  for I := 0 to Length(Fdbc.FVLF_List) - 1 do
+  begin
+    if Fdbc.FVLF_List[I].SeqNo = LSN.LSN_1 then
+    begin
+      Result := @Fdbc.FVLF_List[I];
+      Break;
+    end;
+  end;
 end;
 
-procedure TLogSource.listBigLogBlock;
+function TLogSource.GetVlf_SeqNo(SeqNo:DWORD): PVLF_Info;
+var
+  I: Integer;
 begin
- FLogReader.listBigLogBlock;
+  Result := nil;
+  for I := 0 to Length(Fdbc.FVLF_List) - 1 do
+  begin
+    if Fdbc.FVLF_List[I].SeqNo = SeqNo then
+    begin
+      Result := @Fdbc.FVLF_List[I];
+      Break;
+    end;
+  end;
+end;
+
+function TLogSource.GetRawLogByLSN(LSN: Tlog_LSN;OutBuffer: TMemory_data): Boolean;
+var
+  vlf:PVLF_Info;
+begin
+  vlf := GetVlf_LSN(LSN);
+  FLogReader.GetRawLogByLSN(LSN, vlf, OutBuffer)
+
+  
+end;
+
+function TLogSource.init(dbc: TdatabaseConnection): Boolean;
+begin
+  ClrLogSource;
+  Fdbc := dbc;
+  dbc.refreshConnection;
+  DupSqlLdfHandle;
+
+  if Fdbc.dbVer_Major > 10 then
+  begin
+    FLogReader := TSql2014LogReader.Create(Self);
+  end else begin
+    Loger.Add('不支持的数据库版本！');
+  end;
+end;
+
+function TLogSource.init_Process(Pid, hdl: Cardinal): Boolean;
+var
+  ldf: TLocalDbLogProvider;
+  localHandle: THandle;
+  pStringSid: LPTSTR;
+begin
+  localHandle := DuplicateHandleToCurrentProcesses(Pid, hdl);
+  if localHandle <> 0 then
+  begin
+//    pStringSid := AllocMem(MAX_PATH);
+//    GetFinalPathNameByHandle(localHandle, pStringSid, MAX_PATH, 0);
+//    loger.Add(strpas(pStringSid));
+//    FreeMem(pStringSid);
+
+    FLogReader := TSql2014LogReader.Create(Self);
+    Result := True;
+  end
+  else
+  begin
+    Result := False;
+  end;
+end;
+
+procedure TLogSource.listLogBlock(SeqNo: DWORD);
+begin
+  if FLogReader <> nil then
+  begin
+    FLogReader.listLogBlock(GetVlf_SeqNo(SeqNo));
+  end;
+end;
+
+procedure TLogSource.listVlfs;
+begin
+  if FLogReader <> nil then
+    FLogReader.listVlfs;
 end;
 
 end.
