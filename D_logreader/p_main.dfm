@@ -43,7 +43,7 @@ object Form1: TForm1
     OnClick = Button3Click
   end
   object Button4: TButton
-    Left = 344
+    Left = 441
     Top = 24
     Width = 75
     Height = 25
@@ -53,10 +53,38 @@ object Form1: TForm1
   end
   object Button5: TButton
     Left = 344
-    Top = 72
+    Top = 24
     Width = 75
     Height = 25
-    Caption = 'Button5'
+    Caption = 'listVlfs'
     TabOrder = 4
+    OnClick = Button5Click
+  end
+  object Button6: TButton
+    Left = 536
+    Top = 24
+    Width = 75
+    Height = 25
+    Caption = 'Button6'
+    TabOrder = 5
+    OnClick = Button6Click
+  end
+  object Memo1: TMemo
+    Left = 34
+    Top = 64
+    Width = 551
+    Height = 337
+    Lines.Strings = (
+      'Memo1')
+    TabOrder = 6
+  end
+  object Button7: TButton
+    Left = 591
+    Top = 62
+    Width = 75
+    Height = 25
+    Caption = 'copyFile'
+    TabOrder = 7
+    OnClick = Button7Click
   end
 end

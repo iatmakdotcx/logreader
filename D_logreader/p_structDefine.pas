@@ -36,8 +36,8 @@ type
   PVLF_Info = ^TVLF_Info;
 
   TVLF_Info = packed record
-    fileId:Integer;
-    SeqNo: Integer;
+    fileId:byte;
+    SeqNo: Dword;
     VLFSize: QWORD;
     VLFOffset: QWORD;
     state:Byte;  //0未使用，2已使用
@@ -53,7 +53,8 @@ type
     Size:Word;
     UN_1:DWORD;
     BeginLSN:Tlog_LSN;
-    UN_2:DWORD;
+    UN_2:Word;
+    UN_3:DWORD;   //?? time?
   end;
 
   PMemory_data = ^TMemory_data;

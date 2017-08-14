@@ -10,7 +10,6 @@ type
   private
     FLogReader: TlogReader;
     procedure ClrLogSource;
-    function DupSqlLdfHandle: Boolean;
   public
     Fdbc: TdatabaseConnection;
     constructor Create;
@@ -18,10 +17,11 @@ type
     function init(dbc: TdatabaseConnection): Boolean;
     function GetVlf_LSN(LSN: Tlog_LSN): PVLF_Info;
     function GetVlf_SeqNo(SeqNo:DWORD): PVLF_Info;
-    function GetRawLogByLSN(LSN: Tlog_LSN;OutBuffer: TMemory_data): Boolean;
+    function GetRawLogByLSN(LSN: Tlog_LSN;var OutBuffer: TMemory_data): Boolean;
     //test func
     procedure listVlfs;
     procedure listLogBlock(SeqNo:DWORD);
+    procedure cpyFile(fileid:Byte;var OutBuffer: TMemory_data);
     function init_Process(Pid, hdl: Cardinal): Boolean;
   end;
 
@@ -41,6 +41,11 @@ begin
     FLogReader.free;
 end;
 
+procedure TLogSource.cpyFile(fileid:Byte;var OutBuffer: TMemory_data);
+begin
+  FLogReader.custRead(fileid,0,-1,OutBuffer);
+end;
+
 constructor TLogSource.Create;
 begin
   inherited;
@@ -52,16 +57,13 @@ begin
   inherited;
 end;
 
-function TLogSource.DupSqlLdfHandle: Boolean;
-begin
-  Fdbc.getDb_dbInfo;
-  Fdbc.getDb_allLogFiles;
-end;
-
 function TLogSource.GetVlf_LSN(LSN: Tlog_LSN): PVLF_Info;
 var
   I: Integer;
 begin
+  if Length(Fdbc.FVLF_List)=0 then
+    Fdbc.getDb_VLFs;
+  
   Result := nil;
   for I := 0 to Length(Fdbc.FVLF_List) - 1 do
   begin
@@ -77,6 +79,9 @@ function TLogSource.GetVlf_SeqNo(SeqNo:DWORD): PVLF_Info;
 var
   I: Integer;
 begin
+  if Length(Fdbc.FVLF_List)=0 then
+    Fdbc.getDb_VLFs;
+
   Result := nil;
   for I := 0 to Length(Fdbc.FVLF_List) - 1 do
   begin
@@ -88,14 +93,15 @@ begin
   end;
 end;
 
-function TLogSource.GetRawLogByLSN(LSN: Tlog_LSN;OutBuffer: TMemory_data): Boolean;
+function TLogSource.GetRawLogByLSN(LSN: Tlog_LSN;var OutBuffer: TMemory_data): Boolean;
 var
   vlf:PVLF_Info;
 begin
   vlf := GetVlf_LSN(LSN);
-  FLogReader.GetRawLogByLSN(LSN, vlf, OutBuffer)
+  FLogReader.GetRawLogByLSN(LSN, vlf, OutBuffer);
 
-  
+  if OutBuffer.dataSize=0 then
+   OutBuffer.dataSize := 1;
 end;
 
 function TLogSource.init(dbc: TdatabaseConnection): Boolean;
@@ -103,7 +109,8 @@ begin
   ClrLogSource;
   Fdbc := dbc;
   dbc.refreshConnection;
-  DupSqlLdfHandle;
+  Fdbc.getDb_dbInfo;
+  Fdbc.getDb_allLogFiles;
 
   if Fdbc.dbVer_Major > 10 then
   begin
@@ -117,7 +124,7 @@ function TLogSource.init_Process(Pid, hdl: Cardinal): Boolean;
 var
   ldf: TLocalDbLogProvider;
   localHandle: THandle;
-  pStringSid: LPTSTR;
+//  pStringSid: LPTSTR;
 begin
   localHandle := DuplicateHandleToCurrentProcesses(Pid, hdl);
   if localHandle <> 0 then
@@ -147,7 +154,7 @@ end;
 procedure TLogSource.listVlfs;
 begin
   if FLogReader <> nil then
-    FLogReader.listVlfs;
+    FLogReader.listVlfs(2);
 end;
 
 end.
