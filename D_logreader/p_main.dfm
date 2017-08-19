@@ -47,7 +47,7 @@ object Form1: TForm1
     Top = 24
     Width = 75
     Height = 25
-    Caption = 'Button4'
+    Caption = 'listLogBlock'
     TabOrder = 3
     OnClick = Button4Click
   end
@@ -63,9 +63,9 @@ object Form1: TForm1
   object Button6: TButton
     Left = 536
     Top = 24
-    Width = 75
+    Width = 113
     Height = 25
-    Caption = 'Button6'
+    Caption = 'Get row log by lsn'
     TabOrder = 5
     OnClick = Button6Click
   end

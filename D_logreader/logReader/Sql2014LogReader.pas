@@ -4,7 +4,7 @@ interface
 
 uses
   I_LogProvider, I_logReader, p_structDefine, Types, databaseConnection,
-  LogSource;
+  LogSource, Classes;
 
 type
   TSql2014LogReader = class(TlogReader)
@@ -20,10 +20,20 @@ type
     procedure custRead(fileId: byte; posi, size: Int64; var OutBuffer: TMemory_data); override;
   end;
 
+  TSql2014LogPicker = class(TThread)
+  private
+    FLogSource: TLogSource;
+    FBeginLsn:Tlog_LSN;
+  public
+    constructor Create(LogSource: TLogSource;BeginLsn:Tlog_LSN);
+    destructor Destroy; override;
+    procedure Execute;override;
+  end;
+
 implementation
 
 uses
-  Classes, Windows, SysUtils, Memory_Common, pluginlog, LocalDbLogProvider;
+  Windows, SysUtils, Memory_Common, pluginlog, LocalDbLogProvider;
 
 { TSql2014LogReader }
 
@@ -268,6 +278,48 @@ begin
   until (pbb^.CurrentBlockSize = 0) or (iiiii > 200);
 
   Dispose(pbb);
+end;
+
+{ TSql2014LogPicker }
+
+constructor TSql2014LogPicker.Create(LogSource: TLogSource;BeginLsn:Tlog_LSN);
+begin
+  inherited Create(False);
+  
+  FLogSource := LogSource;
+  FBeginLsn := BeginLsn;
+end;
+
+destructor TSql2014LogPicker.Destroy;
+begin
+
+  inherited;
+end;
+
+procedure TSql2014LogPicker.Execute;
+var
+  vlf:PVLF_Info;
+begin
+  if (FBeginLsn.LSN_1 = 0) or (FBeginLsn.LSN_2 = 0) or (FBeginLsn.LSN_3 = 0) then
+  begin
+    Loger.Add('LogPicker.Execute:invalid lsn [0]!%s', [LSN2Str(FBeginLsn)]);
+    Exit;
+  end;
+  vlf := FLogSource.GetVlf_LSN(FBeginLsn);
+  if (vlf = nil) or (vlf.SeqNo <> FBeginLsn.LSN_1) then
+  begin
+    Loger.Add('LogPicker.Execute:lsn out of vlfs [1]!%s', [LSN2Str(FBeginLsn)]);
+    Exit;
+  end;
+   
+  while not Terminated do
+  begin
+
+
+
+
+  
+  end;
 end;
 
 end.

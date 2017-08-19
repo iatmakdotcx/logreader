@@ -21,7 +21,10 @@ uses
   dbHelper in 'dbHelper.pas',
   ConstString in 'ConstString.pas',
   comm_func in 'comm_func.pas',
-  MakStrUtils in 'H:\Delphi\通用的自定义单元\MakStrUtils.pas';
+  MakStrUtils in 'H:\Delphi\通用的自定义单元\MakStrUtils.pas',
+  LogtransPkg in 'LogtransPkg.pas',
+  OpCode in 'OpCode.pas',
+  contextCode in 'contextCode.pas';
 
 {$R *.res}
 

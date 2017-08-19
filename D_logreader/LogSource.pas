@@ -58,21 +58,8 @@ begin
 end;
 
 function TLogSource.GetVlf_LSN(LSN: Tlog_LSN): PVLF_Info;
-var
-  I: Integer;
 begin
-  if Length(Fdbc.FVLF_List)=0 then
-    Fdbc.getDb_VLFs;
-  
-  Result := nil;
-  for I := 0 to Length(Fdbc.FVLF_List) - 1 do
-  begin
-    if Fdbc.FVLF_List[I].SeqNo = LSN.LSN_1 then
-    begin
-      Result := @Fdbc.FVLF_List[I];
-      Break;
-    end;
-  end;
+  Result := GetVlf_SeqNo(LSN.LSN_1);
 end;
 
 function TLogSource.GetVlf_SeqNo(SeqNo:DWORD): PVLF_Info;

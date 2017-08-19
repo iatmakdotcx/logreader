@@ -86,9 +86,9 @@ var
   lsn:Tlog_lsn;
   oum:TMemory_data;
 begin
-  lsn.LSN_1 := $1f6;
-  lsn.LSN_2 := $1e8;
-  lsn.LSN_3 := 1;
+  lsn.LSN_1 := $28;
+  lsn.LSN_2 := $130;
+  lsn.LSN_3 := 2;
   logsource.GetRawLogByLSN(lsn, oum);
 
   Memo1.Text := bytestostr(oum.data, oum.dataSize);

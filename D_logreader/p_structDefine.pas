@@ -19,6 +19,13 @@ type
     LSN_3: WORD;
   end;
 
+  PTrans_Id = ^TTrans_Id;
+
+  TTrans_Id = packed record
+    Id1: DWORD;
+    Id2: WORD;
+  end;
+
   PVLFHeader = ^TVLFHeader;
 
   TVLFHeader = packed record
@@ -72,7 +79,28 @@ type
   end;
   TlogFile_List = array of TlogFile_info;
 
+  PRawLog = ^TRawLog;
+  TRawLog = packed record
+    UN_1:Word;
+    fixedLen:Word;
+    PreviousLSN:Tlog_LSN;
+    FlagBits:Word;
+    TransID:TTrans_Id;
+    OpCode:Byte;
+    ContextCode:Byte;
+  end;
 
+  PRawLog_BEGIN_XACT=^TRawLog_BEGIN_XACT;
+  TRawLog_BEGIN_XACT = packed record
+    normalData:TRawLog;
+    SPID:DWORD;
+    BeginlogStatus:DWORD;
+    XactType:DWORD;
+    UN_1:DWORD;
+    BeginTime:QWORD;
+    XactID:DWORD;
+  end;
+  
 
 function LSN2Str(lsn:Tlog_LSN):string;
 
