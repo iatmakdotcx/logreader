@@ -24,7 +24,8 @@ uses
   MakStrUtils in 'H:\Delphi\通用的自定义单元\MakStrUtils.pas',
   LogtransPkg in 'LogtransPkg.pas',
   OpCode in 'OpCode.pas',
-  contextCode in 'contextCode.pas';
+  contextCode in 'contextCode.pas',
+  Unit2 in 'tst\Unit2.pas' {Form2};
 
 {$R *.res}
 
@@ -32,5 +33,6 @@ begin
   Application.Initialize;
   Application.MainFormOnTaskbar := True;
   Application.CreateForm(TForm1, Form1);
+  Application.CreateForm(TForm2, Form2);
   Application.Run;
 end.

@@ -57,8 +57,9 @@ type
     flag:Word;
     OperationCount :Word;
     endOfBlock:Word;
-    Size:Word;
-    UN_1:DWORD;
+    Size:Word;    //这两个Size绝对一个是默认，一个是实际
+    UN_1:Word;
+    Size2:Word;   //这两个Size绝对一个是默认，一个是实际
     BeginLSN:Tlog_LSN;
     UN_2:Word;
     UN_3:DWORD;   //?? time?
@@ -97,10 +98,22 @@ type
     BeginlogStatus:DWORD;
     XactType:DWORD;
     UN_1:DWORD;
-    BeginTime:QWORD;
+    Time:QWORD;
     XactID:DWORD;
   end;
+
+  PRawLog_COMMIT_XACT=^TRawLog_COMMIT_XACT;
+  TRawLog_COMMIT_XACT = packed record
+    normalData:TRawLog;
+    Time:QWORD;
+    BeginLsn:Tlog_LSN;
+  end;
+
   
+
+type
+  TPutLogNotify = procedure(lsn: Tlog_LSN; Raw: TMemory_data) of object;
+
 
 function LSN2Str(lsn:Tlog_LSN):string;
 

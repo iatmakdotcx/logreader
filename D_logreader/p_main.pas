@@ -16,6 +16,8 @@ type
     Button6: TButton;
     Memo1: TMemo;
     Button7: TButton;
+    Button8: TButton;
+    Button9: TButton;
     procedure FormCreate(Sender: TObject);
     procedure Button1Click(Sender: TObject);
     procedure Button2Click(Sender: TObject);
@@ -25,6 +27,8 @@ type
     procedure Button5Click(Sender: TObject);
     procedure Button6Click(Sender: TObject);
     procedure Button7Click(Sender: TObject);
+    procedure Button8Click(Sender: TObject);
+    procedure Button9Click(Sender: TObject);
   private
     { Private declarations }
   public
@@ -86,8 +90,8 @@ var
   lsn:Tlog_lsn;
   oum:TMemory_data;
 begin
-  lsn.LSN_1 := $28;
-  lsn.LSN_2 := $130;
+  lsn.LSN_1 := 497;
+  lsn.LSN_2 := 240;
   lsn.LSN_3 := 2;
   logsource.GetRawLogByLSN(lsn, oum);
 
@@ -107,6 +111,30 @@ begin
   mmp.SaveToFile('d:\2_log.bin');
   mmp.Free;
   FreeMem(oum.data);
+end;
+
+procedure TForm1.Button8Click(Sender: TObject);
+var
+  lsn:Tlog_lsn;
+begin
+//  lsn.LSN_1 := $1f7;
+//  lsn.LSN_2 := $1e8;
+//  lsn.LSN_3 := 2;
+
+lsn.LSN_1 := $28;
+  lsn.LSN_2 := $298;
+  lsn.LSN_3 := $e;
+
+//lsn.LSN_1 := $28;
+//  lsn.LSN_2 := $2a0;
+//  lsn.LSN_3 := $2;
+
+  logsource.Create_picker(lsn);
+end;
+
+procedure TForm1.Button9Click(Sender: TObject);
+begin
+  logsource.Stop_picker;
 end;
 
 procedure TForm1.FormCreate(Sender: TObject);

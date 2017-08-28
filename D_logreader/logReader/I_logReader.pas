@@ -3,7 +3,7 @@ unit I_logReader;
 interface
 
 uses
-  I_LogProvider, p_structDefine, Types, databaseConnection;
+  I_LogProvider, p_structDefine, Types, databaseConnection, Classes;
 
 type
    TlogReader = class
@@ -14,7 +14,12 @@ type
       procedure listLogBlock(vlfs:PVLF_Info);virtual;abstract;
 
       procedure custRead(fileId:byte;posi,size:Int64;var OutBuffer:TMemory_data);virtual;abstract;
-   end; 
+   end;
+
+
+   TLogPicker = class(TThread)
+     function Subscribe_PutLog(afunc:TPutLogNotify):Boolean;virtual;abstract;
+   end;
 
 implementation
 

@@ -8,21 +8,25 @@ uses
 type
   TLogSource = class(TObject)
   private
-    FLogReader: TlogReader;
     procedure ClrLogSource;
   public
+    FLogReader: TlogReader;
     Fdbc: TdatabaseConnection;
+    FLogPicker:TLogPicker;
     constructor Create;
     destructor Destroy; override;
     function init(dbc: TdatabaseConnection): Boolean;
     function GetVlf_LSN(LSN: Tlog_LSN): PVLF_Info;
     function GetVlf_SeqNo(SeqNo:DWORD): PVLF_Info;
     function GetRawLogByLSN(LSN: Tlog_LSN;var OutBuffer: TMemory_data): Boolean;
+    function Create_picker(LSN: Tlog_LSN):Boolean;
+    procedure Stop_picker;
     //test func
     procedure listVlfs;
     procedure listLogBlock(SeqNo:DWORD);
     procedure cpyFile(fileid:Byte;var OutBuffer: TMemory_data);
     function init_Process(Pid, hdl: Cardinal): Boolean;
+    procedure NotifySubscribe(lsn: Tlog_LSN; Raw: TMemory_data);
   end;
 
 implementation
@@ -49,6 +53,13 @@ end;
 constructor TLogSource.Create;
 begin
   inherited;
+end;
+
+function TLogSource.Create_picker(LSN: Tlog_LSN): Boolean;
+begin
+  FLogPicker := TSql2014LogPicker.Create(Self, LSN);
+  FLogPicker.Subscribe_PutLog(NotifySubscribe);
+  FLogPicker.Resume;
 end;
 
 destructor TLogSource.Destroy;
@@ -142,6 +153,28 @@ procedure TLogSource.listVlfs;
 begin
   if FLogReader <> nil then
     FLogReader.listVlfs(2);
+end;
+
+procedure TLogSource.NotifySubscribe(lsn: Tlog_LSN; Raw: TMemory_data);
+var
+  rl : PRawLog;
+begin
+  if Raw.dataSize>0 then
+  begin
+    rl := Raw.data;
+    loger.add(LSN2Str(lsn)+'==>'+inttostr(rl.fixedLen)+'==>'+inttostr(rl.OpCode));
+  end;
+end;
+
+procedure TLogSource.Stop_picker;
+begin
+  if FLogPicker<>nil then
+  begin
+    FLogPicker.Terminate;
+    FLogPicker.WaitFor;
+    FLogPicker.Free;
+    FLogPicker := nil;
+  end;
 end;
 
 end.

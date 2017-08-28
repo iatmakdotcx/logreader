@@ -26,8 +26,9 @@ type
     function Read_Word(var Buffer; posiOfBegin: Int64): Boolean; override;
     function Read_Dword(var Buffer; posiOfBegin: Int64): Boolean; override;
     function Read_Qword(var Buffer; posiOfBegin: Int64): Boolean; override;
-
-    function getFileSize:Int64;override;
+    function Read_Bytes(var Buffer; posiOfBegin: Int64; Count: Longint): Integer; override;
+    function getFileSize: Int64; override;
+    procedure flush();override;
   end;
 
 implementation
@@ -65,6 +66,12 @@ begin
   end;
   Dispose(Flpap);
   inherited;
+end;
+
+procedure TLocalDbLogProvider.flush;
+begin
+  fBufferStartOffsetOfFile := -1;
+  fBufferSize := 0;
 end;
 
 function TLocalDbLogProvider.getFileSize: Int64;
@@ -118,17 +125,20 @@ begin
     if (Fposition > fBufferStartOffsetOfFile) and (Fposition + Count < fBufferStartOffsetOfFile + fBufferSize) then
     begin
       //in range
-    end else
+      Result := Count;
+    end
+    else
     begin
       //not in range
-      
       Flpap.Offset := Fposition and $FFFFFFFF;
       Flpap.OffsetHigh := (Fposition shr 32) and $FFFFFFFF;
       if Count > $10000 then
       begin
         //´óÓÚ»º³åÇø
         readRes := ReadFile(FfileHandle, Buffer, Count, LongWord(Result), Flpap);
-      end else begin
+      end
+      else
+      begin
         readRes := ReadFile(FfileHandle, fBuffer^, $10000, LongWord(Result), Flpap);
       end;
       if not readRes then
@@ -138,7 +148,7 @@ begin
           readRes := GetOverlappedResult(FfileHandle, Flpap^, LongWord(Result), True);
         end;
       end;
-      
+
       if not readRes then
       begin
         Result := 0;
@@ -148,7 +158,8 @@ begin
       else if Count > $10000 then
       begin
         Count := 0;
-      end else
+      end
+      else
       begin
         fBufferStartOffsetOfFile := Fposition;
         fBufferSize := Result;
@@ -156,6 +167,8 @@ begin
         if Count > Result then
         begin
           Count := Result;
+        end else begin
+          Result := Count;
         end;
       end;
     end;
@@ -166,6 +179,12 @@ begin
   begin
     Loger.Add('TLocalDbLogProvider not init.');
   end;
+end;
+
+function TLocalDbLogProvider.Read_Bytes(var Buffer; posiOfBegin: Int64; Count: Integer): Integer;
+begin
+  Fposition := posiOfBegin;
+  Result := Read(Buffer, Count);
 end;
 
 function TLocalDbLogProvider.Read_Byte(var Buffer; posiOfBegin: Int64): Boolean;
