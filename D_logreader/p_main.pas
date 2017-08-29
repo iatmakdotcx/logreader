@@ -94,9 +94,11 @@ begin
   lsn.LSN_2 := 240;
   lsn.LSN_3 := 2;
   logsource.GetRawLogByLSN(lsn, oum);
-
-  Memo1.Text := bytestostr(oum.data, oum.dataSize);
-  FreeMem(oum.data);
+  if oum.dataSize>0 then
+  begin
+    Memo1.Text := bytestostr(oum.data, oum.dataSize);
+    FreeMem(oum.data);
+  end;
 end;
 
 procedure TForm1.Button7Click(Sender: TObject);
@@ -121,7 +123,7 @@ begin
 //  lsn.LSN_2 := $1e8;
 //  lsn.LSN_3 := 2;
 
-lsn.LSN_1 := $28;
+  lsn.LSN_1 := $28;
   lsn.LSN_2 := $298;
   lsn.LSN_3 := $e;
 
@@ -140,6 +142,7 @@ end;
 procedure TForm1.FormCreate(Sender: TObject);
 begin
   logsource:= TLogSource.create;
+
 end;
 
 procedure TForm1.FormDestroy(Sender: TObject);

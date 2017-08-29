@@ -58,8 +58,8 @@ end;
 function TLogSource.Create_picker(LSN: Tlog_LSN): Boolean;
 begin
   FLogPicker := TSql2014LogPicker.Create(Self, LSN);
-  FLogPicker.Subscribe_PutLog(NotifySubscribe);
   FLogPicker.Resume;
+  Result := True;
 end;
 
 destructor TLogSource.Destroy;
@@ -96,10 +96,7 @@ var
   vlf:PVLF_Info;
 begin
   vlf := GetVlf_LSN(LSN);
-  FLogReader.GetRawLogByLSN(LSN, vlf, OutBuffer);
-
-  if OutBuffer.dataSize=0 then
-   OutBuffer.dataSize := 1;
+  Result := FLogReader.GetRawLogByLSN(LSN, vlf, OutBuffer);
 end;
 
 function TLogSource.init(dbc: TdatabaseConnection): Boolean;
@@ -113,25 +110,20 @@ begin
   if Fdbc.dbVer_Major > 10 then
   begin
     FLogReader := TSql2014LogReader.Create(Self);
+    Result := True;
   end else begin
     Loger.Add('不支持的数据库版本！');
+    Result := False;
   end;
 end;
 
 function TLogSource.init_Process(Pid, hdl: Cardinal): Boolean;
 var
-  ldf: TLocalDbLogProvider;
   localHandle: THandle;
-//  pStringSid: LPTSTR;
 begin
   localHandle := DuplicateHandleToCurrentProcesses(Pid, hdl);
   if localHandle <> 0 then
   begin
-//    pStringSid := AllocMem(MAX_PATH);
-//    GetFinalPathNameByHandle(localHandle, pStringSid, MAX_PATH, 0);
-//    loger.Add(strpas(pStringSid));
-//    FreeMem(pStringSid);
-
     FLogReader := TSql2014LogReader.Create(Self);
     Result := True;
   end

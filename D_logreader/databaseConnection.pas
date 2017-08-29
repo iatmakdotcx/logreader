@@ -9,6 +9,7 @@ type
   TdatabaseConnection = class(TObject)
   private
     AdoQ:TADOQuery;
+    ADOConn: TADOConnection;
   public
      //手动设置部分
      Host:string;
@@ -76,12 +77,19 @@ end;
 
 constructor TdatabaseConnection.Create;
 begin
+  ADOConn := TADOConnection.Create(nil);
+  ADOConn.LoginPrompt := False;
+  ADOConn.KeepConnection := False;
+  
+
   AdoQ := TADOQuery.Create(nil);
+  AdoQ.Connection := ADOConn;
 end;
 
 destructor TdatabaseConnection.Destroy;
 begin
   AdoQ.Free;
+  ADOConn.Free;
   inherited;
 end;
 
@@ -96,6 +104,7 @@ begin
     AdoQ.Next;
   end;
   AdoQ.Close;
+  AdoQ.Connection.Connected := False;
 end;
 
 procedure TdatabaseConnection.getDb_allLogFiles;
@@ -132,6 +141,7 @@ begin
     end;
     AdoQ.Close;
   end;
+  AdoQ.Connection.Connected := False;
 end;
 
 function TdatabaseConnection.getDb_ComputerNamePhysicalNetBIOS: string;
@@ -140,6 +150,7 @@ begin
   AdoQ.Open;
   Result := AdoQ.Fields[0].AsString;
   AdoQ.Close;
+  AdoQ.Connection.Connected := False;
 end;
 
 procedure TdatabaseConnection.getDb_dbInfo;
@@ -156,6 +167,7 @@ begin
   dbVer_Minor := (microsoftversion shr 16) and $FF;
   dbVer_BuildNumber := microsoftversion and $FFFF;
   AdoQ.Close;
+  AdoQ.Connection.Connected := False;
 end;
 
 procedure TdatabaseConnection.getDb_VLFs;
@@ -176,13 +188,14 @@ begin
     AdoQ.Next;
   end;
   AdoQ.Close;
+  AdoQ.Connection.Connected := False;
 end;
 
 procedure TdatabaseConnection.refreshConnection;
 begin
   if dbName = '' then
     dbName := 'master';
-  AdoQ.ConnectionString := getConnectionString(Host, user, PassWd, dbName);
+  ADOConn.ConnectionString := getConnectionString(Host, user, PassWd, dbName);
 end;
 
 end.

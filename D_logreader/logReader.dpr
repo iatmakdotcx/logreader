@@ -25,7 +25,8 @@ uses
   LogtransPkg in 'LogtransPkg.pas',
   OpCode in 'OpCode.pas',
   contextCode in 'contextCode.pas',
-  Unit2 in 'tst\Unit2.pas' {Form2};
+  Unit2 in 'tst\Unit2.pas' {Form2},
+  plugins in 'plugins.pas';
 
 {$R *.res}
 

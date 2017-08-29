@@ -34,7 +34,6 @@ type
     destructor Destroy; override;
     procedure Execute; override;
     procedure getTransBlock(rawlog: PRawLog_COMMIT_XACT);
-    function Subscribe_PutLog(afunc: TPutLogNotify): Boolean; override;
   end;
 
 implementation
@@ -441,7 +440,7 @@ begin
         RawData.data := RowdataBuffer;
         RawData.dataSize := RowLength;
 
-        if pkgMgr.addRawLog(NowLsn, RawData) = Pkg_Err_NoBegin then
+        if pkgMgr.addRawLog(NowLsn, RawData, False) = Pkg_Err_NoBegin then
         begin
           //TODO 5:如果到这里，需要单独根据 LOP_COMMIT_XACT 抓取整个事务
           getTransBlock(RowdataBuffer);
@@ -681,8 +680,7 @@ begin
           RawData.data := RowdataBuffer;
           RawData.dataSize := RowLength;
           OpCode := prl.OpCode;
-          
-          if pkgMgr.addRawLog(NowLsn, RawData) = Pkg_Err_NoBegin then
+          if pkgMgr.addRawLog(NowLsn, RawData, True) = Pkg_Err_NoBegin then
           begin
             FreeMem(RowdataBuffer);
           end;
@@ -760,10 +758,6 @@ ExitLabel:
   Dispose(logBlock);
 end;
 
-function TSql2014LogPicker.Subscribe_PutLog(afunc: TPutLogNotify): Boolean;
-begin
-  Result := pkgMgr.Subscribe_PutLog(afunc);
-end;
 
 end.
 

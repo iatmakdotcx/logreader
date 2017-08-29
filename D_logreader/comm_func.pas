@@ -102,8 +102,6 @@ var
   Status: Cardinal;
   pbuffer: Pointer;
   dwSize: DWORD;
-  cnt: Integer;
-  pshi: PSYSTEM_HANDLE_INFORMATION;
   I, J: Integer;
   TargetHandle: THandle;
   tmpStr: string;

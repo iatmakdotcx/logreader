@@ -28,5 +28,6 @@
     <Transaction>2017-08-18 21:53:27.169.pas,H:\Java\workspace\logreaderV2.0\D_logreader\Unit1.pas=H:\Java\workspace\logreaderV2.0\D_logreader\contextCode.pas</Transaction>
     <Transaction>2017-08-25 21:44:07.836.pas,H:\Java\workspace\logreaderV2.0\D_logreader\Unit2.pas=H:\Java\workspace\logreaderV2.0\D_logreader\tst\Unit2.pas</Transaction>
     <Transaction>2017-08-25 21:44:07.836.dfm,H:\Java\workspace\logreaderV2.0\D_logreader\Unit2.dfm=H:\Java\workspace\logreaderV2.0\D_logreader\tst\Unit2.dfm</Transaction>
+    <Transaction>2017-08-28 17:17:33.899.pas,H:\Java\workspace\logreaderV2.0\D_logreader\Unit1.pas=H:\Java\workspace\logreaderV2.0\D_logreader\plugins.pas</Transaction>
   </Transactions>
 </BorlandProject>
