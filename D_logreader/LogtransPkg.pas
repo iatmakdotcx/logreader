@@ -145,6 +145,8 @@ end;
 
 constructor TTransPkgMgr.Create;
 begin
+  inherited;
+  
   FItems := TObjectList.Create;
   FSubs_func := TList.Create;
 
@@ -154,18 +156,12 @@ end;
 procedure TTransPkgMgr.RegLogRowRead;
 var
   i:Integer;
-  funcptr:Pointer;
-  Plstatus:Cardinal;
 begin
   for i := 0 to PluginsMgr.Count - 1 do
   begin
     if Assigned(PluginsMgr.Items[i]._Lr_PluginRegLogRowRead) then
     begin
-      Plstatus := PluginsMgr.Items[i]._Lr_PluginRegLogRowRead(funcptr);
-      if Succeeded(Plstatus) then
-      begin
-        FSubs_func.Add(funcptr);
-      end;
+      FSubs_func.Add(@PluginsMgr.Items[i]._Lr_PluginRegLogRowRead);
     end;
   end;
 end;
@@ -214,14 +210,19 @@ end;
 procedure TTransPkgMgr.NotifySubscribe(lsn: Tlog_LSN; Raw: TMemory_data);
 var
   I: Integer;
-  pln:TPutLogNotify;
+  pln:T_Lr_PluginRegLogRowRead;
 begin
-  pln := nil;
   for I := 0 to FSubs_func.Count - 1 do
   begin
     try
       @pln := FSubs_func[i];
-      pln(lsn, Raw);
+      if Assigned(pln) then
+      begin
+        try
+          pln(@lsn, @Raw);
+        except
+        end;
+      end;
     except
     end;
   end;

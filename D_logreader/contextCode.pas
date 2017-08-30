@@ -36,7 +36,11 @@ const
   LCX_WORK_FILE_PAGE = $21;
   LCX_RESTORE_BAD_UNALLOC_PAGE = $22;
 
+  function contextCodeToStr(val: Integer): string;
 implementation
+
+uses
+  System.SysUtils;
 
 function contextCodeToStr(val: Integer): string;
 begin
@@ -105,6 +109,8 @@ begin
       result := 'LCX_WORK_FILE_PAGE';
     LCX_RESTORE_BAD_UNALLOC_PAGE:
       result := 'LCX_RESTORE_BAD_UNALLOC_PAGE';
+  else
+    result := IntToStr(val);
   end;
 end;
 

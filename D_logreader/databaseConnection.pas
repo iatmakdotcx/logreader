@@ -61,11 +61,13 @@ function TdatabaseConnection.CheckIsLocalHost: Boolean;
 var
   cmpName:array[0..MAX_COMPUTERNAME_LENGTH] of Char;
   nSize:DWORD;
+  tmpStr:string;
 begin
   nSize := MAX_COMPUTERNAME_LENGTH;
   GetComputerName(@cmpName, nSize);
   Host := LowerCase(Host);
-  if (Host = '.') or (Host = '127.0.0.1') or (Host = 'localhost') or (Host = StrPas(@cmpName)) or (Host = getDb_ComputerNamePhysicalNetBIOS) then
+  tmpStr := cmpName;
+  if (Host = '.') or (Host = '127.0.0.1') or (Host = 'localhost') or (Host = tmpStr) or (Host = getDb_ComputerNamePhysicalNetBIOS) then
   begin
     Result := True;
   end

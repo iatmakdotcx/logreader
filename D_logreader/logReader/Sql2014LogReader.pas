@@ -289,7 +289,7 @@ end;
 
 constructor TSql2014LogPicker.Create(LogSource: TLogSource; BeginLsn: Tlog_LSN);
 begin
-  inherited Create(True);
+  inherited Create(False);
   FLogReader := LogSource.FLogReader as TSql2014LogReader;
   FLogSource := LogSource;
   FBeginLsn := BeginLsn;

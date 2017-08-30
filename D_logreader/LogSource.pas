@@ -58,7 +58,6 @@ end;
 function TLogSource.Create_picker(LSN: Tlog_LSN): Boolean;
 begin
   FLogPicker := TSql2014LogPicker.Create(Self, LSN);
-  FLogPicker.Resume;
   Result := True;
 end;
 

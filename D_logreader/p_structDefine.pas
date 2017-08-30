@@ -110,13 +110,22 @@ type
   end;
 
   
-
+//
+//type
+//  TPutLogNotify = procedure(lsn: Tlog_LSN; Raw: TMemory_data);stdcall;
 type
-  TPutLogNotify = procedure(lsn: Tlog_LSN; Raw: TMemory_data) of object;
+  T_Lr_PluginInfo = function(var shortname: PChar): integer; stdcall;
 
+  T_Lr_PluginInit = function(engineVersion: Integer): integer; stdcall;
+
+  T_Lr_PluginUnInit = function (): integer; stdcall;
+
+  T_Lr_PluginGetErrMsg = function(StatusCode: Cardinal): PChar; stdcall;
+
+  T_Lr_PluginRegLogRowRead = function(lsn: Plog_LSN; Raw: PMemory_data): integer; stdcall;
 
 function LSN2Str(lsn:Tlog_LSN):string;
-
+function TranId2Str(trans:TTrans_Id):string;
   
 implementation
 
@@ -127,6 +136,11 @@ uses
 function LSN2Str(lsn:Tlog_LSN):string;
 begin
   Result := format('0x%.8X:%.8X:%.4X',[lsn.LSN_1,lsn.LSN_2,lsn.LSN_3])
+end;
+
+function TranId2Str(trans:TTrans_Id):string;
+begin
+  Result := format('0x%.4X:%.8X',[trans.Id2,trans.Id1])
 end;
 
 end.

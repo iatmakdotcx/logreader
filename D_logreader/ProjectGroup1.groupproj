@@ -1,0 +1,44 @@
+﻿<Project xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <PropertyGroup>
+    <ProjectGuid>{c308e800-1684-4ff8-8efe-eb29acbdff47}</ProjectGuid>
+  </PropertyGroup>
+  <ItemGroup />
+  <ItemGroup>
+    <Projects Include="logReader.bdsproj" />
+    <Projects Include="plugins\logview\lr_logView.bdsproj" />
+  </ItemGroup>
+  <ProjectExtensions>
+    <Borland.Personality>Default.Personality</Borland.Personality>
+    <Borland.ProjectType />
+    <BorlandProject>
+  <BorlandProject xmlns=""> <Default.Personality> </Default.Personality> </BorlandProject></BorlandProject>
+  </ProjectExtensions>
+  <Target Name="logReader">
+    <MSBuild Projects="logReader.bdsproj" Targets="" />
+  </Target>
+  <Target Name="logReader:Clean">
+    <MSBuild Projects="logReader.bdsproj" Targets="Clean" />
+  </Target>
+  <Target Name="logReader:Make">
+    <MSBuild Projects="logReader.bdsproj" Targets="Make" />
+  </Target>
+  <Target Name="lr_logView">
+    <MSBuild Projects="plugins\logview\lr_logView.bdsproj" Targets="" />
+  </Target>
+  <Target Name="lr_logView:Clean">
+    <MSBuild Projects="plugins\logview\lr_logView.bdsproj" Targets="Clean" />
+  </Target>
+  <Target Name="lr_logView:Make">
+    <MSBuild Projects="plugins\logview\lr_logView.bdsproj" Targets="Make" />
+  </Target>
+  <Target Name="Build">
+    <CallTarget Targets="logReader;lr_logView" />
+  </Target>
+  <Target Name="Clean">
+    <CallTarget Targets="logReader:Clean;lr_logView:Clean" />
+  </Target>
+  <Target Name="Make">
+    <CallTarget Targets="logReader:Make;lr_logView:Make" />
+  </Target>
+  <Import Condition="Exists('$(MSBuildBinPath)\Borland.Group.Targets')" Project="$(MSBuildBinPath)\Borland.Group.Targets" />
+</Project>

@@ -42,7 +42,7 @@ var
 implementation
 
 uses
-  dbConnectionCfg, databaseConnection, p_structDefine, Memory_Common;
+  dbConnectionCfg, databaseConnection, p_structDefine, Memory_Common, plugins;
 
 {$R *.dfm}
 
@@ -96,6 +96,7 @@ begin
   logsource.GetRawLogByLSN(lsn, oum);
   if oum.dataSize>0 then
   begin
+    PluginsMgr.Items[0]._Lr_PluginRegLogRowRead(@lsn, @oum);
     Memo1.Text := bytestostr(oum.data, oum.dataSize);
     FreeMem(oum.data);
   end;

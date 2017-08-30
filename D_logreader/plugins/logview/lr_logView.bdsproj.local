@@ -1,0 +1,8 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<BorlandProject>
+	<Transactions>
+    <Transaction>2017-08-29 15:01:47.555.bdsproj,C:\Users\Chin\Documents\RAD Studio\Projects\Project1.bdsproj=H:\Java\workspace\logreaderV2.0\D_logreader\plugins\logview\lr_logView.bdsproj</Transaction>
+    <Transaction>2017-08-29 15:21:02.988.pas,H:\Java\workspace\logreaderV2.0\D_logreader\plugins\logview\Unit3.pas=H:\Java\workspace\logreaderV2.0\D_logreader\plugins\logview\logdisplay.pas</Transaction>
+    <Transaction>2017-08-29 15:21:02.988.dfm,H:\Java\workspace\logreaderV2.0\D_logreader\plugins\logview\Unit3.dfm=H:\Java\workspace\logreaderV2.0\D_logreader\plugins\logview\logdisplay.dfm</Transaction>
+  </Transactions>
+</BorlandProject>
