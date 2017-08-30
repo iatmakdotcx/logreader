@@ -14,9 +14,10 @@ uses
   SysUtils,
   Classes,
   logdisplay in 'logdisplay.pas' {frm_logdisplay},
-  p_structDefine in '..\..\p_structDefine.pas',
   contextCode in '..\..\contextCode.pas',
-  OpCode in '..\..\OpCode.pas';
+  p_structDefine in '..\..\p_structDefine.pas',
+  OpCode in '..\..\OpCode.pas',
+  Memory_Common in 'H:\Delphi\通用的自定义单元\Memory_Common.pas';
 
 const
   STATUS_SUCCESS = $00000000;   //成功
@@ -95,6 +96,4 @@ exports
   _Lr_PluginRegLogRowRead;
 
 begin
-
 end.
-

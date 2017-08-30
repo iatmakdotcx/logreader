@@ -2,8 +2,8 @@ object frm_logdisplay: Tfrm_logdisplay
   Left = 0
   Top = 0
   Caption = 'frm_logdisplay'
-  ClientHeight = 606
-  ClientWidth = 984
+  ClientHeight = 586
+  ClientWidth = 985
   Color = clBtnFace
   Font.Charset = DEFAULT_CHARSET
   Font.Color = clWindowText
@@ -13,9 +13,41 @@ object frm_logdisplay: Tfrm_logdisplay
   OldCreateOrder = False
   PixelsPerInch = 96
   TextHeight = 13
+  object StringGrid1: TStringGrid
+    Left = 24
+    Top = 8
+    Width = 937
+    Height = 497
+    Color = clMenuHighlight
+    ColCount = 20
+    RowCount = 2
+    Options = [goFixedVertLine, goFixedHorzLine, goVertLine, goHorzLine, goColSizing, goEditing, goAlwaysShowEditor]
+    TabOrder = 1
+    ColWidths = (
+      64
+      140
+      99
+      64
+      64
+      64
+      64
+      64
+      64
+      64
+      64
+      64
+      64
+      64
+      64
+      64
+      64
+      64
+      64
+      64)
+  end
   object cxGrid1: TcxGrid
     Left = 8
-    Top = 24
+    Top = 536
     Width = 968
     Height = 574
     TabOrder = 0
@@ -49,7 +81,7 @@ object frm_logdisplay: Tfrm_logdisplay
       end
       object cxGrid1TableView1Column5: TcxGridColumn
         Caption = 'FixLen'
-        Width = 39
+        Width = 74
       end
       object cxGrid1TableView1Column6: TcxGridColumn
         Caption = 'RecordLen'
@@ -78,6 +110,31 @@ object frm_logdisplay: Tfrm_logdisplay
       object cxGrid1TableView1Column14: TcxGridColumn
       end
       object cxGrid1TableView1Column15: TcxGridColumn
+      end
+    end
+    object cxGrid1CardView1: TcxGridCardView
+      Navigator.Buttons.CustomButtons = <>
+      DataController.Summary.DefaultGroupSummaryItems = <>
+      DataController.Summary.FooterSummaryItems = <>
+      DataController.Summary.SummaryGroups = <>
+      OptionsView.CardIndent = 7
+      object cxGrid1CardView1Row1: TcxGridCardViewRow
+        Position.BeginsLayer = True
+      end
+      object cxGrid1CardView1Row2: TcxGridCardViewRow
+        Position.BeginsLayer = True
+      end
+      object cxGrid1CardView1Row3: TcxGridCardViewRow
+        Position.BeginsLayer = True
+      end
+      object cxGrid1CardView1Row4: TcxGridCardViewRow
+        Position.BeginsLayer = True
+      end
+      object cxGrid1CardView1Row5: TcxGridCardViewRow
+        Position.BeginsLayer = True
+      end
+      object cxGrid1CardView1Row6: TcxGridCardViewRow
+        Position.BeginsLayer = True
       end
     end
     object cxGrid1Level1: TcxGridLevel
