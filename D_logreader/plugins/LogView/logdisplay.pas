@@ -10,6 +10,9 @@ uses
   cxClasses, cxGridCustomView, cxGrid, p_structDefine, Vcl.Grids,
   cxGridCardView, cxGridCustomLayoutView;
 
+const
+  wm_OnDataReceive = WM_USER + $1000;
+
 type
   Tfrm_logdisplay = class(TForm)
     cxGrid1: TcxGrid;
@@ -42,6 +45,8 @@ type
     { Private declarations }
   public
     { Public declarations }
+    procedure OnDataReceive(var msg: TMessage); message wm_OnDataReceive;
+
   end;
 
 var
@@ -57,18 +62,18 @@ uses
 
 {$R *.dfm}
 
-procedure NotifySubscribe2(lsn: Tlog_LSN; Raw: TMemory_data);
+procedure NotifySubscribe(lsn: Tlog_LSN; Raw: TMemory_data);
 var
   rl: PRawLog;
 begin
   if Raw.dataSize > 0 then
   begin
     rl := Raw.data;
-    outputdebugstring(PChar(LSN2Str(lsn) + '==>' + inttostr(rl.fixedLen) + '==>' + inttostr(rl.OpCode)));
+    outputdebugstring(PChar(LSN2Str(lsn) + '==>' + OpcodeToStr(rl.OpCode) + '==>' + inttostr(rl.fixedLen) + '==>' + inttostr(rl.OpCode)));
   end;
 end;
 
-procedure NotifySubscribe(lsn: Tlog_LSN; Raw: TMemory_data);
+procedure NotifySubscribe3(lsn: Tlog_LSN; Raw: TMemory_data);
 var
   rl: PRawLog;
   ridx: Integer;
@@ -100,35 +105,47 @@ begin
   end;
 end;
 
-procedure NotifySubscribe3(lsn: Tlog_LSN; Raw: TMemory_data);
+procedure NotifySubscribe2(lsn: Tlog_LSN; Raw: TMemory_data);
 var
   rl: PRawLog;
   ridx: Integer;
+  tmpBinStr:string;
 begin
   if Raw.dataSize > 0 then
   begin
     rl := Raw.data;
     if frm_logdisplay <> nil then
     begin
-
+      //这里由于是子线程调入的，访问vcl控件容易出错
+      frm_logdisplay.cxGrid1TableView1.BeginBestFitUpdate;
       with frm_logdisplay.cxGrid1TableView1.DataController do
       begin
-        RecordCount := 100;
-        ridx := 0;
+        ridx := AppendRecord;
 //        RecordCount := RecordCount + 1;
-        //Values[ridx, 0] := LSN2Str(lsn);
-//        Values[ridx, 1] := OpcodeToStr(rl.OpCode);
-//        Values[ridx, 2] := contextCodeToStr(rl.ContextCode);
-//        Values[ridx, 3] := TranId2Str(rl.TransID);
-//        Values[ridx, 4] := rl.fixedLen;
-//        Values[ridx, 5] := Raw.dataSize;
-//        Values[ridx, 6] := LSN2Str(rl.PreviousLSN);
-//        Values[ridx, 7] := Format('%.4X', [rl.FlagBits]);
+        Values[ridx, 0] := LSN2Str(lsn);
+        Values[ridx, 1] := OpcodeToStr(rl.OpCode);
+        Values[ridx, 2] := contextCodeToStr(rl.ContextCode);
+        Values[ridx, 3] := TranId2Str(rl.TransID);
+        Values[ridx, 4] := rl.fixedLen;
+        Values[ridx, 5] := Raw.dataSize;
+        Values[ridx, 6] := LSN2Str(rl.PreviousLSN);
+        Values[ridx, 7] := Format('%.4X', [rl.FlagBits]);
+//        tmpBinStr := bytestostr(Raw.data, Raw.dataSize, $FFFFFFFF, False, False);
+//        Values[ridx, 8] := StringReplace(tmpBinStr,' ','',[rfReplaceAll]);
 
-        Application.ProcessMessages;
       end;
+      frm_logdisplay.cxGrid1TableView1.EndBestFitUpdate;
     end;
   end;
+end;
+
+{ Tfrm_logdisplay }
+
+procedure Tfrm_logdisplay.OnDataReceive(var msg: TMessage);
+begin
+
+
+
 end;
 
 end.

@@ -44,8 +44,8 @@ end;
 /// <returns>状态标识</returns>
 function _Lr_PluginInit(engineVersion: Integer): integer; stdcall;
 begin
-  frm_logdisplay := Tfrm_logdisplay.Create(nil);
-  frm_logdisplay.Show;
+//  frm_logdisplay := Tfrm_logdisplay.Create(nil);
+//  frm_logdisplay.Show;
   Result := STATUS_SUCCESS;
 end;
 
@@ -55,7 +55,7 @@ end;
 /// <returns>状态标识</returns>
 function _Lr_PluginUnInit(): integer; stdcall;
 begin
-  frm_logdisplay.Free;
+//  frm_logdisplay.Free;
   Result := STATUS_SUCCESS;
 end;
 

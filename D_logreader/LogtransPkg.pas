@@ -25,6 +25,7 @@ type
     constructor Create(transid: TTrans_Id);
     destructor Destroy; override;
     procedure addRawLog(log: TTransPkgItem);
+    property Items:TObjectList read FItems;
   end;
 
   TTransPkgMgr = class(TObject)
@@ -51,7 +52,7 @@ type
 implementation
 
 uses
-  OpCode, pluginlog, plugins, Windows;
+  OpCode, pluginlog, plugins, Windows, Sql2014LogReader, Types;
 
 { TTransPkg }
 
@@ -119,7 +120,15 @@ begin
           begin
             TTsPkg.addRawLog(TTransPkgItem.Create(lsn, Raw));
             //TODO 5: 这里数据应该打包发送给下一流程
-            loger.Add('pkg LOP_COMMIT_XACT...');
+            //loger.Add('pkg LOP_COMMIT_XACT...');
+
+            FItems.OwnsObjects := False; //不释放当前元素
+            try
+              FItems.Remove(TTsPkg);
+            finally
+              FItems.OwnsObjects := True;
+            end;
+            TSql2014logAnalyzer.Create(TTsPkg);
           end
           else
           begin

@@ -44,10 +44,13 @@ object frm_logdisplay: Tfrm_logdisplay
       64
       64
       64)
+    RowHeights = (
+      24
+      24)
   end
   object cxGrid1: TcxGrid
-    Left = 8
-    Top = 536
+    Left = 9
+    Top = 8
     Width = 968
     Height = 574
     TabOrder = 0

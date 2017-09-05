@@ -26,7 +26,9 @@ uses
   OpCode in 'OpCode.pas',
   contextCode in 'contextCode.pas',
   Unit2 in 'tst\Unit2.pas' {Form2},
-  plugins in 'plugins.pas';
+  plugins in 'plugins.pas',
+  I_logAnalyzer in 'LogAnalyzer\I_logAnalyzer.pas',
+  Sql2014logAnalyzer in 'LogAnalyzer\Sql2014logAnalyzer.pas';
 
 {$R *.res}
 

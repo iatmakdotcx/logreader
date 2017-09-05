@@ -17,6 +17,7 @@ type
    TLogPicker = class(TThread)
    end;
 
+
 implementation
 
 { TlogReader }
