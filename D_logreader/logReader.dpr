@@ -28,7 +28,12 @@ uses
   Unit2 in 'tst\Unit2.pas' {Form2},
   plugins in 'plugins.pas',
   I_logAnalyzer in 'LogAnalyzer\I_logAnalyzer.pas',
-  Sql2014logAnalyzer in 'LogAnalyzer\Sql2014logAnalyzer.pas';
+  Sql2014logAnalyzer in 'LogAnalyzer\Sql2014logAnalyzer.pas',
+  LogtransPkgMgr in 'LogtransPkgMgr.pas',
+  hexValUtils in 'hexValUtils.pas',
+  dbDict in 'dbDict.pas',
+  BinDataUtils in 'BinDataUtils.pas',
+  dbFieldTypes in 'dbFieldTypes.pas';
 
 {$R *.res}
 

@@ -17,7 +17,8 @@ uses
   contextCode in '..\..\contextCode.pas',
   p_structDefine in '..\..\p_structDefine.pas',
   OpCode in '..\..\OpCode.pas',
-  Memory_Common in 'H:\Delphi\通用的自定义单元\Memory_Common.pas';
+  Memory_Common in 'H:\Delphi\通用的自定义单元\Memory_Common.pas',
+  Winapi.Windows;
 
 const
   STATUS_SUCCESS = $00000000;   //成功
@@ -84,7 +85,30 @@ end;
 /// <returns>状态标识</returns>
 function _Lr_PluginRegLogRowRead(lsn: Plog_LSN; Raw: PMemory_data): integer; stdcall;
 begin
-  NotifySubscribe(lsn^, Raw^);
+  //NotifySubscribe(lsn^, Raw^);
+  Result := STATUS_SUCCESS;
+end;
+
+/// <summary>
+/// 注册 事务包回调
+/// </summary>
+/// <param name="TransPkg"></param>
+/// <returns>状态标识</returns>
+function _Lr_PluginRegTransPkg(TransPkg: PMemory_data): integer; stdcall;
+var
+  tranId:PTrans_Id;
+  readIdx:Integer;
+  RecCount:Integer;
+begin
+  //////////////////////////////////////////////////////////////////////////
+  ///                             bin define
+  /// |tranID|rowCount|每行长度的数组|行数据
+  ///   4        2       4*rowCount       x
+  ///
+  //////////////////////////////////////////////////////////////////////////
+  tranId := TransPkg.data;
+  RecCount := PWord(Cardinal(TransPkg.data) + SizeOf(TTrans_Id))^;
+  outputdebugString(PChar(Format('tranId:%s, len:%d',[TranId2Str(tranId^), RecCount])));
   Result := STATUS_SUCCESS;
 end;
 
@@ -93,6 +117,7 @@ exports
   _Lr_PluginInit,
   _Lr_PluginUnInit,
   _Lr_PluginGetErrMsg,
+  _Lr_PluginRegTransPkg,
   _Lr_PluginRegLogRowRead;
 
 begin

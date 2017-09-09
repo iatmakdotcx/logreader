@@ -3,8 +3,8 @@ unit Sql2014LogReader;
 interface
 
 uses
-  I_LogProvider, I_logReader, p_structDefine, Types, databaseConnection,
-  LogSource, Classes, LogtransPkg, Contnrs;
+  I_LogProvider, I_logReader, I_logAnalyzer, p_structDefine, Types, databaseConnection,
+  LogSource, Classes, LogtransPkg, Contnrs, LogtransPkgMgr;
 
 type
   TSql2014LogReader = class(TlogReader)
@@ -29,6 +29,7 @@ type
     FlogBlock: PlogBlock;
     Fvlf:PVLF_Info;
     pkgMgr: TTransPkgMgr;
+    procedure CreateAnalyzerThread(pkg:TTransPkg);
   public
     constructor Create(LogSource: TLogSource; BeginLsn: Tlog_LSN);
     destructor Destroy; override;
@@ -36,20 +37,11 @@ type
     procedure getTransBlock(rawlog: PRawLog_COMMIT_XACT);
   end;
 
-  TSql2014logAnalyzer = class(TThread)
-  private
-    FTranspkg: TTransPkg;
-    procedure serializeToBin(var mm:TMemory_data);
-  public
-    constructor Create(Transpkg: TTransPkg);
-    destructor Destroy; override;
-    procedure Execute; override;
-  end;
-
 implementation
 
 uses
-  Windows, SysUtils, Memory_Common, pluginlog, LocalDbLogProvider, OpCode;
+  Windows, SysUtils, Memory_Common, pluginlog, LocalDbLogProvider, OpCode,
+  plugins, Sql2014logAnalyzer;
 
 { TSql2014LogReader }
 
@@ -305,10 +297,15 @@ begin
   FBeginLsn := BeginLsn;
 
   pkgMgr := TTransPkgMgr.Create;
-
+  pkgMgr.FOnTransPkgOk := CreateAnalyzerThread;
   New(FvlfHeader);
   New(FlogBlock);
   New(Fvlf);
+end;
+
+procedure TSql2014LogPicker.CreateAnalyzerThread( pkg: TTransPkg);
+begin
+  TSql2014logAnalyzer.Create(FLogSource, pkg);
 end;
 
 destructor TSql2014LogPicker.Destroy;
@@ -769,69 +766,6 @@ ExitLabel:
 end;
 
 
-{ TSql2014logAnalyzer }
-
-constructor TSql2014logAnalyzer.Create(Transpkg: TTransPkg);
-begin
-  inherited Create(False);
-  FreeOnTerminate := True;
-  FTranspkg := Transpkg;
-end;
-
-destructor TSql2014logAnalyzer.Destroy;
-begin
-  FTranspkg.Free;
-  inherited;
-end;
-
-procedure TSql2014logAnalyzer.Execute;
-var
-  mm: TMemory_data;
-begin
-  Loger.Add('TSql2014logAnalyzer.Execute ==> ' + TranId2Str(FTranspkg.Ftransid));
-  serializeToBin(mm);
-end;
-
-procedure TSql2014logAnalyzer.serializeToBin(var mm: TMemory_data);
-var
-  dataLen:Integer;
-  I: Integer;
-  datatOffset:Integer;
-begin
-  //////////////////////////////////////////////////////////////////////////
-  ///                             bin define
-  /// |tranID|rowCount|每行长度的数组|行数据
-  ///   4        2       4*rowCount       x
-  ///
-  //////////////////////////////////////////////////////////////////////////
-  dataLen := 0;
-  for I := 0 to FTranspkg.Items.Count - 1 do
-  begin
-    dataLen := dataLen + TTransPkgItem(FTranspkg.Items[i]).Raw.dataSize + SizeOf(Tlog_LSN);
-  end;
-  mm.dataSize :=  SizeOf(Ttrans_ID) + 2 + FTranspkg.Items.Count * 2 + dataLen;
-  mm.data := AllocMem(mm.dataSize);
-
-  Move(FTranspkg.Ftransid, mm.data^, SizeOf(Ttrans_ID));
-  datatOffset := SizeOf(Ttrans_ID);
-  Move(FTranspkg.Items.Count, Pointer(Integer(mm.data)+datatOffset)^, 2);
-  datatOffset := datatOffset + 2;
-  for I := 0 to FTranspkg.Items.Count - 1 do
-  begin
-    //65536个大小一般情况下是够了，如果是image类型可能会超过此大小 ，所以这个直接定义成Dword大小 ，如果文件超过4GB，这里就呵呵哒了
-
-    Move(TTransPkgItem(FTranspkg.Items[i]).Raw.dataSize, Pointer(Integer(mm.data)+datatOffset)^, 4);
-    datatOffset := datatOffset + 4;
-  end;
-
-  for I := 0 to FTranspkg.Items.Count - 1 do
-  begin
-    //65536个大小一般情况下是够了，如果是image类型可能会超过此大小 ，所以这个直接定义成Dword大小 ，如果文件超过4GB，这里就呵呵哒了
-
-    Move(TTransPkgItem(FTranspkg.Items[i]).Raw.data^, Pointer(Integer(mm.data)+datatOffset)^, TTransPkgItem(FTranspkg.Items[i]).Raw.dataSize);
-    datatOffset := datatOffset + TTransPkgItem(FTranspkg.Items[i]).Raw.dataSize;
-  end;
-end;
 
 end.
 

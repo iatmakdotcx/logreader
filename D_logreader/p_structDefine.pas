@@ -6,7 +6,8 @@ uses
   Types;
 
 type
-  QWORD = Int64;
+  QWORD = UInt64;
+  PQWORD = ^QWORD;
 
 type
   TLogProviderType = (LocalDB, RemoteDB, LDF);
@@ -24,6 +25,11 @@ type
   TTrans_Id = packed record
     Id1: DWORD;
     Id2: WORD;
+  end;
+  TPage_Id = packed record
+    PID: DWORD;
+    FID: WORD;
+    solt: WORD;
   end;
 
   PVLFHeader = ^TVLFHeader;
@@ -109,6 +115,19 @@ type
     BeginLsn:Tlog_LSN;
   end;
 
+  PRawLog_DataOpt=^TRawLog_DataOpt;
+  TRawLog_DataOpt = packed record
+    normalData:TRawLog;
+    pageId:TPage_Id;
+    AllocUnitId:DWORD;
+    previousPageLsn:Tlog_LSN;
+    UN_1:Word;
+    PartitionId:QWORD;
+    OffsetInRow:Word;
+    ModifySize:Word;
+    RowFlag:Word;
+    NumElements:Word;
+  end;
   
 //
 //type
@@ -123,6 +142,8 @@ type
   T_Lr_PluginGetErrMsg = function(StatusCode: Cardinal): PChar; stdcall;
 
   T_Lr_PluginRegLogRowRead = function(lsn: Plog_LSN; Raw: PMemory_data): integer; stdcall;
+
+  T_Lr_PluginRegTransPkg = function(TransPkg: PMemory_data): integer; stdcall;
 
 function LSN2Str(lsn:Tlog_LSN):string;
 function TranId2Str(trans:TTrans_Id):string;

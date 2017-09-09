@@ -3,7 +3,7 @@ unit databaseConnection;
 interface
 
 uses
-  ADODB, Classes, p_structDefine;
+  ADODB, Classes, p_structDefine, dbDict;
 
 type
   TdatabaseConnection = class(TObject)
@@ -40,9 +40,13 @@ type
      //数据库的全部日志vlf
      FVLF_List :TVLF_List;
 
+     //数据库字典
+     dict:TDbDict;
+
      constructor Create;
      destructor Destroy;override;
      procedure refreshConnection;
+     procedure refreshDict;
 
      function CheckIsLocalHost: Boolean;
      function getDb_ComputerNamePhysicalNetBIOS:string;
@@ -86,10 +90,14 @@ begin
 
   AdoQ := TADOQuery.Create(nil);
   AdoQ.Connection := ADOConn;
+
+  dict := TDbDict.Create;
 end;
 
 destructor TdatabaseConnection.Destroy;
 begin
+  dict.Free;
+
   AdoQ.Free;
   ADOConn.Free;
   inherited;
@@ -198,6 +206,26 @@ begin
   if dbName = '' then
     dbName := 'master';
   ADOConn.ConnectionString := getConnectionString(Host, user, PassWd, dbName);
+end;
+
+procedure TdatabaseConnection.refreshDict;
+begin
+  //全部Table
+//  AdoQ.sql.Text := 'select s.name,a.object_id, a.name,au.allocation_unit_id from sys.all_objects a, sys.schemas s,sys.allocation_units au ,sys.partitions partitions '+
+//   ' where (a.type = ''U'' or a.type = ''S'') and a.schema_id = s.schema_id and partitions.index_id <= 1 and partitions.object_id = a.object_id and partitions.hobt_id = au.container_id order by object_id';
+  AdoQ.sql.Text := 'select s.name,a.object_id, a.name from sys.objects a, sys.schemas s where (a.type = ''U'' or a.type = ''S'') and a.schema_id = s.schema_id ';
+  AdoQ.Open;
+  dict.RefreshTables(AdoQ);
+  AdoQ.sql.Text := 'select cols.object_id,cols.column_id,cols.system_type_id,cols.max_length,cols.precision,cols.scale,cols.is_nullable,cols.name, '+
+    ' p_cols.leaf_null_bit nullmap,p_cols.leaf_offset leaf_pos,cols.collation_name,Convert(int,COLLATIONPROPERTY(cols.collation_name, ''CodePage'')) cp  '+
+    ' from sys.all_columns cols,sys.system_internals_partition_columns p_cols '+
+    ' where p_cols.leaf_null_bit > 0 and cols.column_id = p_cols.partition_column_id and '+
+    ' p_cols.partition_id in (Select partitions.partition_id from sys.partitions partitions where partitions.index_id <= 1 and partitions.object_id=cols.object_id) '+
+    ' order by cols.object_id,cols.column_id ';
+  AdoQ.Open;
+  dict.RefreshTablesFields(AdoQ);
+
+
 end;
 
 end.

@@ -105,4 +105,13 @@ object Form1: TForm1
     TabOrder = 9
     OnClick = Button9Click
   end
+  object Button10: TButton
+    Left = 664
+    Top = 24
+    Width = 75
+    Height = 25
+    Caption = 'RefreshDict'
+    TabOrder = 10
+    OnClick = Button10Click
+  end
 end

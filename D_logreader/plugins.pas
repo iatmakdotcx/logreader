@@ -19,6 +19,7 @@ type
     nextid: integer;
     _Lr_PluginGetErrMsg: T_Lr_PluginGetErrMsg;
     _Lr_PluginRegLogRowRead: T_Lr_PluginRegLogRowRead;
+    _Lr_PluginRegTransPkg: T_Lr_PluginRegTransPkg;
     _Lr_PluginUnInit:T_Lr_PluginUnInit;
   end;
 
@@ -36,6 +37,8 @@ type
     function LoadPlugin(dllname: string): integer;
     property Items[pluginid: Integer]: TPluginItem read Getplugin; default;
     function Count: Integer;
+
+    procedure onTransPkgRev(mm:TMemory_data);
   end;
 
 var
@@ -179,9 +182,26 @@ begin
         plugins[Result]._Lr_PluginGetErrMsg := _Lr_PluginGetErrMsg;
         plugins[Result]._Lr_PluginRegLogRowRead := GetProcAddress(dlHandle, '_Lr_PluginRegLogRowRead');
         plugins[Result]._Lr_PluginUnInit := GetProcAddress(dlHandle, '_Lr_PluginUnInit');
+        plugins[Result]._Lr_PluginRegTransPkg := GetProcAddress(dlHandle, '_Lr_PluginRegTransPkg');
       finally
         pluginMREW.EndWrite;
       end;
+    end;
+  end;
+end;
+
+procedure TPluginsMgr.onTransPkgRev(mm: TMemory_data);
+var
+  I: Integer;
+begin
+  for I := 0 to Count - 1 do
+  begin
+    try
+      if Assigned(plugins[i]._Lr_PluginRegTransPkg) then
+      begin
+        plugins[i]._Lr_PluginRegTransPkg(@mm);
+      end;
+    except
     end;
   end;
 end;

@@ -18,6 +18,7 @@ type
     Button7: TButton;
     Button8: TButton;
     Button9: TButton;
+    Button10: TButton;
     procedure FormCreate(Sender: TObject);
     procedure Button1Click(Sender: TObject);
     procedure Button2Click(Sender: TObject);
@@ -29,6 +30,7 @@ type
     procedure Button7Click(Sender: TObject);
     procedure Button8Click(Sender: TObject);
     procedure Button9Click(Sender: TObject);
+    procedure Button10Click(Sender: TObject);
   private
     { Private declarations }
   public
@@ -45,6 +47,11 @@ uses
   dbConnectionCfg, databaseConnection, p_structDefine, Memory_Common, plugins;
 
 {$R *.dfm}
+
+procedure TForm1.Button10Click(Sender: TObject);
+begin
+  logsource.Fdbc.refreshDict;
+end;
 
 procedure TForm1.Button1Click(Sender: TObject);
 begin
@@ -143,7 +150,6 @@ end;
 procedure TForm1.FormCreate(Sender: TObject);
 begin
   logsource:= TLogSource.create;
-
 end;
 
 procedure TForm1.FormDestroy(Sender: TObject);
