@@ -33,7 +33,9 @@ uses
   hexValUtils in 'hexValUtils.pas',
   dbDict in 'dbDict.pas',
   BinDataUtils in 'BinDataUtils.pas',
-  dbFieldTypes in 'dbFieldTypes.pas';
+  dbFieldTypes in 'dbFieldTypes.pas',
+  System.Contnrs in 'j:\program files (x86)\embarcadero\studio\18.0\source\rtl\common\System.Contnrs.pas',
+  System.Classes in 'j:\program files (x86)\embarcadero\studio\18.0\source\rtl\common\System.Classes.pas';
 
 {$R *.res}
 

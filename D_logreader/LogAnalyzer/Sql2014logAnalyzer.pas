@@ -3,12 +3,18 @@ unit Sql2014logAnalyzer;
 interface
 
 uses
-  Classes, I_logAnalyzer, LogtransPkg, p_structDefine, Contnrs, LogSource,
-  dbDict, System.SysUtils;
+  Classes, I_logAnalyzer, LogtransPkg, p_structDefine, LogSource, dbDict, System.SysUtils,
+  Contnrs;
+
+type
+  TOperationType = (Opt_Insert, Opt_Update, Opt_Delete);
 
 type
   Tsql2014RowData = class(TObject)
+    OperaType: TOperationType;
     Fields: TList;
+    Table: TdbTableItem;
+  public
     constructor Create;
     destructor Destroy; override;
   end;
@@ -24,6 +30,8 @@ type
     procedure PriseRowLog(tPkg: TTransPkgItem);
     procedure PriseRowLog_Insert(tPkg: TTransPkgItem);
     function getDataFrom_TEXT_MIX(idx: TBytes; tPkg: TTransPkgItem): TBytes;
+    function BuilderSql_Insert(aRowData: Tsql2014RowData): string;
+    function BuilderSql(aRowData: Tsql2014RowData): string;
   public
     constructor Create(LogSource: TLogSource; Transpkg: TTransPkg);
     destructor Destroy; override;
@@ -45,13 +53,53 @@ begin
   FTranspkg := Transpkg;
   FLogSource := LogSource;
   FRows := TObjectList.Create;
+  FRows.OwnsObjects := True;
 end;
 
 destructor TSql2014logAnalyzer.Destroy;
 begin
   FTranspkg.Free;
+  FRows.Clear;
   FRows.Free;
   inherited;
+end;
+
+function TSql2014logAnalyzer.BuilderSql(aRowData: Tsql2014RowData): string;
+begin
+  case aRowData.OperaType of
+    Opt_Insert:
+      BuilderSql_Insert(aRowData);
+    Opt_Update:
+      ;
+    Opt_Delete:
+      ;
+  else
+    Loger.Add('尚未定義的SQLBuilder');
+  end;
+end;
+
+function TSql2014logAnalyzer.BuilderSql_Insert(aRowData: Tsql2014RowData): string;
+var
+  TmpSql: string;
+  fields: string;
+  StrVal: string;
+  I: Integer;
+  fieldval: PdbFieldValue;
+begin
+  fields := '';
+  StrVal := '';
+  for I := 0 to aRowData.Fields.Count - 1 do
+  begin
+    fieldval := PdbFieldValue(aRowData.Fields[I]);
+    fields := fields + ',' + fieldval.field.getSafeColName;
+    StrVal := StrVal + ',' + Hvu_GetFieldStrValue(fieldval.field, fieldval.value);
+  end;
+  if aRowData.Fields.Count > 0 then
+  begin
+    Delete(fields, 1, 1);
+    Delete(StrVal, 1, 1);
+  end;
+  TmpSql := Format('INSERT INTO %s(%s)values(%s)', [aRowData.Table.getFullName, fields, StrVal]);
 end;
 
 procedure TSql2014logAnalyzer.Execute;
@@ -106,7 +154,7 @@ var
   aField: TdbFieldItem;
   fieldval: PdbFieldValue;
   boolbit: Integer;
-  DataRow:Tsql2014RowData;
+  DataRow: Tsql2014RowData;
 begin
   DataRow := nil;
   BinReader := nil;
@@ -147,8 +195,10 @@ begin
             if DbTable = nil then
             begin
               //忽略的表
+              DataRow.Free;
               Exit;
             end;
+            DataRow.Table := DbTable;
             //开始读取R0
             BinReader.SetRange(R_Info[0].Offset, R_Info[0].Length);
             InsertRowFlag := BinReader.readWord;
@@ -159,6 +209,7 @@ begin
             if ColCnt <> DbTable.Fields.Count then
             begin
               Loger.Add('实际列数与日志不匹配！这可能是修改表后造成的！放弃解析！LSN：' + LSN2Str(tPkg.LSN));
+              DataRow.Free;
               exit;
             end;
             nullMap := BinReader.readBytes((ColCnt + 7) shr 3);
@@ -219,7 +270,7 @@ begin
                           fieldval.value := BinReader.readBytes(val_len);
                         end;
                       except
-                        on exx:Exception do
+                        on exx: Exception do
                         begin
                           Dispose(fieldval);
                           raise exx;
@@ -253,7 +304,7 @@ begin
                         boolbit := 0;
                     end;
                   except
-                    on exx:Exception do
+                    on exx: Exception do
                     begin
                       Dispose(fieldval);
                       raise exx;
@@ -266,25 +317,27 @@ begin
           end;
         LCX_INDEX_LEAF: //索引写入
           begin
-
+            //这东西应该可以忽略吧？？？
           end;
         LCX_TEXT_MIX: //行分块数据
           begin
 
           end;
       else
-
-
+        Loger.Add('PriseRowLog_Insert 遇到尚未处理的 ContextCode :' + contextCodeToStr(Rldo.normalData.ContextCode));
       end;
-      FRows.Add(DataRow);
-    Except
-      if DataRow<>nil then
+      if DataRow <> nil then
+      begin
+        FRows.Add(DataRow);
+        DataRow.OperaType := Opt_Insert;
+        BuilderSql(DataRow);
+      end;
+    except
+      if DataRow <> nil then
         DataRow.Free;
-
-      Loger.Add('PriseRowLog_Insert 遇到尚未处理的 ContextCode :' + contextCodeToStr(Rldo.normalData.ContextCode));
     end;
   finally
-    if BinReader<>nil then
+    if BinReader <> nil then
       BinReader.Free;
   end;
 end;
@@ -373,18 +426,18 @@ end;
 
 constructor Tsql2014RowData.Create;
 begin
-  Fields := TList.Create;
+  fields := TList.Create;
 end;
 
 destructor Tsql2014RowData.Destroy;
 var
   I: Integer;
 begin
-  for I := 0 to Fields.Count do
+  for I := 0 to fields.Count - 1 do
   begin
-    Dispose(Fields[I]);
+    Dispose(fields[I]);
   end;
-  Fields.free;
+  fields.free;
   inherited;
 end;
 

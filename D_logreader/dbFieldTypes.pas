@@ -27,9 +27,6 @@ type
       NUMERIC = 108;
       SMALLMONEY = 122;
       BIGINT = 127;
-      HIERARCHYID = 128;
-      GEOMETRY = 129;
-      GEOGRAPHY = 130;
       VARBINARY = 165;
       VARCHAR = 167;
       BINARY = 173;
@@ -37,8 +34,8 @@ type
       TIMESTAMP = 189;
       NVARCHAR = 231;
       NCHAR = 239;
+      GEOGRAPHY = 240;
       XML = 241;
-      SYSNAME = 256;
   end;
 
 implementation

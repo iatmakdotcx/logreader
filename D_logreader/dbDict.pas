@@ -17,8 +17,9 @@ type
     is_nullable: Boolean;
     leaf_pos: Integer;
     collation_name: string;  //×Ö·û¼¯
-    CodePage: string;
-    function isLogSkipCol:Boolean;
+    CodePage: Integer;
+    function isLogSkipCol: Boolean;
+    function getSafeColName: string;
   end;
 
   TdbFields = class(TObject)
@@ -49,7 +50,7 @@ type
     constructor Create;
     destructor Destroy; override;
     function getFullName: string;
-    function getNullMapLength:Integer;
+    function getNullMapLength: Integer;
   end;
 
   TdbTables = class(TObject)
@@ -81,9 +82,10 @@ type
   end;
 
   PdbFieldValue = ^TdbFieldValue;
+
   TdbFieldValue = record
-    field:TdbFieldItem;
-    value:TBytes;
+    field: TdbFieldItem;
+    value: TBytes;
   end;
 
 implementation
@@ -143,7 +145,10 @@ begin
       field.nullMap := Qry.Fields[8].AsInteger;
       field.leaf_pos := Qry.Fields[9].AsInteger;
       field.collation_name := Qry.Fields[10].AsString;
-      field.CodePage := Qry.Fields[11].AsString;
+      if Qry.Fields[11].IsNull then
+        field.CodePage := -1
+      else
+        field.CodePage := Qry.Fields[11].AsInteger;
       tti.Fields.addField(field);
     end;
     Qry.Next;
@@ -403,6 +408,11 @@ begin
 end;
 
 { TdbFieldItem }
+
+function TdbFieldItem.getSafeColName: string;
+begin
+  Result := '''' + ColName + '''';
+end;
 
 function TdbFieldItem.isLogSkipCol: Boolean;
 begin

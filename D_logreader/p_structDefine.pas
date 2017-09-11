@@ -63,9 +63,9 @@ type
     flag:Word;
     OperationCount :Word;
     endOfBlock:Word;
-    Size:Word;    //这两个Size绝对一个是默认，一个是实际
+    Size:Word;    //实际大小
     UN_1:Word;
-    Size2:Word;   //这两个Size绝对一个是默认，一个是实际
+    Size_Def:Word;   //块默认大小
     BeginLSN:Tlog_LSN;
     UN_2:Word;
     UN_3:DWORD;   //?? time?

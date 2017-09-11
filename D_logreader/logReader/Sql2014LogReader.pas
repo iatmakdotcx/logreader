@@ -30,6 +30,7 @@ type
     Fvlf:PVLF_Info;
     pkgMgr: TTransPkgMgr;
     procedure CreateAnalyzerThread(pkg:TTransPkg);
+    procedure RepairLogBlockAppendData(Pnt: Pointer);
   public
     constructor Create(LogSource: TLogSource; BeginLsn: Tlog_LSN);
     destructor Destroy; override;
@@ -319,13 +320,29 @@ begin
   inherited;
 end;
 
+procedure TSql2014LogPicker.RepairLogBlockAppendData(Pnt:Pointer);
+var
+  bBlockPosi:DWORD;
+  eBlockPosi:DWORD;
+begin
+  bBlockPosi := 0;
+  eBlockPosi := Cardinal(Pnt) + FlogBlock.Size - 1;
+  while bBlockPosi < FlogBlock.Size do
+  begin
+    PByte(Cardinal(Pnt) + bBlockPosi)^ := Pbyte(eBlockPosi)^;
+    bBlockPosi := bBlockPosi + $200;
+    eBlockPosi := eBlockPosi - 1;
+  end;
+end;
+
 procedure TSql2014LogPicker.Execute;
 label
   ExitLabel;
 var
   vlf: PVLF_Info;
   LogBlockPosi: Int64;
-  RowLength, RowOffset: Integer;
+  RowLength: Integer;
+  RowOffset:DWORD;
   RowdataBuffer: Pointer;
   RowOffsetTable: array of Word;
   RIdx: Integer; //要获取的第N行
@@ -333,6 +350,7 @@ var
   NowLsn: Tlog_LSN;
   RawData: TMemory_data;
   LogBlock:Pointer;
+//  TmPPosition:Integer;
 begin
   if (FBeginLsn.LSN_1 = 0) or (FBeginLsn.LSN_2 = 0) or (FBeginLsn.LSN_3 = 0) then
   begin
@@ -405,51 +423,44 @@ begin
     while True do  //循环块
     begin
       //先读出整个块，然后处理末尾的修复数据
-//      LogBlock := AllocMem(FlogBlock.Size);
-
+      LogBlock := AllocMem(FlogBlock.Size);
+      if FLogReader.FdataProvider[Fvlf.fileId].Read_Bytes(LogBlock^, LogBlockPosi, FlogBlock.Size)<>FlogBlock.Size then
+      begin
+        Loger.Add('LogPicker.Execute:get LogBlock  fail!%s', [LSN2Str(FBeginLsn)], LOG_ERROR);
+        FreeMem(LogBlock);
+        Exit;
+      end;
+      RepairLogBlockAppendData(LogBlock);
       SetLength(RowOffsetTable, FlogBlock.OperationCount);
       for I := 0 to FlogBlock.OperationCount - 1 do
       begin
-        //TODO:大Bug 必须修正块末尾数据否则数据是错的
-        //例：00000028:00000470:0001  -->  00000028:00000478:0009 事务id有问题
-        if not FLogReader.FdataProvider[Fvlf.fileId].Read_word(RowOffsetTable[I], LogBlockPosi + FlogBlock.endOfBlock - I * 2 - 2) then
-        begin
-          Loger.Add('LogPicker.Execute:get RowOffsetTable fail!%s', [LSN2Str(FBeginLsn)], LOG_ERROR);
-          SetLength(RowOffsetTable, 0);
-          Exit;
-        end;
+        RowOffsetTable[I] := PWORD(Cardinal(LogBlock) + Cardinal(FlogBlock.endOfBlock - I * 2 - 2))^;
       end;
-      RIdx := FBeginLsn.LSN_3;
-      while RIdx <= FlogBlock.OperationCount do  //循环行
+      RIdx := 0;
+      if FlogBlock.BeginLSN.LSN_3 <> 1 then
       begin
-        //TODO 1: 这里存在隐患，RIdx（行id）如果不是从1开始的就挂惨了
-        if FlogBlock.BeginLSN.LSN_3 <> 1 then
-        begin
-          Loger.Add('LogPicker.Execute:FlogBlock is not begin from 1!%s', [LSN2Str(FBeginLsn)], LOG_ERROR);
-        end;
+        Loger.Add('LogPicker.Execute:FlogBlock is not begin from 1!%s', [LSN2Str(FBeginLsn)], LOG_ERROR);
+      end;
 
-        if RIdx = FlogBlock.OperationCount then
+      while RIdx < FlogBlock.OperationCount do  //循环行
+      begin
+        if RIdx = FlogBlock.OperationCount - 1 then
         begin
           //最后一个
-          RowOffset := LogBlockPosi + RowOffsetTable[RIdx - 1];
-          RowLength := LogBlockPosi + (FlogBlock.endOfBlock - FlogBlock.OperationCount * 2) - RowOffset;
+          RowOffset := Cardinal(LogBlock) + RowOffsetTable[RIdx];
+          RowLength := Cardinal(LogBlock) + Cardinal(FlogBlock.endOfBlock - FlogBlock.OperationCount * 2) - RowOffset;
         end
         else
         begin
-          RowOffset := LogBlockPosi + RowOffsetTable[RIdx - 1];
-          RowLength := RowOffsetTable[RIdx] - RowOffsetTable[RIdx - 1];
+          RowOffset := Cardinal(LogBlock) + RowOffsetTable[RIdx];
+          RowLength := RowOffsetTable[RIdx + 1] - RowOffsetTable[RIdx];
         end;
         RowdataBuffer := AllocMem(RowLength);
-        if FLogReader.FdataProvider[Fvlf.fileId].Read_bytes(RowdataBuffer^, RowOffset, RowLength) <> RowLength then
-        begin
-          Loger.Add('LogPicker.Execute:get Row log fail!%s', [LSN2Str(FBeginLsn)], LOG_ERROR);
-          FreeMem(RowdataBuffer);
-          Exit;
-        end;
+        MoveMemory(RowdataBuffer, Pointer(RowOffset), RowLength);
         //如果成功。。
         NowLsn.LSN_1 := FlogBlock.BeginLSN.LSN_1;
         NowLsn.LSN_2 := FlogBlock.BeginLSN.LSN_2;
-        NowLsn.LSN_3 := RIdx;
+        NowLsn.LSN_3 := FBeginLsn.LSN_3 + RIdx;
         RawData.data := RowdataBuffer;
         RawData.dataSize := RowLength;
 
@@ -461,14 +472,13 @@ begin
         end;
         //下一行
         RIdx := RIdx + 1;
-        FBeginLsn.LSN_3 := RIdx;
-
         if Terminated then
         begin
           //响应 Terminated
           goto ExitLabel;
         end;
       end;
+      FreeMem(LogBlock);
       //一个块儿处理完 继续下一个块
       LogBlockPosi := LogBlockPosi + FlogBlock.Size;
       if (LogBlockPosi + SizeOf(TlogBlock)) > (Fvlf.VLFOffset + Fvlf.VLFSize) then
