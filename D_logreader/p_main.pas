@@ -131,13 +131,13 @@ begin
 //  lsn.LSN_2 := $1e8;
 //  lsn.LSN_3 := 2;
 
-  lsn.LSN_1 := $28;
-  lsn.LSN_2 := $298;
-  lsn.LSN_3 := $e;
+//  lsn.LSN_1 := $28;
+//  lsn.LSN_2 := $298;
+//  lsn.LSN_3 := $e;
 
-//lsn.LSN_1 := $28;
-//  lsn.LSN_2 := $2a0;
-//  lsn.LSN_3 := $2;
+lsn.LSN_1 := $28;
+  lsn.LSN_2 := $478;
+  lsn.LSN_3 := $1;
 
   logsource.Create_picker(lsn);
 end;

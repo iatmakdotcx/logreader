@@ -332,6 +332,7 @@ var
   I: Integer;
   NowLsn: Tlog_LSN;
   RawData: TMemory_data;
+  LogBlock:Pointer;
 begin
   if (FBeginLsn.LSN_1 = 0) or (FBeginLsn.LSN_2 = 0) or (FBeginLsn.LSN_3 = 0) then
   begin
@@ -403,9 +404,14 @@ begin
   begin
     while True do  //循环块
     begin
+      //先读出整个块，然后处理末尾的修复数据
+//      LogBlock := AllocMem(FlogBlock.Size);
+
       SetLength(RowOffsetTable, FlogBlock.OperationCount);
       for I := 0 to FlogBlock.OperationCount - 1 do
       begin
+        //TODO:大Bug 必须修正块末尾数据否则数据是错的
+        //例：00000028:00000470:0001  -->  00000028:00000478:0009 事务id有问题
         if not FLogReader.FdataProvider[Fvlf.fileId].Read_word(RowOffsetTable[I], LogBlockPosi + FlogBlock.endOfBlock - I * 2 - 2) then
         begin
           Loger.Add('LogPicker.Execute:get RowOffsetTable fail!%s', [LSN2Str(FBeginLsn)], LOG_ERROR);

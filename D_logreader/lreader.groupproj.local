@@ -1,0 +1,10 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<BorlandProject>
+	<Transactions>
+    <Transaction>1899-12-30 00:00:00.000.groupproj,C:\Users\Chin\Documents\RAD Studio\Projects\ProjectGroup1.groupproj=H:\Java\workspace\logreaderV2.0\D_logreader\ProjectGroup1.groupproj</Transaction>
+    <Transaction>2017-09-09 09:24:58.665,H:\Java\workspace\logreaderV2.0\D_logreader\lreader.groupproj=H:\Java\workspace\logreaderV2.0\D_logreader\ProjectGroup1.groupproj</Transaction>
+  </Transactions>
+	<Default.Personality>
+		<Projects ActiveProject="H:\Java\workspace\logreaderV2.0\D_logreader\logReader.dproj"/>
+	</Default.Personality>
+</BorlandProject>

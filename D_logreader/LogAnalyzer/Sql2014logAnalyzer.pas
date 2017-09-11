@@ -114,12 +114,14 @@ begin
   try
     try
       case Rldo.normalData.ContextCode of
-        LCX_HEAP: //堆表写入
+        LCX_HEAP, //堆表写入
+        LCX_CLUSTERED: //聚合写入
           begin
             DataRow := Tsql2014RowData.Create;
             SetLength(R_, Rldo.NumElements);
             SetLength(R_Info, Rldo.NumElements);
             BinReader := TbinDataReader.Create(tPkg.Raw);
+            BinReader.seek(SizeOf(TRawLog_DataOpt), soBeginning);
             for I := 0 to Rldo.NumElements - 1 do
             begin
               R_Info[I].Length := BinReader.readWord;
@@ -261,10 +263,6 @@ begin
                 end;
               end;
             end;
-          end;
-        LCX_CLUSTERED: //聚合写入
-          begin
-
           end;
         LCX_INDEX_LEAF: //索引写入
           begin
