@@ -17,6 +17,7 @@ type
     FRangeL: Cardinal;  //·¶Î§¿ªÊ¼
     FRangeH: Cardinal;  //·¶Î§½áÊø
     FPosition: Cardinal;
+    function GetPosition: Cardinal;
   public
     constructor Create(mm: TMemory_data);
     destructor Destroy; override;
@@ -33,7 +34,7 @@ type
     function readInt: Integer;
     function readInt64: Int64;
     function readBytes(aLen: Cardinal): TBytes;
-    property Position: Cardinal read FPosition;
+    property Position: Cardinal read GetPosition;
   end;
 
 implementation
@@ -53,6 +54,11 @@ destructor TbinDataReader.Destroy;
 begin
 
   inherited;
+end;
+
+function TbinDataReader.GetPosition: Cardinal;
+begin
+  Result := FPosition - FRangeL;
 end;
 
 procedure TbinDataReader.alignTo4;

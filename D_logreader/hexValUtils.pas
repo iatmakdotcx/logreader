@@ -40,7 +40,7 @@ begin
   NeedReadByteCnt := Min(Min(Length(Value), idx + len), idx + 2);
   for I := idx to NeedReadByteCnt - 1 do
   begin
-    Result := Result or (Value[I] shl (I - idx) * 8);
+    Result := Result or (Value[I] shl ((I - idx) * 8));
   end;
 end;
 
@@ -53,7 +53,7 @@ begin
   NeedReadByteCnt := Min(Min(Length(Value), idx + len), idx + 4);
   for I := idx to NeedReadByteCnt - 1 do
   begin
-    Result := Result or (Value[I] shl (I - idx) * 8);
+    Result := Result or (Value[I] shl ((I - idx) * 8));
   end;
 end;
 
@@ -66,7 +66,7 @@ begin
   NeedReadByteCnt := Min(Min(Length(Value), idx + len), idx + 8);
   for I := idx to NeedReadByteCnt - 1 do
   begin
-    Result := Result or (Value[I] shl (I - idx) * 8);
+    Result := Result or (Value[I] shl ((I - idx) * 8));
   end;
 end;
 
@@ -232,12 +232,14 @@ end;
 function Hvu_Bytes2AnsiBytesStr(Value: TBytes; CodePage: Integer): string;
 var
   needSize: Integer;
+  pwc:WideString;
 begin
-  needSize := MultiByteToWideChar(CodePage, MB_PRECOMPOSED, PAnsiChar(@Value[0]), -1, nil, 0);
+  needSize := MultiByteToWideChar(CodePage, MB_PRECOMPOSED, PAnsiChar(@Value[0]), Length(Value), nil, 0);
   if needSize > 0 then
   begin
-    SetLength(Result, needSize);
-    MultiByteToWideChar(CodePage, MB_PRECOMPOSED, PAnsiChar(@Value[0]), -1, PWideChar(@Result[1]), needSize);
+    SetLength(pwc, needSize);
+    MultiByteToWideChar(CodePage, MB_PRECOMPOSED, PAnsiChar(@Value[0]), Length(Value), PWideChar(@pwc[1]), needSize);
+    Result := pwc;
   end;
 end;
 
@@ -256,13 +258,13 @@ begin
 
   case Field.type_id of
     MsTypes.DATE:
-      Result := Hvu_Bytes2DateStr(Value);
+      Result := QuotedStr(Hvu_Bytes2DateStr(Value));
     MsTypes.TIME:
-      Result := Hvu_Bytes2TimeStr(Value, Field.scale);
+      Result := QuotedStr(Hvu_Bytes2TimeStr(Value, Field.scale));
     MsTypes.DATETIME2:
-      Result := Hvu_Bytes2DateTime2Str(Value, Field.scale);
+      Result := QuotedStr(Hvu_Bytes2DateTime2Str(Value, Field.scale));
     MsTypes.DATETIMEOFFSET:
-      Result := Hvu_Bytes2DateTimeOffsetStr(Value, Field.scale);
+      Result := QuotedStr(Hvu_Bytes2DateTimeOffsetStr(Value, Field.scale));
     MsTypes.TINYINT:
       Result := IntToStr(Value[0]);
     MsTypes.SMALLINT:
@@ -282,15 +284,15 @@ begin
     MsTypes.MONEY, MsTypes.SMALLMONEY:
       Result := Hvu_Bytes2Momey(Value, Field.scale);
     MsTypes.DATETIME:
-      Result := Hvu_Bytes2DateTimeStr(Value);
+      Result := QuotedStr(Hvu_Bytes2DateTimeStr(Value));
     MsTypes.SQL_VARIANT:
       ;
     MsTypes.TEXT, MsTypes.CHAR, MsTypes.VARCHAR:
-      Result := Hvu_Bytes2AnsiBytesStr(Value, Field.CodePage);
+      Result := QuotedStr(Hvu_Bytes2AnsiBytesStr(Value, Field.CodePage));
     MsTypes.NTEXT, MsTypes.NVARCHAR, MsTypes.NCHAR:
       begin
         Result := PWideChar(Value);
-        Result := Copy(Result, Length(Value) div 2);
+        Result := QuotedStr(Copy(Result, Length(Value) div 2));
       end;
     MsTypes.BIT:
       if Value[0] = 1 then
@@ -298,7 +300,7 @@ begin
       else
         Result := '0';
     MsTypes.XML, MsTypes.IMAGE, MsTypes.VARBINARY, MsTypes.BINARY:
-      Result := bytestostr(Value, $FFFFFFFF, False, False);
+      Result := '0x' + bytestostr(Value, $FFFFFFFF, False, False);
     MsTypes.UNIQUEIDENTIFIER:
       ;
     MsTypes.GEOGRAPHY:

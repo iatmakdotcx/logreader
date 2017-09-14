@@ -68,7 +68,7 @@ function TSql2014logAnalyzer.BuilderSql(aRowData: Tsql2014RowData): string;
 begin
   case aRowData.OperaType of
     Opt_Insert:
-      BuilderSql_Insert(aRowData);
+      Result := BuilderSql_Insert(aRowData);
     Opt_Update:
       ;
     Opt_Delete:
@@ -80,7 +80,6 @@ end;
 
 function TSql2014logAnalyzer.BuilderSql_Insert(aRowData: Tsql2014RowData): string;
 var
-  TmpSql: string;
   fields: string;
   StrVal: string;
   I: Integer;
@@ -99,7 +98,7 @@ begin
     Delete(fields, 1, 1);
     Delete(StrVal, 1, 1);
   end;
-  TmpSql := Format('INSERT INTO %s(%s)values(%s)', [aRowData.Table.getFullName, fields, StrVal]);
+  Result := Format('INSERT INTO %s(%s)values(%s);', [aRowData.Table.getFullName, fields, StrVal]);
 end;
 
 procedure TSql2014logAnalyzer.Execute;
@@ -221,7 +220,7 @@ begin
             end;
             VarFieldValBase := BinReader.Position;
             boolbit := 0;
-            for I := 0 to DbTable.Fields.Count do
+            for I := 0 to DbTable.Fields.Count - 1 do
             begin
               aField := DbTable.Fields[I];
               if not aField.isLogSkipCol then
@@ -246,7 +245,7 @@ begin
                     end
                     else
                     begin
-                      val_begin := VarFieldValBase + (VarFieldValEndOffset[Idx - 1] and $7FFF);
+                      val_begin := (VarFieldValEndOffset[Idx - 1] and $7FFF);
                     end;
                     val_len := (VarFieldValEndOffset[Idx] and $7FFF) - val_begin;
                     if val_len <= 0 then
@@ -328,9 +327,10 @@ begin
       end;
       if DataRow <> nil then
       begin
-        FRows.Add(DataRow);
         DataRow.OperaType := Opt_Insert;
-        BuilderSql(DataRow);
+        FRows.Add(DataRow);
+
+        Loger.Add(BuilderSql(DataRow));
       end;
     except
       if DataRow <> nil then
@@ -432,10 +432,13 @@ end;
 destructor Tsql2014RowData.Destroy;
 var
   I: Integer;
+  pdd:PdbFieldValue;
 begin
   for I := 0 to fields.Count - 1 do
   begin
-    Dispose(fields[I]);
+    pdd := PdbFieldValue(fields[I]);
+    SetLength(pdd.value, 0);
+    Dispose(pdd);
   end;
   fields.free;
   inherited;
