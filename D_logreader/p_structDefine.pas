@@ -128,6 +128,13 @@ type
     RowFlag:Word;
     NumElements:Word;
   end;
+  PLogMIXDATAPkg = ^TLogMIXDATAPkg;
+  TLogMIXDATAPkg = packed record
+    key:QWORD;
+    Page:TPage_Id;
+  end;
+
+
   
 //
 //type

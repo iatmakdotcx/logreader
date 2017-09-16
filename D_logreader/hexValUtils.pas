@@ -66,7 +66,7 @@ begin
   NeedReadByteCnt := Min(Min(Length(Value), idx + len), idx + 8);
   for I := idx to NeedReadByteCnt - 1 do
   begin
-    Result := Result or (Value[I] shl ((I - idx) * 8));
+    Result := Result or (Qword(Value[I]) shl ((I - idx) * 8));
   end;
 end;
 
@@ -141,15 +141,18 @@ var
   TmpDate: TDate;
   fixVal: Integer;
   TimeZoneStr: string;
+  zoneHours,zonMinutes:integer;
 begin
   fixVal := getShort(Value, 8);
+  zoneHours := abs(fixVal) div 60;
+  zonMinutes := abs(fixVal) mod 60;
   if fixVal < 0 then
   begin
-    TimeZoneStr := Format('-%d:%d', [abs(fixVal) div 60, abs(fixVal) mod 60]);
+    TimeZoneStr := Format('-%.2d:%.2d', [zoneHours, zonMinutes]);
   end
   else
   begin
-    TimeZoneStr := Format('+%d:%d', [abs(fixVal) div 60, abs(fixVal) mod 60]);
+    TimeZoneStr := Format('+%.2d:%.2d', [zoneHours, zonMinutes]);
   end;
   //天數
   dayCnt := getInt(Value, 5, 3);
@@ -157,8 +160,8 @@ begin
   TmpDate := TmpDate + dayCnt;
   Result := FormatDateTime('yyyy-MM-dd', TmpDate);
   //秒數
-  MisCnt := getInt64(Value, 0, 5);
   scaleCardinal := Trunc(Power(10, scale));
+  MisCnt := getInt64(Value, 0, 5) + int64(fixVal)*scaleCardinal*60;
   TotalSrcond := MisCnt div scaleCardinal;
   seconds := TotalSrcond mod 60;
   minutes := (TotalSrcond div 60) mod 60;
@@ -285,8 +288,7 @@ begin
       Result := Hvu_Bytes2Momey(Value, Field.scale);
     MsTypes.DATETIME:
       Result := QuotedStr(Hvu_Bytes2DateTimeStr(Value));
-    MsTypes.SQL_VARIANT:
-      ;
+   
     MsTypes.TEXT, MsTypes.CHAR, MsTypes.VARCHAR:
       Result := QuotedStr(Hvu_Bytes2AnsiBytesStr(Value, Field.CodePage));
     MsTypes.NTEXT, MsTypes.NVARCHAR, MsTypes.NCHAR:
@@ -300,13 +302,15 @@ begin
       else
         Result := '0';
     MsTypes.XML, MsTypes.IMAGE, MsTypes.VARBINARY, MsTypes.BINARY:
-      Result := '0x' + bytestostr(Value, $FFFFFFFF, False, False);
-    MsTypes.UNIQUEIDENTIFIER:
-      ;
+      Result := '0x' + StringReplace(bytestostr(Value, $FFFFFFFF, False, False),' ', '' ,[rfReplaceAll]);
+
+    MsTypes.TIMESTAMP:      //SqlServer 不允许显式写入TIMESTAMP字段
+      Result := '0x' + StringReplace(bytestostr(Value, $FFFFFFFF, False, False),' ', '' ,[rfReplaceAll]);
+
+    MsTypes.SQL_VARIANT,
+    MsTypes.UNIQUEIDENTIFIER,
     MsTypes.GEOGRAPHY:
-      ;
-    MsTypes.TIMESTAMP:
-      ;
+      Result := '0x' + StringReplace(bytestostr(Value, $FFFFFFFF, False, False),' ', '' ,[rfReplaceAll]);
   end;
 
 end;

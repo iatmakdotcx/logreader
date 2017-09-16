@@ -34,6 +34,7 @@ type
     function readInt: Integer;
     function readInt64: Int64;
     function readBytes(aLen: Cardinal): TBytes;
+    function getRangePosition:Cardinal;
     property Position: Cardinal read GetPosition;
   end;
 
@@ -57,6 +58,11 @@ begin
 end;
 
 function TbinDataReader.GetPosition: Cardinal;
+begin
+  Result := FPosition;
+end;
+
+function TbinDataReader.getRangePosition: Cardinal;
 begin
   Result := FPosition - FRangeL;
 end;

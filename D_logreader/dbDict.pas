@@ -142,7 +142,7 @@ begin
       field.scale := Qry.Fields[5].AsInteger;
       field.is_nullable := Qry.Fields[6].AsBoolean;
       field.ColName := Qry.Fields[7].AsString;
-      field.nullMap := Qry.Fields[8].AsInteger;
+      field.nullMap := Qry.Fields[8].AsInteger - 1;
       field.leaf_pos := Qry.Fields[9].AsInteger;
       field.collation_name := Qry.Fields[10].AsString;
       if Qry.Fields[11].IsNull then
@@ -411,7 +411,7 @@ end;
 
 function TdbFieldItem.getSafeColName: string;
 begin
-  Result := '''' + ColName + '''';
+  Result := '[' + ColName + ']';
 end;
 
 function TdbFieldItem.isLogSkipCol: Boolean;
