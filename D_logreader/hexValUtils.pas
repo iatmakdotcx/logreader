@@ -7,7 +7,10 @@ uses
 
 function Hvu_Hex2Datetime(msec: Int64): TDateTime;
 
-function Hvu_GetFieldStrValue(Field: TdbFieldItem; Value: TBytes): string;
+function Hvu_GetFieldStrValue(Field: TdbFieldItem; Value: TBytes): string; overload;
+
+function Hvu_GetFieldStrValue(Field: TdbFieldItem; Value: TBytes; out needQuote: Boolean): string; overload;
+function Hvu_GetFieldStrValueWithQuoteIfNeed(Field: TdbFieldItem; Value: TBytes): string;
 
 function getShort(Value: TBytes; idx: Integer; len: Integer = 2): word;
 
@@ -18,7 +21,7 @@ function getInt64(Value: TBytes; idx: Integer; len: Integer = 8): QWORD;
 implementation
 
 uses
-  DateUtils, dbFieldTypes, System.Math, Memory_Common;
+  DateUtils, dbFieldTypes, System.Math, Memory_Common, pluginlog;
 
 function Hvu_Hex2Datetime(msec: Int64): TDateTime;
 var
@@ -66,7 +69,7 @@ begin
   NeedReadByteCnt := Min(Min(Length(Value), idx + len), idx + 8);
   for I := idx to NeedReadByteCnt - 1 do
   begin
-    Result := Result or (Qword(Value[I]) shl ((I - idx) * 8));
+    Result := Result or Qword(Qword(Value[I]) shl Qword((I - idx) * 8));
   end;
 end;
 
@@ -141,7 +144,7 @@ var
   TmpDate: TDate;
   fixVal: Integer;
   TimeZoneStr: string;
-  zoneHours,zonMinutes:integer;
+  zoneHours, zonMinutes: integer;
 begin
   fixVal := getShort(Value, 8);
   zoneHours := abs(fixVal) div 60;
@@ -161,7 +164,7 @@ begin
   Result := FormatDateTime('yyyy-MM-dd', TmpDate);
   //秒數
   scaleCardinal := Trunc(Power(10, scale));
-  MisCnt := getInt64(Value, 0, 5) + int64(fixVal)*scaleCardinal*60;
+  MisCnt := getInt64(Value, 0, 5) + int64(fixVal) * scaleCardinal * 60;
   TotalSrcond := MisCnt div scaleCardinal;
   seconds := TotalSrcond mod 60;
   minutes := (TotalSrcond div 60) mod 60;
@@ -201,7 +204,7 @@ end;
 
 function Hvu_Bytes2Float(Value: TBytes; scale: Integer): string;
 var
-  tmplong: Integer;
+  tmplong: Int64;
   TmPdouble: Double;
 begin
   tmplong := getInt64(Value, 1);
@@ -215,7 +218,7 @@ end;
 
 function Hvu_Bytes2Momey(Value: TBytes; scale: Integer): string;
 var
-  tmplong: Integer;
+  tmplong: Int64;
   TmPdouble: Double;
 begin
   if Length(Value) = 4 then
@@ -235,7 +238,7 @@ end;
 function Hvu_Bytes2AnsiBytesStr(Value: TBytes; CodePage: Integer): string;
 var
   needSize: Integer;
-  pwc:WideString;
+  pwc: WideString;
 begin
   needSize := MultiByteToWideChar(CodePage, MB_PRECOMPOSED, PAnsiChar(@Value[0]), Length(Value), nil, 0);
   if needSize > 0 then
@@ -246,8 +249,24 @@ begin
   end;
 end;
 
-function Hvu_GetFieldStrValue(Field: TdbFieldItem; Value: TBytes): string;
+function Hvu_Bytes2GUIDStr(Value: TBytes): string;
+var
+  pp: PGUID;
 begin
+  pp := PGUID(@Value[0]);
+  Result := GUIDToString(pp^);
+end;
+
+function Hvu_GetFieldStrValue(Field: TdbFieldItem; Value: TBytes): string;
+var
+  needQuote: Boolean;
+begin
+  Result := Hvu_GetFieldStrValue(Field, Value, needQuote);
+end;
+
+function Hvu_GetFieldStrValue(Field: TdbFieldItem; Value: TBytes; out needQuote: Boolean): string;
+begin
+  needQuote := False;
   if Value = nil then
   begin
     Result := 'NULL';
@@ -255,19 +274,32 @@ begin
   end;
   if Length(Value) = 0 then
   begin
-    Result := '''''';
+    Result := '';
+    needQuote := True;
     exit;
   end;
 
   case Field.type_id of
     MsTypes.DATE:
-      Result := QuotedStr(Hvu_Bytes2DateStr(Value));
+      begin
+        Result := Hvu_Bytes2DateStr(Value);
+        needQuote := True;
+      end;
     MsTypes.TIME:
-      Result := QuotedStr(Hvu_Bytes2TimeStr(Value, Field.scale));
+      begin
+        Result := Hvu_Bytes2TimeStr(Value, Field.scale);
+        needQuote := True;
+      end;
     MsTypes.DATETIME2:
-      Result := QuotedStr(Hvu_Bytes2DateTime2Str(Value, Field.scale));
+      begin
+        Result := Hvu_Bytes2DateTime2Str(Value, Field.scale);
+        needQuote := True;
+      end;
     MsTypes.DATETIMEOFFSET:
-      Result := QuotedStr(Hvu_Bytes2DateTimeOffsetStr(Value, Field.scale));
+      begin
+        Result := Hvu_Bytes2DateTimeOffsetStr(Value, Field.scale);
+        needQuote := True;
+      end;
     MsTypes.TINYINT:
       Result := IntToStr(Value[0]);
     MsTypes.SMALLINT:
@@ -277,7 +309,10 @@ begin
     MsTypes.BIGINT:
       Result := IntToStr(getInt64(Value, 0));
     MsTypes.SMALLDATETIME:
-      Result := Hvu_Bytes2smallDatetimeStr(Value);
+      begin
+        Result := Hvu_Bytes2smallDatetimeStr(Value);
+        needQuote := True;
+      end;
     MsTypes.REAL:
       Result := Hvu_Bytes2SingleStr(Value);
     MsTypes.FLOAT:
@@ -287,33 +322,73 @@ begin
     MsTypes.MONEY, MsTypes.SMALLMONEY:
       Result := Hvu_Bytes2Momey(Value, Field.scale);
     MsTypes.DATETIME:
-      Result := QuotedStr(Hvu_Bytes2DateTimeStr(Value));
-   
+      begin
+        Result := Hvu_Bytes2DateTimeStr(Value);
+        needQuote := True;
+      end;
+
     MsTypes.TEXT, MsTypes.CHAR, MsTypes.VARCHAR:
-      Result := QuotedStr(Hvu_Bytes2AnsiBytesStr(Value, Field.CodePage));
+      begin
+        Result := Hvu_Bytes2AnsiBytesStr(Value, Field.CodePage);
+        needQuote := True;
+      end;
     MsTypes.NTEXT, MsTypes.NVARCHAR, MsTypes.NCHAR:
       begin
         Result := PWideChar(Value);
-        Result := QuotedStr(Copy(Result, Length(Value) div 2));
+        Result := Copy(Result, 0, Length(Value) div 2);
+        needQuote := True;
       end;
     MsTypes.BIT:
       if Value[0] = 1 then
-        Result := '1'
+        Result := 'true'
       else
-        Result := '0';
-    MsTypes.XML, MsTypes.IMAGE, MsTypes.VARBINARY, MsTypes.BINARY:
-      Result := '0x' + StringReplace(bytestostr(Value, $FFFFFFFF, False, False),' ', '' ,[rfReplaceAll]);
+        Result := 'false';
+    MsTypes.IMAGE, MsTypes.VARBINARY, MsTypes.BINARY:
+      Result := '0x' + bytestostr_singleHex(Value);
 
     MsTypes.TIMESTAMP:      //SqlServer 不允许显式写入TIMESTAMP字段
-      Result := '0x' + StringReplace(bytestostr(Value, $FFFFFFFF, False, False),' ', '' ,[rfReplaceAll]);
+      Result := '0x' + bytestostr_singleHex(Value);
 
-    MsTypes.SQL_VARIANT,
-    MsTypes.UNIQUEIDENTIFIER,
+    MsTypes.UNIQUEIDENTIFIER:
+      begin
+        Result := Hvu_Bytes2GUIDStr(Value);
+        needQuote := True;
+      end;
+
     MsTypes.GEOGRAPHY:
-      Result := '0x' + StringReplace(bytestostr(Value, $FFFFFFFF, False, False),' ', '' ,[rfReplaceAll]);
+      begin
+        Loger.add('暂不支持的类型:%d GEOGRAPHY 将尝试使用二进制值', [Field.type_id]);
+        Result := '0x' + bytestostr_singleHex(Value);
+      end;
+
+    MsTypes.XML:
+      begin
+        Loger.add('暂不支持的类型：XML 将使用NULL值');
+        Result := 'NULL';
+      end;
+    MsTypes.SQL_VARIANT:
+      begin
+        Loger.add('暂不支持的类型：SQL_VARIANT 将使用NULL值');
+        Result := 'NULL';
+      end;
+  else
+    Loger.add('暂不支持的类型:%d 将使用二进制值', [Field.type_id]);
+    Result := '0x' + bytestostr_singleHex(Value);
   end;
 
 end;
+
+function Hvu_GetFieldStrValueWithQuoteIfNeed(Field: TdbFieldItem; Value: TBytes): string;
+var
+  needQuote: Boolean;
+begin
+  Result := Hvu_GetFieldStrValue(Field, Value, needQuote);
+  if needQuote then
+  begin
+    Result := QuotedStr(Result);
+  end;
+end;
+
 
 end.
 

@@ -96,9 +96,8 @@ end;
 /// <returns>状态标识</returns>
 function _Lr_PluginRegTransPkg(TransPkg: PMemory_data): integer; stdcall;
 var
-  tranId:PTrans_Id;
-  readIdx:Integer;
-  RecCount:Integer;
+  tranId: PTrans_Id;
+  RecCount: Integer;
 begin
   //////////////////////////////////////////////////////////////////////////
   ///                             bin define
@@ -108,8 +107,48 @@ begin
   //////////////////////////////////////////////////////////////////////////
   tranId := TransPkg.data;
   RecCount := PWord(Cardinal(TransPkg.data) + SizeOf(TTrans_Id))^;
-  outputdebugString(PChar(Format('tranId:%s, len:%d',[TranId2Str(tranId^), RecCount])));
+  outputdebugString(PChar(Format('tranId:%s, len:%d', [TranId2Str(tranId^), RecCount])));
   Result := STATUS_SUCCESS;
+end;
+
+/// <summary>
+/// 当有 UPDATE、INSERT、DELETE 操作时返回的Sql语句
+/// </summary>
+/// <param name="Sql"></param>
+/// <returns></returns>
+function _Lr_PluginRegDMLSQL(Sql: PChar): integer; stdcall;
+begin
+
+end;
+
+/// <summary>
+/// 当有 UPDATE、INSERT、DELETE 操作时返回的 XML打包记录
+/// </summary>
+/// <param name="Xml"></param>
+/// <returns></returns>
+function _Lr_PluginRegDMLXML(Xml: PChar): integer; stdcall;
+begin
+
+end;
+
+/// <summary>
+/// 当有 CREATE、ALTER、DROP 操作时返回的Sql语句
+/// </summary>
+/// <param name="Sql"></param>
+/// <returns></returns>
+function _Lr_PluginRegDDLSQL(Sql: PChar): integer; stdcall;
+begin
+
+end;
+
+/// <summary>
+/// 当有 CREATE、ALTER、DROP 操作时返回的 XML打包记录
+/// </summary>
+/// <param name="Xml"></param>
+/// <returns></returns>
+function _Lr_PluginRegDDLXML(Xml: PChar): integer; stdcall;
+begin
+
 end;
 
 exports
@@ -118,7 +157,12 @@ exports
   _Lr_PluginUnInit,
   _Lr_PluginGetErrMsg,
   _Lr_PluginRegTransPkg,
-  _Lr_PluginRegLogRowRead;
+  _Lr_PluginRegLogRowRead,
+  _Lr_PluginRegDMLSQL,
+  _Lr_PluginRegDMLXML,
+  _Lr_PluginRegDDLSQL,
+  _Lr_PluginRegDDLXML;
 
 begin
 end.
+

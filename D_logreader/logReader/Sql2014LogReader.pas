@@ -306,6 +306,7 @@ end;
 
 procedure TSql2014LogPicker.CreateAnalyzerThread( pkg: TTransPkg);
 begin
+  //TODO:这里应该把pkg丢入队列，让一个线程来处理，否则可能导致提交乱序
   TSql2014logAnalyzer.Create(FLogSource, pkg);
 end;
 

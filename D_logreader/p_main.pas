@@ -19,6 +19,7 @@ type
     Button8: TButton;
     Button9: TButton;
     Button10: TButton;
+    Button11: TButton;
     procedure FormCreate(Sender: TObject);
     procedure Button1Click(Sender: TObject);
     procedure Button2Click(Sender: TObject);
@@ -31,6 +32,7 @@ type
     procedure Button8Click(Sender: TObject);
     procedure Button9Click(Sender: TObject);
     procedure Button10Click(Sender: TObject);
+    procedure Button11Click(Sender: TObject);
   private
     { Private declarations }
   public
@@ -51,6 +53,11 @@ uses
 procedure TForm1.Button10Click(Sender: TObject);
 begin
   logsource.Fdbc.refreshDict;
+end;
+
+procedure TForm1.Button11Click(Sender: TObject);
+begin
+ShowMessage(hexToAnsiiData('0x28283132332929'));
 end;
 
 procedure TForm1.Button1Click(Sender: TObject);
@@ -135,9 +142,9 @@ begin
 //  lsn.LSN_2 := $298;
 //  lsn.LSN_3 := $e;
 
-  lsn.LSN_1 := $29;
-  lsn.LSN_2 := $f8;
-  lsn.LSN_3 := $2;
+  lsn.LSN_1 := $2a;
+  lsn.LSN_2 := $280;
+  lsn.LSN_3 := $3a;
 
   logsource.Create_picker(lsn);
 end;

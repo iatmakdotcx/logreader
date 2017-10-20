@@ -1,7 +1,7 @@
 ﻿<?xml version="1.0" encoding="utf-8"?>
 <BorlandProject>
 	<Transactions>
-    <Transaction>1899-12-30 00:00:00.000.310,C:\Users\Chin\Documents\Embarcadero\Studio\Projects\Project1.dproj=H:\Java\workspace\logreaderV2.0\D_logreader\plugins\LogView\lr_logView.dproj</Transaction>
-    <Transaction>1899-12-30 00:00:00.000.858,H:\Java\workspace\logreaderV2.0\D_logreader\plugins\LogView\Unit1.dfm=H:\Java\workspace\logreaderV2.0\D_logreader\plugins\LogView\logdisplay.dfm</Transaction>
+    <Transaction>1899-12-30 00:00:00.000.858,H:\Java\workspace\logreaderV2.0\D_logreader\plugins\LogView\logdisplay.dfm=H:\Java\workspace\logreaderV2.0\D_logreader\plugins\LogView\Unit1.dfm</Transaction>
+    <Transaction>1899-12-30 00:00:00.000.310,H:\Java\workspace\logreaderV2.0\D_logreader\plugins\LogView\lr_logView.dproj=C:\Users\Chin\Documents\Embarcadero\Studio\Projects\Project1.dproj</Transaction>
   </Transactions>
 </BorlandProject>

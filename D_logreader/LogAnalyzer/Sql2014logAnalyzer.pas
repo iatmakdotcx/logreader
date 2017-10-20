@@ -4,7 +4,7 @@ interface
 
 uses
   Classes, I_logAnalyzer, LogtransPkg, p_structDefine, LogSource, dbDict, System.SysUtils,
-  Contnrs;
+  Contnrs, BinDataUtils;
 
 type
   TOperationType = (Opt_Insert, Opt_Update, Opt_Delete);
@@ -15,6 +15,7 @@ type
     Fields: TList;
     Table: TdbTableItem;
   public
+    function getFieldStrValue(FieldName: string): string;
     constructor Create;
     destructor Destroy; override;
   end;
@@ -35,6 +36,64 @@ type
     destructor Destroy; override;
   end;
 
+  TDDLItem = class(TObject)
+    xType: string; //v,u,s,d
+    function getObjId: Integer; virtual; abstract;
+  end;
+
+  TDDL_Create_Table = class(TDDLItem)
+    TableObj: TdbTableItem;
+  public
+    constructor Create;
+    destructor Destroy; override;
+    function getObjId: Integer; override;
+  end;
+
+  TDDL_Create_View = class(TDDLItem)
+  //TODO:TDDL_Create_View
+  end;
+
+  TDDL_Create_Procedure = class(TDDLItem)
+  //TODO:TDDL_Create_View
+  end;
+
+  TDDL_Create_Def = class(TDDLItem)
+    objId: Integer;
+    objName: string;
+    tableid: Integer;
+    colid: Integer;
+    value: string;
+    constructor Create;
+    function getObjId: Integer; override;
+  end;
+
+  TDDLMgr = class(TObject)
+    FItems_id: TList;
+    FItems: TObjectList;
+  public
+    function GetItem(ObjId: Integer): TDDLItem;
+    procedure Add(obj: TDDLItem);
+    constructor Create;
+    destructor Destroy; override;
+  end;
+
+  TAllocUnitMgr = class(TObject)
+  private
+    type
+      TAllocUnitMgrItrem = class(TObject)
+        AllocId: Int64;
+        ObjId: Integer;
+      end;
+    var
+      FItems: TObjectList;
+  public
+    function AllocIdExists(AllocId: Int64): Boolean;
+    function GetObjId(AllocId: Int64): Integer;
+    procedure Add(AllocId: Int64; ObjId: Integer);
+    constructor Create;
+    destructor Destroy; override;
+  end;
+
   TSql2014logAnalyzer = class(TlogAnalyzer)
   private
     FRows: TObjectList;
@@ -43,12 +102,19 @@ type
     FTranspkg: TTransPkg;
     FLogSource: TLogSource;
     MIX_DATAs: TMIX_DATAs;
+    DDL: TDDLMgr;
+    AllocUnitMgr: TAllocUnitMgr;
     procedure serializeToBin(var mm: TMemory_data);
     procedure PriseRowLog(tPkg: TTransPkgItem);
     procedure PriseRowLog_Insert(tPkg: TTransPkgItem);
     function getDataFrom_TEXT_MIX(idx: TBytes; tPkg: TTransPkgItem): TBytes;
     function BuilderSql_Insert(aRowData: Tsql2014RowData): string;
     function BuilderSql(aRowData: Tsql2014RowData): string;
+    function Read_LCX_TEXT_MIX_DATA(tPkg: TTransPkgItem; BinReader: TbinDataReader): TBytes;
+    procedure PriseDDLPkg(DataRow: Tsql2014RowData);
+    procedure PriseDDLPkg_sysrscols(DataRow: Tsql2014RowData);
+    procedure PriseDDLPkg_sysschobjs(DataRow: Tsql2014RowData);
+    procedure PriseDDLPkg_sysobjvalues(DataRow: Tsql2014RowData);
   public
     constructor Create(LogSource: TLogSource; Transpkg: TTransPkg);
     destructor Destroy; override;
@@ -58,8 +124,8 @@ type
 implementation
 
 uses
-  pluginlog, plugins, OpCode, hexValUtils, contextCode, BinDataUtils,
-  dbFieldTypes, Memory_Common;
+  pluginlog, plugins, OpCode, hexValUtils, contextCode, dbFieldTypes,
+  Memory_Common;
 
 { TSql2014logAnalyzer }
 
@@ -72,6 +138,8 @@ begin
   FRows := TObjectList.Create;
   FRows.OwnsObjects := True;
   MIX_DATAs := TMIX_DATAs.Create;
+  DDL := TDDLMgr.Create;
+  AllocUnitMgr := TAllocUnitMgr.Create;
 end;
 
 destructor TSql2014logAnalyzer.Destroy;
@@ -80,6 +148,8 @@ begin
   FRows.Clear;
   FRows.Free;
   MIX_DATAs.Free;
+  DDL.Free;
+  AllocUnitMgr.Free;
   inherited;
 end;
 
@@ -125,6 +195,7 @@ var
   mm: TMemory_data;
   I: Integer;
   TTpi: TTransPkgItem;
+  DataRow: Tsql2014RowData;
 begin
   Loger.Add('TSql2014logAnalyzer.Execute ==> ' + TranId2Str(FTranspkg.Ftransid));
   //通知插件
@@ -136,6 +207,288 @@ begin
   begin
     TTpi := TTransPkgItem(FTranspkg.Items[I]);
     PriseRowLog(TTpi);
+  end;
+  //开始干正事
+  for I := 0 to FRows.Count - 1 do
+  begin
+    DataRow := Tsql2014RowData(FRows[I]);
+    if DataRow.Table.Owner = 'sys' then
+    begin
+      //如果操作的是系统表则是ddl语句
+      PriseDDLPkg(DataRow);
+    end
+    else
+    begin
+      // dml 语句
+
+
+    end;
+
+  end;
+end;
+
+procedure TSql2014logAnalyzer.PriseDDLPkg(DataRow: Tsql2014RowData);
+var
+  ddlitem: TDDLItem;
+  FieldItem: TdbFieldItem;
+  //tmpVar
+  rowsetid: int64;
+  ObjId: Integer;
+  collation_id: Integer;
+  TmpStr: string;
+begin
+  if DataRow.Table.TableNmae = 'sysschobjs' then
+  begin
+    //新增表,存储过程、视图 、默认值等对象
+    PriseDDLPkg_sysschobjs(DataRow);
+  end
+  else if DataRow.Table.TableNmae = 'syscolpars' then
+  begin
+    if TryStrToInt(DataRow.getFieldStrValue('id'), ObjId) then
+    begin
+      ddlitem := DDL.GetItem(ObjId);
+      if (ddlitem <> nil) and (ddlitem.xType = 'u') then
+      begin
+        //表添加字段
+        FieldItem := TdbFieldItem.Create;
+        FieldItem.Col_id := StrToInt(DataRow.getFieldStrValue('colid'));
+        FieldItem.ColName := DataRow.getFieldStrValue('name');
+        FieldItem.type_id := StrToInt(DataRow.getFieldStrValue('xtype'));
+        FieldItem.Max_length := StrToInt(DataRow.getFieldStrValue('length'));
+        FieldItem.procision := StrToInt(DataRow.getFieldStrValue('prec'));
+        FieldItem.scale := StrToInt(DataRow.getFieldStrValue('scale'));
+        collation_id := StrToInt(DataRow.getFieldStrValue('collationid'));
+        FieldItem.collation_name := FLogSource.Fdbc.GetCollationPropertyFromId(collation_id);
+        if FieldItem.collation_name <> '' then
+        begin
+          TmpStr := FLogSource.Fdbc.GetCodePageFromCollationName(FieldItem.collation_name);
+          if TmpStr <> '' then
+          begin
+            FieldItem.CodePage := StrToIntDef(TmpStr, -1);
+          end
+          else
+          begin
+            FieldItem.CodePage := -1;
+          end;
+        end;
+        TDDL_Create_Table(ddlitem).TableObj.Fields.addField(FieldItem);
+      end
+      else
+      begin
+        raise Exception.Create('Error Message:DataRow.Table.TableNmae = syscolpars');
+      end;
+    end;
+  end
+  else if DataRow.Table.TableNmae = 'sysrowsets' then
+  begin
+    rowsetid := StrToInt64(DataRow.getFieldStrValue('rowsetid'));
+    ObjId := StrToInt(DataRow.getFieldStrValue('idmajor'));
+    AllocUnitMgr.Add(rowsetid, ObjId);
+  end
+  else if DataRow.Table.TableNmae = 'sysrscols' then
+  begin
+    PriseDDLPkg_sysrscols(DataRow);
+  end
+  else if DataRow.Table.TableNmae = 'sysobjvalues' then
+  begin
+    //默认值——值
+    PriseDDLPkg_sysobjvalues(DataRow);
+  end;
+
+end;
+
+procedure TSql2014logAnalyzer.PriseDDLPkg_sysobjvalues(DataRow: Tsql2014RowData);
+var
+  I: Integer;
+  pdd: PdbFieldValue;
+  pdd_field_ColName: string;
+  objId: Integer;
+  value: string;
+  ddlitem: TDDLItem;
+  DefObj: TDDL_Create_Def;
+begin
+  objId := 0;
+  ;
+  value := '';
+
+  for I := 0 to DataRow.Fields.Count - 1 do
+  begin
+    pdd := PdbFieldValue(DataRow.Fields[I]);
+    pdd_field_ColName := LowerCase(pdd.field.ColName);
+    if pdd_field_ColName = 'objid' then
+    begin
+      objId := StrToInt(Hvu_GetFieldStrValue(pdd.field, pdd.value));
+    end
+    else if pdd_field_ColName = 'imageval' then
+    begin
+      value := Hvu_GetFieldStrValue(pdd.field, pdd.value);
+    end;
+  end;
+
+  ddlitem := DDL.GetItem(objId);
+  if (ddlitem <> nil) and (ddlitem.xType = 'd') then
+  begin
+    DefObj := TDDL_Create_Def(ddlitem);
+    DefObj.value := hexToAnsiiData(value);
+  end
+  else
+  begin
+    raise Exception.Create('Error Message:PriseDDLPkg_sysrscols.2');
+  end;
+
+end;
+
+procedure TSql2014logAnalyzer.PriseDDLPkg_sysschobjs(DataRow: Tsql2014RowData);
+var
+  I: Integer;
+  pdd: PdbFieldValue;
+  pdd_field_ColName: string;
+  ObjId: Integer;
+  ObjName: string;
+  nsid: Integer;
+  ObjType: string;
+  pid: Integer;
+  initprop: Integer; //如果对象是表值为表总列数，如果是默认值为列id
+
+  table: TDDL_Create_Table;
+  DefObj: TDDL_Create_Def;
+begin
+  ObjId := 0;
+  ObjName := '';
+  nsid := 0;
+  ObjType := '';
+  pid := 0;
+  initprop := 0;
+
+  for I := 0 to DataRow.Fields.Count - 1 do
+  begin
+    pdd := PdbFieldValue(DataRow.Fields[I]);
+    pdd_field_ColName := LowerCase(pdd.field.ColName);
+    if pdd_field_ColName = 'id' then
+    begin
+      ObjId := StrToInt(Hvu_GetFieldStrValue(pdd.field, pdd.value));
+    end
+    else if pdd_field_ColName = 'name' then
+    begin
+      ObjName := Hvu_GetFieldStrValue(pdd.field, pdd.value);
+    end
+    else if pdd_field_ColName = 'nsid' then
+    begin
+      nsid := StrToInt(Hvu_GetFieldStrValue(pdd.field, pdd.value));
+    end
+    else if pdd_field_ColName = 'type' then
+    begin
+      ObjType := Hvu_GetFieldStrValue(pdd.field, pdd.value);
+    end
+    else if pdd_field_ColName = 'pid' then
+    begin
+      pid := StrToInt(Hvu_GetFieldStrValue(pdd.field, pdd.value));
+    end
+    else if pdd_field_ColName = 'intprop' then
+    begin
+      initprop := StrToInt(Hvu_GetFieldStrValue(pdd.field, pdd.value));
+    end;
+  end;
+  ObjType := Trim(LowerCase(ObjType));
+
+  if ObjType = 'u' then
+  begin
+    //表
+    table := TDDL_Create_Table.Create;
+    table.TableObj.TableId := ObjId;
+    table.TableObj.TableNmae := ObjName;
+    table.TableObj.Owner := FLogSource.Fdbc.GetSchemasName(nsid);
+    DDL.Add(table);
+  end
+  else if ObjType = 'd' then
+  begin
+    //默认值
+    DefObj := TDDL_Create_Def.Create;
+    DefObj.objId := ObjId;
+    DefObj.objName := ObjName;
+    DefObj.tableid := pid;
+    DefObj.colid := initprop;
+    DDL.Add(DefObj);
+  end
+  else if ObjType = 'p' then
+  begin
+    //过程
+
+
+  end
+  else
+  begin
+     //未知对象
+
+  end;
+
+end;
+
+procedure TSql2014logAnalyzer.PriseDDLPkg_sysrscols(DataRow: Tsql2014RowData);
+var
+  I: Integer;
+  pdd: PdbFieldValue;
+  pdd_field_ColName: string;
+  rowsetid: int64;
+  ColId: Integer;
+  statusCode: Integer;
+  ObjId: Integer;
+  DataOffset: Integer;
+  Nullbit: Integer;
+  ddlitem: TDDLItem;
+  table: TDDL_Create_Table;
+  FieldItem: TdbFieldItem;
+begin
+  rowsetid := 0;
+  ColId := 0;
+  statusCode := 0;
+  DataOffset := 0;
+  Nullbit := 0;
+  for I := 0 to DataRow.Fields.Count - 1 do
+  begin
+    pdd := PdbFieldValue(DataRow.Fields[I]);
+    pdd_field_ColName := LowerCase(pdd.field.ColName);
+    if pdd_field_ColName = 'rsid' then
+    begin
+      rowsetid := StrToInt64(Hvu_GetFieldStrValue(pdd.field, pdd.value));
+    end
+    else if pdd_field_ColName = 'rscolid' then
+    begin
+      ColId := StrToInt(Hvu_GetFieldStrValue(pdd.field, pdd.value));
+    end
+    else if pdd_field_ColName = 'status' then
+    begin
+      statusCode := StrToInt(Hvu_GetFieldStrValue(pdd.field, pdd.value));
+    end
+    else if pdd_field_ColName = 'offset' then
+    begin
+      DataOffset := StrToInt(Hvu_GetFieldStrValue(pdd.field, pdd.value));
+    end
+    else if pdd_field_ColName = 'nullbit' then
+    begin
+      Nullbit := StrToInt(Hvu_GetFieldStrValue(pdd.field, pdd.value));
+    end;
+  end;
+  ObjId := AllocUnitMgr.GetObjId(rowsetid);
+  if ObjId <> 0 then
+  begin
+    ddlitem := DDL.GetItem(ObjId);
+    if (ddlitem <> nil) and (ddlitem.xType = 'u') then
+    begin
+      table := TDDL_Create_Table(ddlitem);
+      FieldItem := table.TableObj.Fields.Items[ColId - 1];
+      FieldItem.nullMap := Nullbit - 1;
+      FieldItem.is_nullable := (statusCode and $80) > 0;
+      FieldItem.leaf_pos := DataOffset;
+    end
+    else
+    begin
+      raise Exception.Create('Error Message:PriseDDLPkg_sysrscols.2');
+    end;
+  end
+  else
+  begin
+    raise Exception.Create('Error Message:PriseDDLPkg_sysrscols');
   end;
 end;
 
@@ -184,10 +537,6 @@ var
   fieldval: PdbFieldValue;
   boolbit: Integer;
   DataRow: Tsql2014RowData;
-  //
-  MixDataIdx: QWORD;
-  MixDataLen: QWORD;
-  MixItem: TMIX_DATA_Item;
 begin
   DataRow := nil;
   BinReader := nil;
@@ -198,7 +547,6 @@ begin
         LCX_HEAP, //堆表写入
         LCX_CLUSTERED: //聚合写入
           begin
-
             SetLength(R_, Rldo.NumElements);
             SetLength(R_Info, Rldo.NumElements);
             BinReader := TbinDataReader.Create(tPkg.Raw);
@@ -389,21 +737,8 @@ begin
             end;
             //开始读取R0
             BinReader.SetRange(R_Info[0].Offset, R_Info[0].Length);
-            InsertRowFlag := BinReader.readWord;
-            { TODO -oChin -c : 测试用代码 2017-09-16 11:42:40 }
-            if InsertRowFlag <> $0008 then
-            begin
-              Loger.AddException('LCX_TEXT_MIX 行首发现未确认值 ' + lsn2str(tPkg.LSN));
-            end;
-            BinReader.skip(2);  //R0长度
-            MixDataIdx := BinReader.readQWORD;
-            MixDataLen := BinReader.readDWORD;
-            //这种数据长度是6位的，猜测应该是兼容大于4BG的数据
-            MixDataLen := MixDataLen or (Qword(BinReader.readWORD) shl 32);
-            MixItem := TMIX_DATA_Item.Create;
-            MixItem.Idx := MixDataIdx;
-            MixItem.data := BinReader.readBytes(MixDataLen);
-            MIX_DATAs.FItems.Add(MixItem);
+            Read_LCX_TEXT_MIX_DATA(tPkg, BinReader);
+
           end;
       else
         Loger.Add('PriseRowLog_Insert 遇到尚未处理的 ContextCode :' + contextCodeToStr(Rldo.normalData.ContextCode));
@@ -412,7 +747,6 @@ begin
       begin
         DataRow.OperaType := Opt_Insert;
         FRows.Add(DataRow);
-
         Loger.Add(BuilderSql(DataRow));
       end;
     except
@@ -426,6 +760,40 @@ begin
   finally
     if BinReader <> nil then
       BinReader.Free;
+  end;
+end;
+
+function TSql2014logAnalyzer.Read_LCX_TEXT_MIX_DATA(tPkg: TTransPkgItem; BinReader: TbinDataReader): TBytes;
+var
+  RowFlag: Word;
+  MixDataIdx: QWORD;
+  MixDataLen: QWORD;
+  MixItem: TMIX_DATA_Item;
+  MixDataType: Word;
+begin
+  RowFlag := BinReader.readWord;
+            { TODO -oChin -c : 测试用代码 2017-09-16 11:42:40 }
+  if RowFlag <> $0008 then
+  begin
+    Loger.AddException('LCX_TEXT_MIX 行首发现未确认值 ' + lsn2str(tPkg.LSN));
+  end;
+
+  BinReader.skip(2);  //R0长度
+  MixDataIdx := BinReader.readQWORD;
+  MixDataType := BinReader.readWord;
+  if MixDataType = 0 then
+  begin
+    MixDataLen := BinReader.readDWORD;
+    //这种数据长度是6位的，猜测应该是兼容大于4BG的数据
+    MixDataLen := MixDataLen or (Qword(BinReader.readWORD) shl 32);
+    MixItem := TMIX_DATA_Item.Create;
+    MixItem.Idx := MixDataIdx;
+    MixItem.data := BinReader.readBytes(MixDataLen);
+    MIX_DATAs.FItems.Add(MixItem);
+  end
+  else
+  begin
+    Loger.AddException('LCX_TEXT_MIX 行首发现未确认值 MixDataType ' + lsn2str(tPkg.LSN));
   end;
 end;
 
@@ -531,6 +899,24 @@ begin
   inherited;
 end;
 
+function Tsql2014RowData.getFieldStrValue(FieldName: string): string;
+var
+  I: Integer;
+  pdd: PdbFieldValue;
+begin
+  //TODO:此方式效率低，应该在代码中直接循环取值
+  FieldName := LowerCase(FieldName);
+  for I := 0 to fields.Count - 1 do
+  begin
+    pdd := PdbFieldValue(fields[I]);
+    if LowerCase(pdd.field.ColName) = FieldName then
+    begin
+      Result := Hvu_GetFieldStrValue(pdd.field, pdd.value);
+      Break;
+    end;
+  end;
+end;
+
 { MIX_DATA_Item }
 
 constructor TMIX_DATA_Item.Create;
@@ -582,6 +968,119 @@ begin
     end;
   end;
   Result := nil;
+end;
+
+{ TDDL_Create_Table }
+
+constructor TDDL_Create_Table.Create;
+begin
+  TableObj := TdbTableItem.Create;
+  xType := 'u';
+end;
+
+destructor TDDL_Create_Table.Destroy;
+begin
+  TableObj.Free;
+  inherited;
+end;
+
+function TDDL_Create_Table.getObjId: Integer;
+begin
+  Result := TableObj.TableId;
+end;
+
+{ TDDLMgr }
+
+procedure TDDLMgr.Add(obj: TDDLItem);
+begin
+  FItems.Add(obj);
+  FItems_id.Add(Pointer(obj.getObjId));
+end;
+
+constructor TDDLMgr.Create;
+begin
+  FItems := TObjectList.Create;
+  FItems_id := TList.Create;
+end;
+
+destructor TDDLMgr.Destroy;
+begin
+  FItems.Free;
+  FItems_id.Free;
+  inherited;
+end;
+
+function TDDLMgr.GetItem(ObjId: Integer): TDDLItem;
+var
+  I: Integer;
+begin
+  Result := nil;
+  for I := 0 to FItems_id.Count - 1 do
+  begin
+    if Integer(FItems_id[I]) = ObjId then
+    begin
+      Result := TDDLItem(FItems[I]);
+      Exit;
+    end;
+  end;
+end;
+
+{ TAllocUnitMgr }
+
+procedure TAllocUnitMgr.Add(AllocId: Int64; ObjId: Integer);
+var
+  NewItem: TAllocUnitMgrItrem;
+begin
+  if not AllocIdExists(AllocId) then
+  begin
+    NewItem := TAllocUnitMgrItrem.Create;
+    NewItem.AllocId := AllocId;
+    NewItem.ObjId := ObjId;
+    FItems.Add(NewItem);
+  end;
+end;
+
+function TAllocUnitMgr.AllocIdExists(AllocId: Int64): Boolean;
+begin
+  Result := GetObjId(AllocId) <> 0;
+end;
+
+constructor TAllocUnitMgr.Create;
+begin
+  FItems := TObjectList.Create;
+end;
+
+destructor TAllocUnitMgr.Destroy;
+begin
+  FItems.Free;
+  inherited;
+end;
+
+function TAllocUnitMgr.GetObjId(AllocId: Int64): Integer;
+var
+  I: Integer;
+begin
+  for I := 0 to FItems.Count - 1 do
+  begin
+    if TAllocUnitMgrItrem(FItems[I]).AllocId = AllocId then
+    begin
+      Result := TAllocUnitMgrItrem(FItems[I]).ObjId;
+      Exit;
+    end;
+  end;
+  Result := 0;
+end;
+
+{ TDDL_Create_Def }
+
+constructor TDDL_Create_Def.Create;
+begin
+  xType := 'd';
+end;
+
+function TDDL_Create_Def.getObjId: Integer;
+begin
+  Result := ObjId;
 end;
 
 end.

@@ -8,7 +8,7 @@ uses
 type
   TdatabaseConnection = class(TObject)
   private
-    AdoQ:TADOQuery;
+    AdoQ:TADOQuery; //TODO:非线程安全，应该加入临界区
     ADOConn: TADOConnection;
   public
      //手动设置部分
@@ -54,6 +54,10 @@ type
      procedure getDb_dbInfo;
      procedure getDb_allLogFiles;
      procedure getDb_VLFs;
+
+     function GetCodePageFromCollationName(cName: string): string;
+     function GetCollationPropertyFromId(id: Integer): string;
+    function GetSchemasName(schema_id: Integer): string;
   end;
 
 implementation
@@ -208,6 +212,27 @@ begin
   ADOConn.ConnectionString := getConnectionString(Host, user, PassWd, dbName);
 end;
 
+function TdatabaseConnection.GetCollationPropertyFromId(id:Integer):string;
+begin
+  AdoQ.sql.Text := Format('SELECT COLLATIONPROPERTYFROMID(%d,''Name'')',[id]);
+  AdoQ.Open;
+  Result := AdoQ.Fields[0].AsString;
+end;
+
+function TdatabaseConnection.GetCodePageFromCollationName(cName:string):string;
+begin
+  AdoQ.sql.Text := Format('SELECT COLLATIONPROPERTY(''%s'',''CodePage'')',[cName]);
+  AdoQ.Open;
+  Result := AdoQ.Fields[0].AsString;
+end;
+
+function TdatabaseConnection.GetSchemasName(schema_id:Integer):string;
+begin
+  AdoQ.sql.Text := Format('select name from sys.schemas where schema_id=%d',[schema_id]);
+  AdoQ.Open;
+  Result := AdoQ.Fields[0].AsString;
+end;
+
 procedure TdatabaseConnection.refreshDict;
 begin
   //全部Table
@@ -216,6 +241,7 @@ begin
   AdoQ.sql.Text := 'select s.name,a.object_id, a.name from sys.objects a, sys.schemas s where (a.type = ''U'' or a.type = ''S'') and a.schema_id = s.schema_id ';
   AdoQ.Open;
   dict.RefreshTables(AdoQ);
+  AdoQ.Close;
   AdoQ.sql.Text := 'select cols.object_id,cols.column_id,cols.system_type_id,cols.max_length,cols.precision,cols.scale,cols.is_nullable,cols.name, '+
     ' p_cols.leaf_null_bit nullmap,p_cols.leaf_offset leaf_pos,cols.collation_name,Convert(int,COLLATIONPROPERTY(cols.collation_name, ''CodePage'')) cp  '+
     ' from sys.all_columns cols,sys.system_internals_partition_columns p_cols '+
@@ -224,7 +250,7 @@ begin
     ' order by cols.object_id,cols.column_id ';
   AdoQ.Open;
   dict.RefreshTablesFields(AdoQ);
-
+  AdoQ.Close;
 
 end;
 

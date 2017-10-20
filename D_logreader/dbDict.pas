@@ -20,6 +20,7 @@ type
     CodePage: Integer;
     function isLogSkipCol: Boolean;
     function getSafeColName: string;
+    constructor Create;
   end;
 
   TdbFields = class(TObject)
@@ -30,11 +31,11 @@ type
     fSorted: Boolean;
     function GetItemsCount: Integer;
     function GetItem(idx: Integer): TdbFieldItem;
-    procedure addField(item: TdbFieldItem);
     procedure Sort;
   public
     constructor Create;
     destructor Destroy; override;
+    procedure addField(item: TdbFieldItem);
     property Count: Integer read GetItemsCount;
     property Items[idx: Integer]: TdbFieldItem read GetItem; default;
     function GetItemById(ColId: Integer): TdbFieldItem;
@@ -111,7 +112,7 @@ begin
     tti := TdbTableItem.Create;
     tti.Owner := Qry.Fields[0].AsString;
     tti.TableId := Qry.Fields[1].AsInteger;
-    tti.TableNmae := Qry.Fields[2].AsString;
+    tti.TableNmae := LowerCase(Qry.Fields[2].AsString);
     tables.addTable(tti);
     Qry.Next;
   end;
@@ -269,10 +270,10 @@ procedure TdbTables.addTable(item: TdbTableItem);
     begin
       // https://msdn.microsoft.com/zh-cn/library/ms179503
       TableName := LowerCase(TableName);
-      if (TableName = 'sysowners') or (TableName = 'sysschobjs') or (TableName = 'syscolpars') or (TableName = 'sysobjvalues') or (TableName = 'sysidxstats') or (TableName = 'sysiscols') or (TableName = 'sysrscols') or (TableName = 'syshobtcolumns') or (TableName = 'sysrowsetcolumns') or (TableName = 'sysallocunits') or (TableName = 'sysrowsets') or (TableName = 'syssingleobjrefs') or (TableName = 'sysmultiobjrefs') or (TableName = 'sysprivs') or (TableName = 'sysclsobjs') then
-      begin
-        Result := True;
-      end;
+//      if (TableName = 'sysowners') or (TableName = 'sysschobjs') or (TableName = 'syscolpars') or (TableName = 'sysobjvalues') or (TableName = 'sysidxstats') or (TableName = 'sysiscols') or (TableName = 'sysrscols') or (TableName = 'syshobtcolumns') or (TableName = 'sysrowsetcolumns') or (TableName = 'sysallocunits') or (TableName = 'sysrowsets') or (TableName = 'syssingleobjrefs') or (TableName = 'sysmultiobjrefs') or (TableName = 'sysprivs') or (TableName = 'sysclsobjs') then
+//      begin
+//        Result := True;
+//      end;
     end;
   end;
 
@@ -408,6 +409,11 @@ begin
 end;
 
 { TdbFieldItem }
+
+constructor TdbFieldItem.Create;
+begin
+  CodePage := -1;
+end;
 
 function TdbFieldItem.getSafeColName: string;
 begin

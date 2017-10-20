@@ -20,6 +20,10 @@ type
     _Lr_PluginGetErrMsg: T_Lr_PluginGetErrMsg;
     _Lr_PluginRegLogRowRead: T_Lr_PluginRegLogRowRead;
     _Lr_PluginRegTransPkg: T_Lr_PluginRegTransPkg;
+    _Lr_PluginRegDMLSQL:T_Lr_PluginRegDMLSQL;
+    _Lr_PluginRegDMLXML:T_Lr_PluginRegDMLXML;
+    _Lr_PluginRegDDLSQL:T_Lr_PluginRegDDLSQL;
+    _Lr_PluginRegDDLXML:T_Lr_PluginRegDDLXML;
     _Lr_PluginUnInit:T_Lr_PluginUnInit;
   end;
 
@@ -183,6 +187,11 @@ begin
         plugins[Result]._Lr_PluginRegLogRowRead := GetProcAddress(dlHandle, '_Lr_PluginRegLogRowRead');
         plugins[Result]._Lr_PluginUnInit := GetProcAddress(dlHandle, '_Lr_PluginUnInit');
         plugins[Result]._Lr_PluginRegTransPkg := GetProcAddress(dlHandle, '_Lr_PluginRegTransPkg');
+
+        plugins[Result]._Lr_PluginRegDMLSQL := GetProcAddress(dlHandle, '_Lr_PluginRegDMLSQL');
+        plugins[Result]._Lr_PluginRegDMLXML := GetProcAddress(dlHandle, '_Lr_PluginRegDMLXML');
+        plugins[Result]._Lr_PluginRegDDLSQL := GetProcAddress(dlHandle, '_Lr_PluginRegDDLSQL');
+        plugins[Result]._Lr_PluginRegDDLXML := GetProcAddress(dlHandle, '_Lr_PluginRegDDLXML');
       finally
         pluginMREW.EndWrite;
       end;

@@ -7,6 +7,7 @@ uses
 
 type
   QWORD = UInt64;
+
   PQWORD = ^QWORD;
 
 type
@@ -26,6 +27,7 @@ type
     Id1: DWORD;
     Id2: WORD;
   end;
+
   TPage_Id = packed record
     PID: DWORD;
     FID: WORD;
@@ -49,102 +51,107 @@ type
   PVLF_Info = ^TVLF_Info;
 
   TVLF_Info = packed record
-    fileId:byte;
+    fileId: byte;
     SeqNo: Dword;
     VLFSize: QWORD;
     VLFOffset: QWORD;
-    state:Byte;  //0未使用，2已使用
+    state: Byte;  //0未使用，2已使用
   end;
 
   TVLF_List = array of TVLF_Info;
 
   PlogBlock = ^TlogBlock;
+
   TlogBlock = packed record
-    flag:Word;
-    OperationCount :Word;
-    endOfBlock:Word;
-    Size:Word;    //实际大小
-    UN_1:Word;
-    Size_Def:Word;   //块默认大小
-    BeginLSN:Tlog_LSN;
-    UN_2:Word;
-    UN_3:DWORD;   //?? time?
+    flag: Word;
+    OperationCount: Word;
+    endOfBlock: Word;
+    Size: Word;    //实际大小
+    UN_1: Word;
+    Size_Def: Word;   //块默认大小
+    BeginLSN: Tlog_LSN;
+    UN_2: Word;
+    UN_3: DWORD;   //?? time?
   end;
 
   PMemory_data = ^TMemory_data;
+
   TMemory_data = packed record
-    data:Pointer;
-    dataSize:Int64;
+    data: Pointer;
+    dataSize: Int64;
   end;
 
   TlogFile_info = record
-    fileId:Integer;
-    Srchandle:THandle;   //源进程句柄
-    filehandle:THandle;  //本地句柄
-    fileName:string;     //日志文件名
-    fileFullPath:String; //日志文件路径
+    fileId: Integer;
+    Srchandle: THandle;   //源进程句柄
+    filehandle: THandle;  //本地句柄
+    fileName: string;     //日志文件名
+    fileFullPath: string; //日志文件路径
   end;
+
   TlogFile_List = array of TlogFile_info;
 
   PRawLog = ^TRawLog;
+
   TRawLog = packed record
-    UN_1:Word;
-    fixedLen:Word;
-    PreviousLSN:Tlog_LSN;
-    FlagBits:Word;
-    TransID:TTrans_Id;
-    OpCode:Byte;
-    ContextCode:Byte;
+    UN_1: Word;
+    fixedLen: Word;
+    PreviousLSN: Tlog_LSN;
+    FlagBits: Word;
+    TransID: TTrans_Id;
+    OpCode: Byte;
+    ContextCode: Byte;
   end;
 
-  PRawLog_BEGIN_XACT=^TRawLog_BEGIN_XACT;
+  PRawLog_BEGIN_XACT = ^TRawLog_BEGIN_XACT;
+
   TRawLog_BEGIN_XACT = packed record
-    normalData:TRawLog;
-    SPID:DWORD;
-    BeginlogStatus:DWORD;
-    XactType:DWORD;
-    UN_1:DWORD;
-    Time:QWORD;
-    XactID:DWORD;
+    normalData: TRawLog;
+    SPID: DWORD;
+    BeginlogStatus: DWORD;
+    XactType: DWORD;
+    UN_1: DWORD;
+    Time: QWORD;
+    XactID: DWORD;
   end;
 
-  PRawLog_COMMIT_XACT=^TRawLog_COMMIT_XACT;
+  PRawLog_COMMIT_XACT = ^TRawLog_COMMIT_XACT;
+
   TRawLog_COMMIT_XACT = packed record
-    normalData:TRawLog;
-    Time:QWORD;
-    BeginLsn:Tlog_LSN;
+    normalData: TRawLog;
+    Time: QWORD;
+    BeginLsn: Tlog_LSN;
   end;
 
-  PRawLog_DataOpt=^TRawLog_DataOpt;
+  PRawLog_DataOpt = ^TRawLog_DataOpt;
+
   TRawLog_DataOpt = packed record
-    normalData:TRawLog;
-    pageId:TPage_Id;
-    AllocUnitId:DWORD;
-    previousPageLsn:Tlog_LSN;
-    UN_1:Word;
-    PartitionId:QWORD;
-    OffsetInRow:Word;
-    ModifySize:Word;
-    RowFlag:Word;
-    NumElements:Word;
+    normalData: TRawLog;
+    pageId: TPage_Id;
+    AllocUnitId: DWORD;
+    previousPageLsn: Tlog_LSN;
+    UN_1: Word;
+    PartitionId: QWORD;
+    OffsetInRow: Word;
+    ModifySize: Word;
+    RowFlag: Word;
+    NumElements: Word;
   end;
+
   PLogMIXDATAPkg = ^TLogMIXDATAPkg;
+
   TLogMIXDATAPkg = packed record
-    key:QWORD;
-    Page:TPage_Id;
+    key: QWORD;
+    Page: TPage_Id;
   end;
 
 
-  
-//
-//type
-//  TPutLogNotify = procedure(lsn: Tlog_LSN; Raw: TMemory_data);stdcall;
 type
   T_Lr_PluginInfo = function(var shortname: PChar): integer; stdcall;
 
   T_Lr_PluginInit = function(engineVersion: Integer): integer; stdcall;
 
-  T_Lr_PluginUnInit = function (): integer; stdcall;
+  T_Lr_PluginUnInit = function(): integer; stdcall;
 
   T_Lr_PluginGetErrMsg = function(StatusCode: Cardinal): PChar; stdcall;
 
@@ -152,23 +159,32 @@ type
 
   T_Lr_PluginRegTransPkg = function(TransPkg: PMemory_data): integer; stdcall;
 
-function LSN2Str(lsn:Tlog_LSN):string;
-function TranId2Str(trans:TTrans_Id):string;
-  
+  T_Lr_PluginRegDMLSQL = function(Sql: PChar): integer; stdcall;
+
+  T_Lr_PluginRegDMLXML = function(Xml: PChar): integer; stdcall;
+
+  T_Lr_PluginRegDDLSQL = function(Sql: PChar): integer; stdcall;
+
+  T_Lr_PluginRegDDLXML = function(Xml: PChar): integer; stdcall;
+
+
+function LSN2Str(lsn: Tlog_LSN): string;
+
+function TranId2Str(trans: TTrans_Id): string;
+
 implementation
 
 uses
   SysUtils;
 
-
-function LSN2Str(lsn:Tlog_LSN):string;
+function LSN2Str(lsn: Tlog_LSN): string;
 begin
-  Result := format('0x%.8X:%.8X:%.4X',[lsn.LSN_1,lsn.LSN_2,lsn.LSN_3])
+  Result := format('0x%.8X:%.8X:%.4X', [lsn.LSN_1, lsn.LSN_2, lsn.LSN_3])
 end;
 
-function TranId2Str(trans:TTrans_Id):string;
+function TranId2Str(trans: TTrans_Id): string;
 begin
-  Result := format('0x%.4X:%.8X',[trans.Id2,trans.Id1])
+  Result := format('0x%.4X:%.8X', [trans.Id2, trans.Id1])
 end;
 
 end.
