@@ -115,6 +115,9 @@ type
     procedure PriseDDLPkg_sysrscols(DataRow: Tsql2014RowData);
     procedure PriseDDLPkg_sysschobjs(DataRow: Tsql2014RowData);
     procedure PriseDDLPkg_sysobjvalues(DataRow: Tsql2014RowData);
+    function GenSql: string;
+    function GenSql_CreateDefault(ddlitem: TDDLItem): string;
+    function GenSql_CreateTable(ddlitem: TDDLItem): string;
   public
     constructor Create(LogSource: TLogSource; Transpkg: TTransPkg);
     destructor Destroy; override;
@@ -224,6 +227,187 @@ begin
 
     end;
 
+  end;
+  Loger.Add(GenSql);
+end;
+
+function TSql2014logAnalyzer.GenSql: string;
+var
+  ddlitem: TDDLItem;
+  I: Integer;
+  ResList: TStringList;
+begin
+  ResList := TStringList.Create;
+  try
+    for I := 0 to DDL.FItems_id.Count - 1 do
+    begin
+      ddlitem := TDDLItem(DDL.FItems[I]);
+      if ddlitem.xType = 'u' then
+      begin
+        ResList.add(GenSql_CreateTable(ddlitem));
+      end
+      else if ddlitem.xType = 'd' then
+      begin
+        ResList.add(GenSql_CreateDefault(ddlitem));
+      end;
+    end;
+    Result := ResList.Text;
+  finally
+    ResList.Free;
+  end;
+end;
+
+function TSql2014logAnalyzer.GenSql_CreateTable(ddlitem: TDDLItem): string;
+
+  function getColsTypeStr(col: TdbFieldItem): string;
+  begin
+    case col.type_id of
+      MsTypes.IMAGE:
+        Result := 'IMAGE';
+      MsTypes.TEXT:
+        Result := 'TEXT';
+      MsTypes.UNIQUEIDENTIFIER:
+        Result := 'UNIQUEIDENTIFIER';
+      MsTypes.DATE:
+        Result := 'DATE';
+      MsTypes.TIME:
+        Result := Format('TIME(%d)', [col.scale]);
+      MsTypes.DATETIME2:
+        Result := Format('DATETIME2(%d)', [col.scale]);
+      MsTypes.DATETIMEOFFSET:
+        Result := Format('DATETIMEOFFSET(%d)', [col.scale]);
+      MsTypes.TINYINT:
+        Result := 'TINYINT';
+      MsTypes.SMALLINT:
+        Result := 'SMALLINT';
+      MsTypes.INT:
+        Result := 'INT';
+      MsTypes.SMALLDATETIME:
+        Result := 'SMALLDATETIME';
+      MsTypes.REAL:
+        Result := 'REAL';
+      MsTypes.MONEY:
+        Result := 'MONEY';
+      MsTypes.DATETIME:
+        Result := 'DATETIME';
+      MsTypes.FLOAT:
+        Result := 'FLOAT';
+      MsTypes.SQL_VARIANT:
+        Result := 'SQL_VARIANT';
+      MsTypes.NTEXT:
+        Result := 'NTEXT';
+      MsTypes.BIT:
+        Result := 'BIT';
+      MsTypes.DECIMAL:
+        Result := Format('DECIMAL(%d,%d)', [col.procision, col.scale]);
+      MsTypes.NUMERIC:
+        Result := Format('NUMERIC(%d,%d)', [col.procision, col.scale]);
+      MsTypes.SMALLMONEY:
+        Result := 'SMALLMONEY';
+      MsTypes.BIGINT:
+        Result := 'BIGINT';
+      MsTypes.VARBINARY:
+        Result := Format('VARBINARY(%d)', [col.Max_length]);
+      MsTypes.VARCHAR:
+        Result := Format('VARCHAR(%d)', [col.Max_length]);
+      MsTypes.BINARY:
+        Result := Format('BINARY(%d)', [col.Max_length]);
+      MsTypes.CHAR:
+        Result := Format('CHAR(%d)', [col.Max_length]);
+      MsTypes.TIMESTAMP:
+        Result := 'TIMESTAMP';
+      MsTypes.NVARCHAR:
+        Result := Format('NVARCHAR(%d)', [col.Max_length]);
+      MsTypes.NCHAR:
+        Result := Format('NCHAR(%d)', [col.Max_length]);
+      MsTypes.XML:
+        Result := 'XML';
+      MsTypes.GEOGRAPHY:
+        Result := 'GEOGRAPHY';
+    else
+      Result := '';
+    end;
+  end;
+
+const
+  SQLTEMPLATE = 'CREATE TABLE %s(%s);';
+var
+  table: TDDL_Create_Table;
+  colsStr: TStringList;
+  I: Integer;
+  tmpStr: string;
+begin
+  table := TDDL_Create_Table(ddlitem);
+  colsStr := TStringList.Create;
+  try
+    colsStr.Add(Format('-- Table id :%d', [table.TableObj.TableId]));
+    colsStr.Add(Format('CREATE TABLE %s(',[table.TableObj.getFullName]));
+    for I := 0 to table.TableObj.Fields.Count - 1 do
+    begin
+      tmpStr := table.TableObj.Fields[I].ColName + ' ';
+      tmpStr := tmpStr + getColsTypeStr(table.TableObj.Fields[I]) + ' ';
+      if table.TableObj.Fields[I].is_nullable then
+      begin
+        tmpStr := tmpStr + 'NULL, ';
+      end
+      else
+      begin
+        tmpStr := tmpStr + 'NOT NULL, ';
+      end;
+      colsStr.Add(tmpStr);
+    end;
+    colsStr.Add(');');
+    Result := colsStr.Text;
+  finally
+    colsStr.Free;
+  end;
+end;
+
+function TSql2014logAnalyzer.GenSql_CreateDefault(ddlitem: TDDLItem): string;
+const
+  SQLTEMPLATE = 'ALTER TABLE %s add constraint [%s] default %s for %s;';
+var
+  DDLtable: TDDLItem;
+  tableL: TdbTableItem;
+  DefObj: TDDL_Create_Def;
+  ResStr: TStringList;
+  tableName: string;
+  colName: string;
+begin
+  DefObj := TDDL_Create_Def(ddlitem);
+  DDLtable := ddl.GetItem(DefObj.tableid);
+  if DDLtable <> nil then
+  begin
+    tableL := TDDL_Create_Table(DDLtable).TableObj;
+  end
+  else
+  begin
+    tableL := FLogSource.Fdbc.dict.tables.GetItemById(DefObj.tableid);
+  end;
+
+  ResStr := TStringList.Create;
+  try
+    if tableL = nil then
+    begin
+      tableName := '#' + IntToStr(DefObj.tableid);
+      colName := '#' + IntToStr(DefObj.colid);
+      ResStr.Add('-- generate Default constraint fail. the table object has been loss from database.');
+      ResStr.Add(Format('-- Table id :%d', [DefObj.tableid]));
+      ResStr.Add(Format('-- Constraint id :%d', [DefObj.objId]));
+      ResStr.Add('/*');
+      ResStr.Add(Format(SQLTEMPLATE, [tableName, DefObj.objName, DefObj.value, colName]));
+      ResStr.Add('*/');
+    end
+    else
+    begin
+      ResStr.Add(Format('-- Constraint id :%d', [DefObj.objId]));
+      tableName := tableL.getFullName;
+      colName := tableL.Fields.GetItemById(DefObj.colid).colName;
+      ResStr.Add(Format(SQLTEMPLATE, [tableName, DefObj.objName, DefObj.value, colName]));
+    end;
+    Result := ResStr.Text;
+  finally
+    ResStr.Free;
   end;
 end;
 
@@ -335,7 +519,6 @@ begin
   begin
     raise Exception.Create('Error Message:PriseDDLPkg_sysrscols.2');
   end;
-
 end;
 
 procedure TSql2014logAnalyzer.PriseDDLPkg_sysschobjs(DataRow: Tsql2014RowData);
@@ -478,7 +661,7 @@ begin
       table := TDDL_Create_Table(ddlitem);
       FieldItem := table.TableObj.Fields.Items[ColId - 1];
       FieldItem.nullMap := Nullbit - 1;
-      FieldItem.is_nullable := (statusCode and $80) > 0;
+      FieldItem.is_nullable := (statusCode and $80) = 0;
       FieldItem.leaf_pos := DataOffset;
     end
     else
