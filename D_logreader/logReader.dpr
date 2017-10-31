@@ -33,7 +33,8 @@ uses
   hexValUtils in 'hexValUtils.pas',
   dbDict in 'dbDict.pas',
   BinDataUtils in 'BinDataUtils.pas',
-  dbFieldTypes in 'dbFieldTypes.pas';
+  dbFieldTypes in 'dbFieldTypes.pas',
+  SqlDDLs in 'LogAnalyzer\SqlDDLs.pas';
 
 {$R *.res}
 

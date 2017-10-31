@@ -461,7 +461,7 @@ begin
         //如果成功。。
         NowLsn.LSN_1 := FlogBlock.BeginLSN.LSN_1;
         NowLsn.LSN_2 := FlogBlock.BeginLSN.LSN_2;
-        NowLsn.LSN_3 := FBeginLsn.LSN_3 + RIdx;
+        NowLsn.LSN_3 := FlogBlock.BeginLSN.LSN_3 + RIdx;
         RawData.data := RowdataBuffer;
         RawData.dataSize := RowLength;
 

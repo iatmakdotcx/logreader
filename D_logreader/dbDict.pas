@@ -47,6 +47,7 @@ type
     TableNmae: string;
     Owner: string;
     Fields: TdbFields;
+    UniqueKeys:TList;
   public
     constructor Create;
     destructor Destroy; override;
@@ -78,6 +79,7 @@ type
     tables: TdbTables;
     procedure RefreshTables(Qry: TADOQuery);
     procedure RefreshTablesFields(Qry: TADOQuery);
+    procedure RefreshTablesUniqueKey(Qry: TADOQuery);
     constructor Create;
     destructor Destroy; override;
   end;
@@ -151,6 +153,35 @@ begin
       else
         field.CodePage := Qry.Fields[11].AsInteger;
       tti.Fields.addField(field);
+    end;
+    Qry.Next;
+  end;
+end;
+
+procedure TDbDict.RefreshTablesUniqueKey(Qry: TADOQuery);
+var
+  tti: TdbTableItem;
+  tblId: Integer;
+  field: TdbFieldItem;
+begin
+  tblId := 0;
+  tti := nil;
+  while not Qry.Eof do
+  begin
+    if tblId <> Qry.Fields[0].AsInteger then
+    begin
+      tblId := Qry.Fields[0].AsInteger;
+      tti := tables.GetItemById(tblId);
+      if tti <> nil then
+        tti.UniqueKeys.Clear;
+    end;
+    if tti <> nil then
+    begin
+      field := tti.Fields.GetItemById(Qry.Fields[1].AsInteger);
+      if field<>nil then
+      begin
+        tti.UniqueKeys.Add(field);
+      end;
     end;
     Qry.Next;
   end;
@@ -390,10 +421,12 @@ end;
 constructor TdbTableItem.Create;
 begin
   Fields := TdbFields.Create;
+  UniqueKeys:=TList.Create;
 end;
 
 destructor TdbTableItem.Destroy;
 begin
+  UniqueKeys.Free;
   Fields.Free;
   inherited;
 end;
