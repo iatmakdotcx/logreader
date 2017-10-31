@@ -6,7 +6,9 @@ uses
   dbDict, System.Classes, System.Contnrs;
 
 type
-  TOperationType = (Opt_Insert, Opt_Update, Opt_Delete);
+  TOperationType = (Opt_Insert, Opt_Update, Opt_Delete, Opt_DML);
+  //把DML作为DDL的分支，便于统一顺序
+
 
 type
 {$REGION 'Base'}
@@ -22,10 +24,17 @@ type
 
   TDDLItem_Delete = class(TDDLItem)
     constructor Create;
+    function ParentId: Integer; virtual;
   end;
 
-  TDDLItem_Updtae = class(TDDLItem)
+  TDDLItem_Update = class(TDDLItem)
     constructor Create;
+  end;
+
+  TDMLItem = class(TDDLItem)
+    data:Pointer;
+    constructor Create;
+    function getObjId: Integer; override;
   end;
 {$ENDREGION 'Base'}
 
@@ -75,6 +84,7 @@ type
     tableid: Integer;
     constructor Create;
     function getObjId: Integer; override;
+    function ParentId: Integer; override;
   end;
 
   TDDL_Delete_Column = class(TDDLItem_Delete)
@@ -82,6 +92,7 @@ type
     objName: string;
     constructor Create;
     function getObjId: Integer; override;
+    function ParentId: Integer; override;
   end;
 {$ENDREGION 'Delete'}
 
@@ -90,7 +101,6 @@ type
 {$ENDREGION 'Update'}
 
   TDDLMgr = class(TObject)
-    FItems_id: TList;
     FItems: TObjectList;
   public
     function GetItem(ObjId: Integer): TDDLItem;
@@ -132,9 +142,14 @@ begin
   OpType := Opt_Delete;
 end;
 
-{ TDDLItem_Updtae }
+function TDDLItem_Delete.ParentId: Integer;
+begin
+  Result := 0;
+end;
 
-constructor TDDLItem_Updtae.Create;
+{ TDDLItem_Update }
+
+constructor TDDLItem_Update.Create;
 begin
   OpType := Opt_Update;
 end;
@@ -165,19 +180,16 @@ end;
 procedure TDDLMgr.Add(obj: TDDLItem);
 begin
   FItems.Add(obj);
-  FItems_id.Add(Pointer(obj.getObjId));
 end;
 
 constructor TDDLMgr.Create;
 begin
   FItems := TObjectList.Create;
-  FItems_id := TList.Create;
 end;
 
 destructor TDDLMgr.Destroy;
 begin
   FItems.Free;
-  FItems_id.Free;
   inherited;
 end;
 
@@ -186,9 +198,9 @@ var
   I: Integer;
 begin
   Result := nil;
-  for I := 0 to FItems_id.Count - 1 do
+  for I := 0 to FItems.Count - 1 do
   begin
-    if Integer(FItems_id[I]) = ObjId then
+    if TDDLItem(FItems[I]).getObjId = ObjId then
     begin
       Result := TDDLItem(FItems[I]);
       Exit;
@@ -280,6 +292,11 @@ begin
   Result := ObjId;
 end;
 
+function TDDL_Delete_Def.ParentId: Integer;
+begin
+  Result := tableid;
+end;
+
 { TDDL_Delete_Column }
 
 constructor TDDL_Delete_Column.Create;
@@ -289,7 +306,25 @@ end;
 
 function TDDL_Delete_Column.getObjId: Integer;
 begin
-  Result := -1;
+  Result := 0;
+end;
+
+function TDDL_Delete_Column.ParentId: Integer;
+begin
+  Result := TableId;
+end;
+
+{ TDMLItem }
+
+constructor TDMLItem.Create;
+begin
+  OpType := Opt_DML;
+  data := nil;
+end;
+
+function TDMLItem.getObjId: Integer;
+begin
+  Result := 0;
 end;
 
 end.

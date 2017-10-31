@@ -11,6 +11,7 @@ type
     OperaType: TOperationType;
     Fields: TList;
     Table: TdbTableItem;
+    lsn: Tlog_LSN;
   public
     function getFieldStrValue(FieldName: string): string;
     constructor Create;
@@ -47,8 +48,9 @@ type
     procedure PriseRowLog(tPkg: TTransPkgItem);
     procedure PriseRowLog_Insert(tPkg: TTransPkgItem);
     function getDataFrom_TEXT_MIX(idx: TBytes): TBytes;
-    function BuilderSql_Insert(aRowData: Tsql2014RowData): string;
-    function BuilderSql(aRowData: Tsql2014RowData): string;
+    function DML_BuilderSql_Insert(aRowData: Tsql2014RowData): string;
+    function DML_BuilderSql_Delete(aRowData: Tsql2014RowData): string;
+    function DML_BuilderSql(aRowData: Tsql2014RowData): string;
     function Read_LCX_TEXT_MIX_DATA(tPkg: TTransPkgItem; BinReader: TbinDataReader): TBytes;
     procedure PriseDDLPkg(DataRow: Tsql2014RowData);
     procedure PriseDDLPkg_sysrscols(DataRow: Tsql2014RowData);
@@ -59,11 +61,13 @@ type
     function GenSql_CreateTable(ddlitem: TDDLItem): string;
     procedure PriseRowLog_Delete(tPkg: TTransPkgItem);
     function PriseRowLog_InsertDeleteRowData(DbTable: TdbTableItem; BinReader: TbinDataReader): Tsql2014RowData;
-    function BuilderSql_Delete(aRowData: Tsql2014RowData): string;
     procedure PriseDDLPkg_D(DataRow: Tsql2014RowData);
     procedure PriseDDLPkg_U(DataRow: Tsql2014RowData);
     procedure PriseDDLPkg_D_sysschobjs(DataRow: Tsql2014RowData);
     procedure PriseDDLPkg_D_syscolpars(DataRow: Tsql2014RowData);
+    function GenSql_DDL_Insert(ddlitem: TDDLItem_Insert): string;
+    function GenSql_DDL_Delete(ddlitem: TDDLItem_Delete): string;
+    function GenSql_DDL_Update(ddlitem: TDDLItem_Update): string;
   public
     constructor Create(LogSource: TLogSource; Transpkg: TTransPkg);
     destructor Destroy; override;
@@ -119,21 +123,21 @@ begin
 
 end;
 
-function TSql2014logAnalyzer.BuilderSql(aRowData: Tsql2014RowData): string;
+function TSql2014logAnalyzer.DML_BuilderSql(aRowData: Tsql2014RowData): string;
 begin
   case aRowData.OperaType of
     Opt_Insert:
-      Result := BuilderSql_Insert(aRowData);
+      Result := DML_BuilderSql_Insert(aRowData);
     Opt_Update:
       ;
     Opt_Delete:
-      Result := BuilderSql_Delete(aRowData);
+      Result := DML_BuilderSql_Delete(aRowData);
   else
     Loger.Add('尚未定義的SQLBuilder');
   end;
 end;
 
-function TSql2014logAnalyzer.BuilderSql_Insert(aRowData: Tsql2014RowData): string;
+function TSql2014logAnalyzer.DML_BuilderSql_Insert(aRowData: Tsql2014RowData): string;
 var
   fields: string;
   StrVal: string;
@@ -156,7 +160,7 @@ begin
   Result := Format('INSERT INTO %s(%s)values(%s);', [aRowData.Table.getFullName, fields, StrVal]);
 end;
 
-function TSql2014logAnalyzer.BuilderSql_Delete(aRowData: Tsql2014RowData): string;
+function TSql2014logAnalyzer.DML_BuilderSql_Delete(aRowData: Tsql2014RowData): string;
 var
   whereStr: string;
   I, J: Integer;
@@ -201,6 +205,7 @@ var
   I: Integer;
   TTpi: TTransPkgItem;
   DataRow: Tsql2014RowData;
+  DMLitem: TDMLItem;
 begin
   Loger.Add('TSql2014logAnalyzer.Execute ==> ' + TranId2Str(FTranspkg.Ftransid));
   //通知插件
@@ -213,11 +218,12 @@ begin
     TTpi := TTransPkgItem(FTranspkg.Items[I]);
     PriseRowLog(TTpi);
   end;
-  Exit;
+
   //开始干正事
   for I := 0 to FRows.Count - 1 do
   begin
     DataRow := Tsql2014RowData(FRows[I]);
+    Loger.Add(lsn2str(DataRow.LSN) + '-->' + DML_BuilderSql(DataRow));
     if DataRow.Table.Owner = 'sys' then
     begin
       //如果操作的是系统表则是ddl语句
@@ -232,19 +238,15 @@ begin
       else if DataRow.OperaType = Opt_Update then
       begin
         PriseDDLPkg_U(DataRow);
-      end
-      else
-      begin
-
       end;
     end
     else
     begin
       // dml 语句
-
-
+      DMLitem := TDMLItem.Create;
+      DMLitem.data := DataRow;
+      DDL.Add(DMLitem);
     end;
-
   end;
   Loger.Add(GenSql);
   ApplySysChange;
@@ -258,22 +260,53 @@ var
 begin
   ResList := TStringList.Create;
   try
-    for I := 0 to DDL.FItems_id.Count - 1 do
+    for I := 0 to DDL.FItems.Count - 1 do
     begin
       ddlitem := TDDLItem(DDL.FItems[I]);
-      if ddlitem.xType = 'u' then
-      begin
-        ResList.add(GenSql_CreateTable(ddlitem));
-      end
-      else if ddlitem.xType = 'd' then
-      begin
-        ResList.add(GenSql_CreateDefault(ddlitem));
+      case ddlitem.OpType of
+        Opt_Insert:
+          ResList.Add(GenSql_DDL_Insert(TDDLItem_Insert(ddlitem)));
+        Opt_Update:
+          ResList.Add(GenSql_DDL_Update(TDDLItem_Update(ddlitem)));
+        Opt_Delete:
+          ResList.Add(GenSql_DDL_Delete(TDDLItem_Delete(ddlitem)));
+        Opt_DML:
+          begin
+            ResList.Add(DML_BuilderSql(Tsql2014RowData(TDMLItem(DDL.FItems[I]).data)));
+          end;
       end;
+
     end;
     Result := ResList.Text;
   finally
     ResList.Free;
   end;
+end;
+
+function TSql2014logAnalyzer.GenSql_DDL_Insert(ddlitem: TDDLItem_Insert): string;
+begin
+  if ddlitem.xType = 'u' then
+  begin
+    Result := GenSql_CreateTable(ddlitem);
+  end
+  else if ddlitem.xType = 'd' then
+  begin
+    Result := GenSql_CreateDefault(ddlitem);
+  end
+  else
+  begin
+    //TODO:GenSql_DDL_Insert
+  end;
+end;
+
+function TSql2014logAnalyzer.GenSql_DDL_Delete(ddlitem: TDDLItem_Delete): string;
+begin
+  //TODO:GenSql_DDL_Delete
+end;
+
+function TSql2014logAnalyzer.GenSql_DDL_Update(ddlitem: TDDLItem_Update): string;
+begin
+  //TODO:GenSql_DDL_Update
 end;
 
 function TSql2014logAnalyzer.GenSql_CreateTable(ddlitem: TDDLItem): string;
@@ -442,10 +475,6 @@ begin
     //删除表列
     PriseDDLPkg_D_syscolpars(DataRow);
   end
-  else if DataRow.Table.TableNmae = 'syscolpars' then
-  begin
-
-  end
 
 end;
 
@@ -596,6 +625,28 @@ begin
 end;
 
 procedure TSql2014logAnalyzer.PriseDDLPkg_D_sysschobjs(DataRow: Tsql2014RowData);
+
+  procedure DeleteTablesSubObj(tableId: Integer);
+  var
+    I: Integer;
+    ddlitem: TDDLItem_Delete;
+  begin
+    //删除表中的子元素，
+    //删除表的时候，日志是一列一列删除，最后再删除表对象的，
+    //而语句，只用删除表，子对象自动全部删除
+    for I := DDl.FItems.Count - 1 downto 0 do
+    begin
+      if TDDLItem(DDl.FItems[I]).OpType = Opt_Delete then
+      begin
+        ddlitem := TDDLItem_Delete(DDl.FItems);
+        if ddlitem.ParentId = tableId then
+        begin
+          DDl.FItems.Delete(I);
+        end;
+      end;
+    end;
+  end;
+
 var
   I: Integer;
   pdd: PdbFieldValue;
@@ -656,31 +707,59 @@ begin
     table.objName := ObjName;
     table.Owner := FLogSource.Fdbc.GetSchemasName(nsid);
     DDL.Add(table);
+    //如果删除表，这里要处理掉删除字段，删除默认值等对象数据
+    //DeleteTablesSubObj(ObjId);
+  end
+  else if ObjType = 'v' then
+  begin
+    //todo:视图
+
+  end
+  else if ObjType = 'p' then
+  begin
+    //todo:过程
+
+
+  end
+  else if ObjType = 'c' then
+  begin
+  //todo:check
+
   end
   else if ObjType = 'd' then
   begin
-    //默认值
+  //default
     DefObj := TDDL_Delete_Def.Create;
     DefObj.objId := ObjId;
     DefObj.objName := ObjName;
     DefObj.tableid := pid;
     DDL.Add(DefObj);
   end
-  else if ObjType = 'p' then
+  else if ObjType = 'pk' then
   begin
-    //过程
+  //todo:primary key
+
+  end
+  else if ObjType = 'tr' then
+  begin
+  //todo:Trigger
+
+  end
+  else if ObjType = 'uq' then
+  begin
+  //todo:unique key
 
 
   end
-  else if ObjType = 'pk' then
+  else if ObjType = 'fk' then
   begin
-    //primary key
+  //todo:FOREIGN key
 
 
   end
   else
   begin
-     //未知对象
+  //未知对象
 
   end;
 
@@ -1112,8 +1191,8 @@ begin
       if DataRow <> nil then
       begin
         DataRow.OperaType := Opt_Insert;
+        DataRow.lsn := tPkg.LSN;
         FRows.Add(DataRow);
-        Loger.Add(BuilderSql(DataRow));
       end;
     except
       on eexx: Exception do
@@ -1228,8 +1307,8 @@ begin
     if DataRow <> nil then
     begin
       DataRow.OperaType := Opt_Delete;
+      DataRow.lsn := tPkg.LSN;
       FRows.Add(DataRow);
-      Loger.Add(lsn2str(tPkg.LSN) + '-->' + BuilderSql(DataRow));
     end;
 
   finally
