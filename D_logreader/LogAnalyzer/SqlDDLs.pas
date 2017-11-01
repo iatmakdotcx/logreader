@@ -284,6 +284,7 @@ end;
 
 constructor TDDL_Delete_Def.Create;
 begin
+  inherited;
   xType := 'd';
 end;
 
@@ -301,6 +302,7 @@ end;
 
 constructor TDDL_Delete_Column.Create;
 begin
+  inherited;
   xType := 'column'
 end;
 
@@ -318,6 +320,7 @@ end;
 
 constructor TDMLItem.Create;
 begin
+  inherited;
   OpType := Opt_DML;
   data := nil;
 end;

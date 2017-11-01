@@ -68,6 +68,8 @@ type
     function GenSql_DDL_Insert(ddlitem: TDDLItem_Insert): string;
     function GenSql_DDL_Delete(ddlitem: TDDLItem_Delete): string;
     function GenSql_DDL_Update(ddlitem: TDDLItem_Update): string;
+    function GenSql_DropDefault(ddlitem: TDDL_Delete_Def): string;
+    function GenSql_DropTable(ddlitem: TDDL_Delete_Table): string;
   public
     constructor Create(LogSource: TLogSource; Transpkg: TTransPkg);
     destructor Destroy; override;
@@ -75,7 +77,7 @@ type
     /// <summary>
     /// 将表更改操作，应用到当前系统。以免读取的日志与表结构不匹配
     /// </summary>
-    procedure ApplySysChange;
+    procedure ApplySysDDLChange;
   end;
 
 implementation
@@ -116,7 +118,7 @@ begin
   inherited;
 end;
 
-procedure TSql2014logAnalyzer.ApplySysChange;
+procedure TSql2014logAnalyzer.ApplySysDDLChange;
 begin
   //
 
@@ -223,7 +225,7 @@ begin
   for I := 0 to FRows.Count - 1 do
   begin
     DataRow := Tsql2014RowData(FRows[I]);
-    Loger.Add(lsn2str(DataRow.LSN) + '-->' + DML_BuilderSql(DataRow));
+    //Loger.Add(lsn2str(DataRow.LSN) + '-->' + DML_BuilderSql(DataRow));
     if DataRow.Table.Owner = 'sys' then
     begin
       //如果操作的是系统表则是ddl语句
@@ -249,7 +251,7 @@ begin
     end;
   end;
   Loger.Add(GenSql);
-  ApplySysChange;
+  ApplySysDDLChange;
 end;
 
 function TSql2014logAnalyzer.GenSql: string;
@@ -257,26 +259,36 @@ var
   ddlitem: TDDLItem;
   I: Integer;
   ResList: TStringList;
+  Tmpstr:string;
 begin
   ResList := TStringList.Create;
   try
+    ResList.Add('--genSql begin--');
+    ResList.Add('TranBeinTime:' + formatdatetime('yyyy-MM-dd HH:nn:ss.zzz', TransBeginTime));
+    ResList.Add('CommitTranTime:' + formatdatetime('yyyy-MM-dd HH:nn:ss.zzz', TransCommitTime));
+
     for I := 0 to DDL.FItems.Count - 1 do
     begin
+      Tmpstr := '';
       ddlitem := TDDLItem(DDL.FItems[I]);
       case ddlitem.OpType of
         Opt_Insert:
-          ResList.Add(GenSql_DDL_Insert(TDDLItem_Insert(ddlitem)));
+          Tmpstr := GenSql_DDL_Insert(TDDLItem_Insert(ddlitem));
         Opt_Update:
-          ResList.Add(GenSql_DDL_Update(TDDLItem_Update(ddlitem)));
+          Tmpstr := GenSql_DDL_Update(TDDLItem_Update(ddlitem));
         Opt_Delete:
-          ResList.Add(GenSql_DDL_Delete(TDDLItem_Delete(ddlitem)));
+          Tmpstr := GenSql_DDL_Delete(TDDLItem_Delete(ddlitem));
         Opt_DML:
           begin
-            ResList.Add(DML_BuilderSql(Tsql2014RowData(TDMLItem(DDL.FItems[I]).data)));
+            Tmpstr := DML_BuilderSql(Tsql2014RowData(TDMLItem(DDL.FItems[I]).data))
+
           end;
       end;
+      if Tmpstr <> '' then
+        ResList.Add(Tmpstr);
 
     end;
+    ResList.Add('--genSql end--');
     Result := ResList.Text;
   finally
     ResList.Free;
@@ -301,12 +313,56 @@ end;
 
 function TSql2014logAnalyzer.GenSql_DDL_Delete(ddlitem: TDDLItem_Delete): string;
 begin
+  if ddlitem.xType = 'u' then
+  begin
+    Result := GenSql_DropTable(TDDL_Delete_Table(ddlitem));
+  end
+  else if ddlitem.xType = 'd' then
+  begin
+    Result := GenSql_DropDefault(TDDL_Delete_Def(ddlitem));
+  end
+  else
+  begin
+
+  end;
   //TODO:GenSql_DDL_Delete
 end;
 
 function TSql2014logAnalyzer.GenSql_DDL_Update(ddlitem: TDDLItem_Update): string;
 begin
   //TODO:GenSql_DDL_Update
+end;
+
+function TSql2014logAnalyzer.GenSql_DropTable(ddlitem: TDDL_Delete_Table): string;
+begin
+  Result := '--drop TABLE ID :'+IntToStr(ddlitem.objId);
+  Result := Result + #$D#$A + Format('DROP TABLE [%s].[%s]',[ddlitem.Owner,ddlitem.objName]);
+end;
+
+function TSql2014logAnalyzer.GenSql_DropDefault(ddlitem: TDDL_Delete_Def): string;
+var
+  Table:TdbTableItem;
+  resStr:Tstringlist;
+begin
+  resStr := Tstringlist.Create;
+  try
+    resStr.Add('--drop default constraint');
+    resStr.Add('--TableId:'+IntToStr(ddlitem.ParentId));
+    resStr.Add('--ObjId:'+IntToStr(ddlitem.objId));
+    resStr.Add('--objName:'+ddlitem.objName);
+    Table := FLogSource.Fdbc.dict.tables.GetItemById(ddlitem.tableid);
+    if Table = nil then
+    begin
+      resStr.Add(Format('-- alter table #%d drop constraint %s;',[ddlitem.ParentId,ddlitem.objName]));
+    end
+    else
+    begin
+      resStr.Add(Format('alter table %s drop constraint [%s];',[table.getFullName, ddlitem.objName]));
+    end;
+    Result := resStr.Text;
+  finally
+    resStr.Free;
+  end;
 end;
 
 function TSql2014logAnalyzer.GenSql_CreateTable(ddlitem: TDDLItem): string;
@@ -613,14 +669,21 @@ begin
   end;
 
   ddlitem := DDL.GetItem(objId);
-  if (ddlitem <> nil) and (ddlitem.xType = 'd') then
+  if ddlitem=nil then
   begin
-    DefObj := TDDL_Create_Def(ddlitem);
-    DefObj.value := hexToAnsiiData(value);
-  end
-  else
-  begin
-    raise Exception.Create('Error Message:PriseDDLPkg_sysrscols.2');
+    raise Exception.Create('Error Message:PriseDDLPkg_sysrscols.1');
+  end else begin
+    if ddlitem.xType = 'd' then
+    begin
+      DefObj := TDDL_Create_Def(ddlitem);
+      DefObj.value := hexToAnsiiData(value);
+    end
+    else if ddlitem.xType = 'u' then begin
+
+    end else
+    begin
+      raise Exception.Create('Error Message:PriseDDLPkg_sysrscols.2');
+    end;
   end;
 end;
 
@@ -638,7 +701,7 @@ procedure TSql2014logAnalyzer.PriseDDLPkg_D_sysschobjs(DataRow: Tsql2014RowData)
     begin
       if TDDLItem(DDl.FItems[I]).OpType = Opt_Delete then
       begin
-        ddlitem := TDDLItem_Delete(DDl.FItems);
+        ddlitem := TDDLItem_Delete(DDl.FItems[i]);
         if ddlitem.ParentId = tableId then
         begin
           DDl.FItems.Delete(I);
@@ -708,7 +771,7 @@ begin
     table.Owner := FLogSource.Fdbc.GetSchemasName(nsid);
     DDL.Add(table);
     //如果删除表，这里要处理掉删除字段，删除默认值等对象数据
-    //DeleteTablesSubObj(ObjId);
+    DeleteTablesSubObj(ObjId);
   end
   else if ObjType = 'v' then
   begin
