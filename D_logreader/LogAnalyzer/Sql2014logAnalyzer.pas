@@ -44,6 +44,7 @@ type
     MIX_DATAs: TMIX_DATAs;
     DDL: TDDLMgr;
     AllocUnitMgr: TAllocUnitMgr;
+    IDXs:TDDL_Idxs_ColsMgr;
     procedure serializeToBin(var mm: TMemory_data);
     procedure PriseRowLog(tPkg: TTransPkgItem);
     procedure PriseRowLog_Insert(tPkg: TTransPkgItem);
@@ -70,6 +71,9 @@ type
     function GenSql_DDL_Update(ddlitem: TDDLItem_Update): string;
     function GenSql_DropDefault(ddlitem: TDDL_Delete_Def): string;
     function GenSql_DropTable(ddlitem: TDDL_Delete_Table): string;
+    procedure PriseDDLPkg_sysiscols(DataRow: Tsql2014RowData);
+    procedure PriseDDLPkg_syssingleobjrefs(DataRow: Tsql2014RowData);
+    function GenSql_CreatePrimaryKey(ddlitem: TDDL_Create_PrimaryKey): string;
   public
     constructor Create(LogSource: TLogSource; Transpkg: TTransPkg);
     destructor Destroy; override;
@@ -105,6 +109,7 @@ begin
   MIX_DATAs := TMIX_DATAs.Create;
   DDL := TDDLMgr.Create;
   AllocUnitMgr := TAllocUnitMgr.Create;
+  IDXs:=TDDL_Idxs_ColsMgr.Create;
 end;
 
 destructor TSql2014logAnalyzer.Destroy;
@@ -115,6 +120,7 @@ begin
   MIX_DATAs.Free;
   DDL.Free;
   AllocUnitMgr.Free;
+  IDXs.Free;
   inherited;
 end;
 
@@ -225,7 +231,7 @@ begin
   for I := 0 to FRows.Count - 1 do
   begin
     DataRow := Tsql2014RowData(FRows[I]);
-    //Loger.Add(lsn2str(DataRow.LSN) + '-->' + DML_BuilderSql(DataRow));
+    Loger.Add(lsn2str(DataRow.LSN) + '-->' + DML_BuilderSql(DataRow));
     if DataRow.Table.Owner = 'sys' then
     begin
       //如果操作的是系统表则是ddl语句
@@ -264,8 +270,8 @@ begin
   ResList := TStringList.Create;
   try
     ResList.Add('--genSql begin--');
-    ResList.Add('TranBeinTime:' + formatdatetime('yyyy-MM-dd HH:nn:ss.zzz', TransBeginTime));
-    ResList.Add('CommitTranTime:' + formatdatetime('yyyy-MM-dd HH:nn:ss.zzz', TransCommitTime));
+    ResList.Add('--TranBeinTime:' + formatdatetime('yyyy-MM-dd HH:nn:ss.zzz', TransBeginTime));
+    ResList.Add('--CommitTranTime:' + formatdatetime('yyyy-MM-dd HH:nn:ss.zzz', TransCommitTime));
 
     for I := 0 to DDL.FItems.Count - 1 do
     begin
@@ -281,12 +287,10 @@ begin
         Opt_DML:
           begin
             Tmpstr := DML_BuilderSql(Tsql2014RowData(TDMLItem(DDL.FItems[I]).data))
-
           end;
       end;
       if Tmpstr <> '' then
         ResList.Add(Tmpstr);
-
     end;
     ResList.Add('--genSql end--');
     Result := ResList.Text;
@@ -304,6 +308,9 @@ begin
   else if ddlitem.xType = 'd' then
   begin
     Result := GenSql_CreateDefault(ddlitem);
+  end else if ddlitem.xType = 'pk' then
+  begin
+    Result := GenSql_CreatePrimaryKey(TDDL_Create_PrimaryKey(ddlitem));
   end
   else
   begin
@@ -358,6 +365,104 @@ begin
     else
     begin
       resStr.Add(Format('alter table %s drop constraint [%s];',[table.getFullName, ddlitem.objName]));
+    end;
+    Result := resStr.Text;
+  finally
+    resStr.Free;
+  end;
+end;
+
+function TSql2014logAnalyzer.GenSql_CreatePrimaryKey(ddlitem: TDDL_Create_PrimaryKey): string;
+const
+  SQLTEMPLATE = 'ALTER TABLE %s ADD CONSTRAINT [%s] PRIMARY KEY %s (%s) ';
+var
+  DDLtable: TDDLItem;
+  tableL: TdbTableItem;
+  tableName: string;
+  colName: string;
+  CLUSTEREDType:string;
+  cols:TObjectList;
+  I: Integer;
+  TempItem:TDDL_Idxs_ColsItem;
+  dbfield:TdbFieldItem;
+  resStr:Tstringlist;
+
+  hasError:Boolean;
+begin
+  hasError := False;
+  DDLtable := ddl.GetItem(ddlitem.tableid);
+  if DDLtable <> nil then
+  begin
+    tableL := TDDL_Create_Table(DDLtable).TableObj;
+  end
+  else
+  begin
+    tableL := FLogSource.Fdbc.dict.tables.GetItemById(ddlitem.tableid);
+  end;
+
+  cols := IDXs.GetById(ddlitem.tableid);
+  if (cols = nil) or (cols.Count = 0) then
+  begin
+    colName := '#';
+  end
+  else
+  begin
+    colName := '';
+    if tableL = nil then
+    begin
+      hasError := True;
+      for I := 0 to cols.Count - 1 do
+      begin
+        TempItem := TDDL_Idxs_ColsItem(cols[I]);
+        colName := colName + ',' + inttostr(TempItem.idxId) + ' ' + TempItem.orderType;
+      end;
+    end
+    else
+    begin
+      for I := 0 to cols.Count - 1 do
+      begin
+        TempItem := TDDL_Idxs_ColsItem(cols[I]);
+        dbfield := tableL.Fields.GetItemById(TempItem.ColId);
+        if dbfield = nil then
+        begin
+          hasError := True;
+          colName := colName + ',' + inttostr(TempItem.idxId) + ' ' + TempItem.orderType;
+        end
+        else
+        begin
+          colName := colName + ',' + dbfield.ColName + ' ' + TempItem.orderType;
+        end;
+      end;
+      Delete(colName, 1, 1);
+    end;
+  end;
+
+  if tableL=nil then
+  begin
+    tableName := '#'+inttostr(ddlitem.tableid);
+    hasError := True;
+  end else begin
+    tableName := tableL.getFullName;
+  end;
+  if ddlitem.isCLUSTERED then
+    CLUSTEREDType := 'CLUSTERED'
+  else
+    CLUSTEREDType := 'NONCLUSTERED';
+
+  resStr:=Tstringlist.Create;
+  try
+    resStr.Add('--Create primary key');
+    resStr.Add('--Tableid:'+inttostr(ddlitem.tableid));
+    resStr.Add('--Pkid:'+inttostr(ddlitem.objId));
+    resStr.Add('--PkName:'+ddlitem.objName);
+    if hasError then
+    begin
+      resStr.Add('/*')
+    end;
+    resStr.Add(Format(SQLTEMPLATE, [tableName, ddlitem.objName, CLUSTEREDType, colName]));
+    if hasError then
+    begin
+      resStr.Add('*/')
     end;
     Result := resStr.Text;
   finally
@@ -637,8 +742,96 @@ begin
   begin
     //默认值——值
     PriseDDLPkg_sysobjvalues(DataRow);
+  end else if DataRow.Table.TableNmae = 'sysiscols' then
+  begin
+    //index fields
+    PriseDDLPkg_sysiscols(DataRow);
+  end else if DataRow.Table.TableNmae = 'syssingleobjrefs' then
+  begin
+    //index 信息 (是否集合索引)
+    PriseDDLPkg_syssingleobjrefs(DataRow);
   end;
 
+end;
+
+procedure TSql2014logAnalyzer.PriseDDLPkg_syssingleobjrefs(DataRow: Tsql2014RowData);
+var
+  I: Integer;
+  pdd: PdbFieldValue;
+  pdd_field_ColName: string;
+  objId: Integer;
+  indepid:Integer;
+
+  ddlitem:TDDLItem;
+  pkObj:TDDL_Create_PrimaryKey;
+begin
+  objId := 0;
+  indepid := 0;
+
+  for I := 0 to DataRow.Fields.Count - 1 do
+  begin
+    pdd := PdbFieldValue(DataRow.Fields[I]);
+    pdd_field_ColName := LowerCase(pdd.field.ColName);
+    if pdd_field_ColName = 'depid' then
+    begin
+      objId := StrToInt(Hvu_GetFieldStrValue(pdd.field, pdd.value));
+    end else if pdd_field_ColName = 'indepid' then
+    begin
+      indepid := StrToInt(Hvu_GetFieldStrValue(pdd.field, pdd.value));
+    end;
+  end;
+
+  ddlitem := DDL.GetItem(objId);
+  if (ddlitem = nil) or (ddlitem.OpType <> Opt_Insert) then
+  begin
+    raise Exception.Create('pkValue No found!');
+  end else begin
+    if ddlitem.xType = 'pk' then
+    begin
+      pkObj:=TDDL_Create_PrimaryKey(ddlitem);
+      pkObj.isCLUSTERED := indepid = 1;
+    end else
+    begin
+      raise Exception.Create('Error Message:PriseDDLPkg_syssingleobjrefs Error Xtype!');
+    end;
+  end;
+end;
+
+procedure TSql2014logAnalyzer.PriseDDLPkg_sysiscols(DataRow: Tsql2014RowData);
+var
+  I: Integer;
+  pdd: PdbFieldValue;
+  pdd_field_ColName: string;
+  objId: Integer;
+  indexId:Integer;
+  status:Integer;
+  fieldId:Integer;
+
+begin
+  objId := 0;
+  indexId := 0;
+  status := 0;
+  fieldId := 0;
+
+  for I := 0 to DataRow.Fields.Count - 1 do
+  begin
+    pdd := PdbFieldValue(DataRow.Fields[I]);
+    pdd_field_ColName := LowerCase(pdd.field.ColName);
+    if pdd_field_ColName = 'idmajor' then
+    begin
+      objId := StrToInt(Hvu_GetFieldStrValue(pdd.field, pdd.value));
+    end else if pdd_field_ColName = 'idminor' then
+    begin
+      indexId := StrToInt(Hvu_GetFieldStrValue(pdd.field, pdd.value));
+    end else if pdd_field_ColName = 'status' then
+    begin
+      status := StrToInt(Hvu_GetFieldStrValue(pdd.field, pdd.value));
+    end else if pdd_field_ColName = 'intprop' then
+    begin
+      fieldId := StrToInt(Hvu_GetFieldStrValue(pdd.field, pdd.value));
+    end;
+  end;
+  IDXs.Add(objId, indexId, fieldId, (status and 4) > 0);
 end;
 
 procedure TSql2014logAnalyzer.PriseDDLPkg_sysobjvalues(DataRow: Tsql2014RowData);
@@ -842,6 +1035,7 @@ var
 
   table: TDDL_Create_Table;
   DefObj: TDDL_Create_Def;
+  pkObj:TDDL_Create_PrimaryKey;
 begin
   ObjId := 0;
   ObjName := '';
@@ -890,9 +1084,25 @@ begin
     table.TableObj.Owner := FLogSource.Fdbc.GetSchemasName(nsid);
     DDL.Add(table);
   end
+  else if ObjType = 'v' then
+  begin
+    //todo:视图
+
+  end
+  else if ObjType = 'p' then
+  begin
+    //todo:过程
+
+
+  end
+  else if ObjType = 'c' then
+  begin
+  //todo:check
+
+  end
   else if ObjType = 'd' then
   begin
-    //默认值
+  //default
     DefObj := TDDL_Create_Def.Create;
     DefObj.objId := ObjId;
     DefObj.objName := ObjName;
@@ -900,24 +1110,37 @@ begin
     DefObj.colid := initprop;
     DDL.Add(DefObj);
   end
-  else if ObjType = 'p' then
+  else if ObjType = 'pk' then
   begin
-    //过程
+    //todo:primary key
+    pkObj := TDDL_Create_PrimaryKey.Create;
+    pkObj.objId := ObjId;
+    pkObj.objName := ObjName;
+    pkObj.tableid := pid;
+    DDL.Add(pkObj);
+  end
+  else if ObjType = 'tr' then
+  begin
+  //todo:Trigger
+
+  end
+  else if ObjType = 'uq' then
+  begin
+  //todo:unique key
 
 
   end
-  else if ObjType = 'pk' then
+  else if ObjType = 'fk' then
   begin
-    //primary key
+  //todo:FOREIGN key
 
 
   end
   else
   begin
-     //未知对象
+  //未知对象
 
   end;
-
 end;
 
 procedure TSql2014logAnalyzer.PriseDDLPkg_sysrscols(DataRow: Tsql2014RowData);

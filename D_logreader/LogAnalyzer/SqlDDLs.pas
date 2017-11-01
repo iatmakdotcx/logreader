@@ -9,7 +9,6 @@ type
   TOperationType = (Opt_Insert, Opt_Update, Opt_Delete, Opt_DML);
   //把DML作为DDL的分支，便于统一顺序
 
-
 type
 {$REGION 'Base'}
   TDDLItem = class(TObject)
@@ -32,7 +31,7 @@ type
   end;
 
   TDMLItem = class(TDDLItem)
-    data:Pointer;
+    data: Pointer;
     constructor Create;
     function getObjId: Integer; override;
   end;
@@ -66,6 +65,17 @@ type
     function getObjId: Integer; override;
   end;
 
+  TDDL_Create_PrimaryKey = class(TDDLItem_Insert)
+    objId: Integer;
+    objName: string;
+    tableid: Integer;
+    colid: Integer;
+    value: string;
+    isCLUSTERED: Boolean;
+    constructor Create;
+    function getObjId: Integer; override;
+  end;
+
 {$ENDREGION 'Insert'}
 
 {$REGION 'Delete'}
@@ -88,7 +98,7 @@ type
   end;
 
   TDDL_Delete_Column = class(TDDLItem_Delete)
-    TableId:Integer;
+    TableId: Integer;
     objName: string;
     constructor Create;
     function getObjId: Integer; override;
@@ -99,6 +109,31 @@ type
 {$REGION 'Update'}
 
 {$ENDREGION 'Update'}
+  //这个数据在索引之前创建，所以只能先记录，再关联了
+
+  TDDL_Idxs_ColsItem = class(TObject)
+    idxId:Integer;
+    ColId: Integer;
+    orderType: string; //status &0x4 倒叙标志
+  end;
+
+  TDDL_Idxs_ColsMgr = class(TObject)
+  private
+   type
+     TDDL_Idxs_ColsItem_id = class(TObject)
+        pid: Integer;      //table id
+        cols: TObjectList;
+        constructor Create;
+        destructor Destroy; override;
+      end;
+    var
+    FItems: TObjectList;
+  public
+    constructor Create;
+    destructor Destroy; override;
+    procedure Add(pid, idxId, ColId: Integer; orderDesc: Boolean);
+    function GetById(pid: Integer): TObjectList;
+  end;
 
   TDDLMgr = class(TObject)
     FItems: TObjectList;
@@ -328,6 +363,84 @@ end;
 function TDMLItem.getObjId: Integer;
 begin
   Result := 0;
+end;
+
+{ TDDL_Create_PrimaryKey }
+
+constructor TDDL_Create_PrimaryKey.Create;
+begin
+  inherited;
+  xType := 'pk';
+end;
+
+function TDDL_Create_PrimaryKey.getObjId: Integer;
+begin
+  Result := ObjId;
+end;
+
+{ TDDL_Idxs_ColsMgr }
+
+procedure TDDL_Idxs_ColsMgr.Add(pid, idxId, ColId: Integer; orderDesc: Boolean);
+var
+  TmpItem: TDDL_Idxs_ColsItem;
+  idObj:TDDL_Idxs_ColsItem_id;
+  objs:TObjectList;
+begin
+  objs := GetById(pid);
+  if objs = nil then
+  begin
+    idObj:=TDDL_Idxs_ColsItem_id.Create;
+    FItems.Add(idObj);
+    idObj.pid:= pid;
+    objs := idObj.cols;
+  end;
+  TmpItem := TDDL_Idxs_ColsItem.Create;
+  TmpItem.idxId := idxId;
+  TmpItem.ColId := ColId;
+  if orderDesc then
+    TmpItem.orderType := 'DESC'
+  else
+    TmpItem.orderType := 'ASC';
+  objs.Add(TmpItem);
+end;
+
+constructor TDDL_Idxs_ColsMgr.Create;
+begin
+  FItems := TObjectList.Create;
+end;
+
+destructor TDDL_Idxs_ColsMgr.Destroy;
+begin
+  FItems.Free;
+  inherited;
+end;
+
+function TDDL_Idxs_ColsMgr.GetById(pid: Integer): TObjectList;
+var
+  I: Integer;
+begin
+  for I := 0 to FItems.Count -1 do
+  begin
+    if TDDL_Idxs_ColsItem_id(FItems[i]).pid=pid then
+    begin
+      Result := TDDL_Idxs_ColsItem_id(FItems[i]).cols;
+      Exit;
+    end;
+  end;
+  Result := nil;
+end;
+
+{ TDDL_Idxs_ColsMgr.TDDL_Idxs_ColsItem_id }
+
+constructor TDDL_Idxs_ColsMgr.TDDL_Idxs_ColsItem_id.Create;
+begin
+  cols := TObjectList.Create;
+end;
+
+destructor TDDL_Idxs_ColsMgr.TDDL_Idxs_ColsItem_id.Destroy;
+begin
+  cols.Free;
+  inherited;
 end;
 
 end.
