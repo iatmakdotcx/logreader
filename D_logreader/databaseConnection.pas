@@ -9,7 +9,7 @@ type
   TdatabaseConnection = class(TObject)
   private
     AdoQCs: TCriticalSection;
-    AdoQ: TADOQuery; //TODO:非线程安全，应该加入临界区
+    AdoQ: TADOQuery;
     ADOConn: TADOConnection;
   public
      //手动设置部分
@@ -56,6 +56,7 @@ type
     function GetCodePageFromCollationName(cName: string): string;
     function GetCollationPropertyFromId(id: Integer): string;
     function GetSchemasName(schema_id: Integer): string;
+
   end;
 
 implementation
@@ -240,7 +241,6 @@ procedure TdatabaseConnection.refreshConnection;
 begin
   AdoQCs.Enter;
   try
-
     if dbName = '' then
       dbName := 'master';
     ADOConn.ConnectionString := getConnectionString(Host, user, PassWd, dbName);
@@ -292,7 +292,7 @@ begin
   AdoQCs.Enter;
   try
     //刷新表信息
-    AdoQ.sql.Text := 'select s.name,a.object_id, a.name from sys.objects a, sys.schemas s where (a.type = ''U'' or a.type = ''S'') and a.schema_id = s.schema_id ';
+    AdoQ.sql.Text := 'select s.name,a.object_id, a.name from sys.objects a, sys.schemas s where (a.type = ''U'' or a.type = ''S'') and a.schema_id = s.schema_id --and a.object_id=1989582126';
     AdoQ.Open;
     dict.RefreshTables(AdoQ);
     AdoQ.Close;
@@ -315,6 +315,7 @@ begin
     AdoQCs.Leave
   end;
 end;
+
 
 end.
 

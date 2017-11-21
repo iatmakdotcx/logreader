@@ -53,6 +53,12 @@ type
     destructor Destroy; override;
     function getFullName: string;
     function getNullMapLength: Integer;
+
+    function Serialize:TMemoryStream;
+    procedure Deserialize(data:TMemoryStream);
+
+    //TODO:test
+    procedure drop;
   end;
 
   TdbTables = class(TObject)
@@ -82,6 +88,9 @@ type
     procedure RefreshTablesUniqueKey(Qry: TADOQuery);
     constructor Create;
     destructor Destroy; override;
+
+    function Serialize:TMemoryStream;
+    procedure Deserialize(data: TMemoryStream);
   end;
 
   PdbFieldValue = ^TdbFieldValue;
@@ -92,6 +101,9 @@ type
   end;
 
 implementation
+
+uses
+  pluginlog;
 
 { TDbDict }
 
@@ -185,6 +197,45 @@ begin
     end;
     Qry.Next;
   end;
+end;
+
+function TDbDict.Serialize:TMemoryStream;
+var
+  wter: TWriter;
+  I: Integer;
+  tableBin: TMemoryStream;
+begin
+  Result := TMemoryStream.Create;
+  wter := TWriter.Create(Result, 1);
+  wter.WriteInteger(tables.Count);
+  for I := 0 to tables.Count - 1 do
+  begin
+    tableBin := tables[I].Serialize;
+    tableBin.seek(0, 0);
+    wter.Write(tableBin.Memory^, tableBin.Size);
+    tableBin.Free;
+  end;
+  wter.WriteInteger(10);
+  wter.FlushBuffer;
+  wter.Free;
+end;
+
+procedure TDbDict.Deserialize(data: TMemoryStream);
+var
+  Rter: TReader;
+  tableCount:Integer;
+  I: Integer;
+  table:TdbTableItem;
+begin
+  Rter := TReader.Create(data, 1);
+  tableCount := Rter.ReadInteger;
+  for I := 0 to tableCount -1 do
+  begin
+    table := TdbTableItem.Create;
+    table.Deserialize(data);
+    tables.addTable(table);
+  end;
+  Rter.Free;
 end;
 
 { TdbFields }
@@ -424,11 +475,17 @@ begin
   UniqueKeys:=TList.Create;
 end;
 
+
 destructor TdbTableItem.Destroy;
 begin
   UniqueKeys.Free;
   Fields.Free;
   inherited;
+end;
+
+procedure TdbTableItem.drop;
+begin
+  Loger.add('========%s==%d,%d',[TableNmae,Fields.FItems.Count , Length(Fields.FItems_s_Id)]);
 end;
 
 function TdbTableItem.getFullName: string;
@@ -439,6 +496,81 @@ end;
 function TdbTableItem.getNullMapLength: Integer;
 begin
   Result := (Fields.Count + 7) shr 3
+end;
+
+function TdbTableItem.Serialize: TMemoryStream;
+var
+  wter: TWriter;
+  I: Integer;
+  field: TdbFieldItem;
+begin
+  Result := TMemoryStream.Create;
+  wter := TWriter.Create(Result, 1);
+  wter.WriteInteger(TableId);
+  wter.WriteString(TableNmae);
+  wter.WriteString(Owner);
+  wter.WriteInteger(Fields.FItems.Count);
+  for I := 0 to Fields.FItems.Count - 1 do
+  begin
+    field := TdbFieldItem(Fields.FItems[I]);
+    wter.WriteInteger(field.Col_id);
+    wter.WriteString(field.ColName);
+    wter.WriteInteger(field.type_id);
+    wter.WriteInteger(field.type_id);
+    wter.WriteInteger(field.nullMap);
+    wter.WriteInteger(field.Max_length);
+    wter.WriteInteger(field.procision);
+    wter.WriteInteger(field.scale);
+    wter.WriteBoolean(field.is_nullable);
+    wter.WriteInteger(field.leaf_pos);
+    wter.WriteString(field.collation_name);
+    wter.WriteInteger(field.CodePage);
+  end;
+  wter.WriteInteger(UniqueKeys.Count);
+  for I := 0 to UniqueKeys.Count - 1 do
+  begin
+    field := TdbFieldItem(UniqueKeys[I]);
+    wter.WriteInteger(field.Col_id);
+  end;
+  wter.Free;
+end;
+
+procedure TdbTableItem.Deserialize(data: TMemoryStream);
+var
+  Rter: TReader;
+  FieldCount:Integer;
+  I: Integer;
+  field: TdbFieldItem;
+begin
+  Rter := TReader.Create(data, 1);
+  TableId := Rter.ReadInteger;
+  TableNmae := Rter.ReadString;
+  Owner := Rter.ReadString;
+  FieldCount := Rter.ReadInteger;
+  for I := 0 to FieldCount - 1 do
+  begin
+    field := TdbFieldItem.Create;
+    field.Col_id := Rter.ReadInteger;
+    field.ColName := Rter.ReadString;
+    field.type_id := Rter.ReadInteger;
+    field.type_id := Rter.ReadInteger;
+    field.nullMap := Rter.ReadInteger;
+    field.Max_length := Rter.ReadInteger;
+    field.procision := Rter.ReadInteger;
+    field.scale := Rter.ReadInteger;
+    field.is_nullable := Rter.ReadBoolean;
+    field.leaf_pos := Rter.ReadInteger;
+    field.collation_name := Rter.ReadString;
+    field.CodePage := Rter.ReadInteger;
+    Fields.addField(field);
+  end;
+  // UniqueKeys.Count
+  FieldCount := Rter.ReadInteger;
+  for I := 0 to FieldCount - 1 do
+  begin
+    UniqueKeys.Add(Fields.GetItemById(Rter.ReadInteger));
+  end;
+  Rter.Free;
 end;
 
 { TdbFieldItem }

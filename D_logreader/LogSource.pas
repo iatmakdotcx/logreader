@@ -9,13 +9,14 @@ type
   TLogSource = class(TObject)
   private
     procedure ClrLogSource;
+    function init: Boolean;
   public
     FLogReader: TlogReader;
     Fdbc: TdatabaseConnection;
     FLogPicker:TLogPicker;
     constructor Create;
     destructor Destroy; override;
-    function init(dbc: TdatabaseConnection): Boolean;
+    function SetConnection(dbc: TdatabaseConnection): Boolean;
     function GetVlf_LSN(LSN: Tlog_LSN): PVLF_Info;
     function GetVlf_SeqNo(SeqNo:DWORD): PVLF_Info;
     function GetRawLogByLSN(LSN: Tlog_LSN;var OutBuffer: TMemory_data): Boolean;
@@ -27,6 +28,9 @@ type
     procedure cpyFile(fileid:Byte;var OutBuffer: TMemory_data);
     function init_Process(Pid, hdl: Cardinal): Boolean;
     procedure NotifySubscribe(lsn: Tlog_LSN; Raw: TMemory_data);
+
+    procedure loadFromFile(aPath: string);
+    procedure saveToFile(aPath: string);
   end;
 
 implementation
@@ -39,10 +43,11 @@ uses
 
 procedure TLogSource.ClrLogSource;
 begin
+  Stop_picker;
   if Fdbc <> nil then
-    Fdbc.Free;
+    FreeAndNil(Fdbc);
   if FLogReader <> nil then
-    FLogReader.free;
+    FreeAndNil(FLogReader);
 end;
 
 procedure TLogSource.cpyFile(fileid:Byte;var OutBuffer: TMemory_data);
@@ -98,11 +103,16 @@ begin
   Result := FLogReader.GetRawLogByLSN(LSN, vlf, OutBuffer);
 end;
 
-function TLogSource.init(dbc: TdatabaseConnection): Boolean;
+function TLogSource.SetConnection(dbc: TdatabaseConnection): Boolean;
 begin
   ClrLogSource;
   Fdbc := dbc;
-  dbc.refreshConnection;
+  result := init;
+end;
+
+function TLogSource.init: Boolean;
+begin
+  Fdbc.refreshConnection;
   Fdbc.getDb_dbInfo;
   Fdbc.getDb_allLogFiles;
 
@@ -167,6 +177,69 @@ begin
     FLogPicker := nil;
   end;
 end;
+
+procedure TLogSource.loadFromFile(aPath: string);
+var
+  mmo: TMemoryStream;
+  Rter: TReader;
+  tmpStr: string;
+begin
+  ClrLogSource;
+
+  mmo := TMemoryStream.Create;
+  try
+    mmo.LoadFromFile(aPath);
+    Rter := TReader.Create(mmo, 1);
+    if Rter.ReadInteger = $FB then
+    begin
+      tmpStr := Rter.ReadStr;
+      if tmpStr = 'TDbDict v 1.0' then
+      begin
+        Fdbc := TdatabaseConnection.create;
+        Fdbc.Host := Rter.ReadString;
+        Fdbc.user := Rter.ReadString;
+        Fdbc.PassWd := Rter.ReadString;
+        Fdbc.dbName := Rter.ReadString;
+        Fdbc.dict.Deserialize(mmo);
+        init;
+      end;
+    end;
+    Rter.Free;
+  finally
+    mmo.Free;
+  end;
+end;
+
+procedure TLogSource.saveToFile(aPath: string);
+var
+  wter: TWriter;
+  mmo: TMemoryStream;
+  dictBin: TMemoryStream;
+begin
+  mmo := TMemoryStream.Create;
+  try
+    wter := TWriter.Create(mmo, 1);
+    wter.WriteInteger($FB);
+    wter.WriteStr('TDbDict v 1.0');
+    //连接信息
+    wter.WriteString(Fdbc.Host);
+    wter.WriteString(Fdbc.user);
+    wter.WriteString(Fdbc.PassWd);
+    wter.WriteString(Fdbc.dbName);
+    //表结构
+    dictBin := Fdbc.dict.Serialize;
+    dictBin.seek(0, 0);
+    wter.Write(dictBin.Memory^, dictBin.Size);
+    dictBin.Free;
+    //
+    wter.FlushBuffer;
+    wter.Free;
+    mmo.SaveToFile(aPath);
+  finally
+    mmo.Free;
+  end;
+end;
+
 
 end.
 

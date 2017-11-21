@@ -4,7 +4,7 @@ interface
 
 uses
   Classes, I_logAnalyzer, LogtransPkg, p_structDefine, LogSource, dbDict, System.SysUtils,
-  Contnrs, BinDataUtils, SqlDDLs;
+  Contnrs, BinDataUtils, SqlDDLs, LogtransPkgMgr;
 
 type
   Tsql2014RowData = class(TObject)
@@ -36,16 +36,19 @@ type
 
   TSql2014logAnalyzer = class(TlogAnalyzer)
   private
-    FRows: TObjectList;
+    FPkgMgr:TTransPkgMgr; //事务队列
+
+
     TransBeginTime: TDateTime;
     TransCommitTime: TDateTime;
-    FTranspkg: TTransPkg;
     FLogSource: TLogSource;
+    //每个事务开始要重新初始化以下对象
+    FRows: TObjectList;
     MIX_DATAs: TMIX_DATAs;
     DDL: TDDLMgr;
     AllocUnitMgr: TAllocUnitMgr;
     IDXs:TDDL_Idxs_ColsMgr;
-    procedure serializeToBin(var mm: TMemory_data);
+    procedure serializeToBin(FTranspkg: TTransPkg; var mm: TMemory_data);
     procedure PriseRowLog(tPkg: TTransPkgItem);
     procedure PriseRowLog_Insert(tPkg: TTransPkgItem);
     function getDataFrom_TEXT_MIX(idx: TBytes): TBytes;
@@ -74,8 +77,14 @@ type
     procedure PriseDDLPkg_sysiscols(DataRow: Tsql2014RowData);
     procedure PriseDDLPkg_syssingleobjrefs(DataRow: Tsql2014RowData);
     function GenSql_CreatePrimaryKey(ddlitem: TDDL_Create_PrimaryKey): string;
+    procedure Execute2(FTranspkg: TTransPkg);
   public
-    constructor Create(LogSource: TLogSource; Transpkg: TTransPkg);
+    /// <summary>
+    ///
+    /// </summary>
+    /// <param name="PkgMgr">事务队列</param>
+    /// <param name="LogSource">数据源</param>
+    constructor Create(PkgMgr:TTransPkgMgr; LogSource: TLogSource);
     destructor Destroy; override;
     procedure Execute; override;
     /// <summary>
@@ -98,11 +107,11 @@ type
 
 { TSql2014logAnalyzer }
 
-constructor TSql2014logAnalyzer.Create(LogSource: TLogSource; Transpkg: TTransPkg);
+constructor TSql2014logAnalyzer.Create(PkgMgr:TTransPkgMgr;LogSource: TLogSource);
 begin
   inherited Create(False);
-  FreeOnTerminate := True;
-  FTranspkg := Transpkg;
+
+  FPkgMgr := PkgMgr;
   FLogSource := LogSource;
   FRows := TObjectList.Create;
   FRows.OwnsObjects := True;
@@ -114,7 +123,6 @@ end;
 
 destructor TSql2014logAnalyzer.Destroy;
 begin
-  FTranspkg.Free;
   FRows.Clear;
   FRows.Free;
   MIX_DATAs.Free;
@@ -209,15 +217,45 @@ end;
 
 procedure TSql2014logAnalyzer.Execute;
 var
+  TTsPkg: TTransPkg;
+begin
+  inherited;
+  while not Terminated do
+  begin
+    if FPkgMgr.FpaddingPrisePkg.Count > 0 then
+    begin
+      TTsPkg := TTransPkg(FPkgMgr.FpaddingPrisePkg.Pop);
+      try
+        FRows.Clear;
+        MIX_DATAs.FItems.Clear;
+        DDL.FItems.Clear;
+        AllocUnitMgr.FItems.Clear;
+        IDXs.FItems.Clear;
+        Execute2(TTsPkg);
+      except
+        on ee:Exception do
+        begin
+          Loger.Add('TSql2014logAnalyzer.事务块处理失败！TranId:' + TranId2Str(TTsPkg.Ftransid) + '.' + ee.Message, LOG_ERROR);
+        end;
+      end;
+      TTsPkg.Free;
+    end else begin
+      Sleep(1000);
+    end;
+  end;
+end;
+
+procedure TSql2014logAnalyzer.Execute2(FTranspkg: TTransPkg);
+var
   mm: TMemory_data;
   I: Integer;
   TTpi: TTransPkgItem;
   DataRow: Tsql2014RowData;
   DMLitem: TDMLItem;
 begin
-  Loger.Add('TSql2014logAnalyzer.Execute ==> ' + TranId2Str(FTranspkg.Ftransid));
+  Loger.Add('TSql2014logAnalyzer.Execute ==> transId:%s, MinLsn:%s', [TranId2Str(FTranspkg.Ftransid),LSN2Str(TTransPkgItem(FTranspkg.Items[0]).lsn)]);
   //通知插件
-  serializeToBin(mm);
+  serializeToBin(FTranspkg, mm);
   PluginsMgr.onTransPkgRev(mm);
   FreeMem(mm.data);
   //开始解析数据
@@ -256,8 +294,11 @@ begin
       DDL.Add(DMLitem);
     end;
   end;
-  Loger.Add(GenSql);
-  ApplySysDDLChange;
+  if DDL.FItems.Count>0 then
+  begin
+    Loger.Add(GenSql);
+    ApplySysDDLChange;
+  end;
 end;
 
 function TSql2014logAnalyzer.GenSql: string;
@@ -1650,7 +1691,7 @@ begin
   end;
 end;
 
-procedure TSql2014logAnalyzer.serializeToBin(var mm: TMemory_data);
+procedure TSql2014logAnalyzer.serializeToBin(FTranspkg: TTransPkg; var mm: TMemory_data);
 var
   dataLen: Integer;
   I: Integer;
@@ -1715,7 +1756,7 @@ var
   I: Integer;
   pdd: PdbFieldValue;
 begin
-  //TODO:此方式效率低，应该在代码中直接循环取值
+  //DONE:此方式效率低，（写成代码中if效率也很低
   FieldName := LowerCase(FieldName);
   for I := 0 to fields.Count - 1 do
   begin

@@ -22,7 +22,6 @@ object Form1: TForm1
     Height = 25
     Caption = 'ldf'
     TabOrder = 0
-    OnClick = Button1Click
   end
   object Button2: TButton
     Left = 144
@@ -31,10 +30,9 @@ object Form1: TForm1
     Height = 25
     Caption = 'Button2'
     TabOrder = 1
-    OnClick = Button2Click
   end
   object Button3: TButton
-    Left = 240
+    Left = 591
     Top = 24
     Width = 75
     Height = 25
@@ -43,31 +41,28 @@ object Form1: TForm1
     OnClick = Button3Click
   end
   object Button4: TButton
-    Left = 441
+    Left = 329
     Top = 24
     Width = 75
     Height = 25
     Caption = 'listLogBlock'
     TabOrder = 3
-    OnClick = Button4Click
   end
   object Button5: TButton
-    Left = 344
+    Left = 248
     Top = 24
     Width = 75
     Height = 25
     Caption = 'listVlfs'
     TabOrder = 4
-    OnClick = Button5Click
   end
   object Button6: TButton
-    Left = 536
+    Left = 410
     Top = 24
     Width = 113
     Height = 25
     Caption = 'Get row log by lsn'
     TabOrder = 5
-    OnClick = Button6Click
   end
   object Memo1: TMemo
     Left = 34
@@ -106,7 +101,7 @@ object Form1: TForm1
     OnClick = Button9Click
   end
   object Button10: TButton
-    Left = 664
+    Left = 687
     Top = 24
     Width = 75
     Height = 25
@@ -122,5 +117,31 @@ object Form1: TForm1
     Caption = 'Button11'
     TabOrder = 11
     OnClick = Button11Click
+  end
+  object Button12: TButton
+    Left = 687
+    Top = 55
+    Width = 75
+    Height = 25
+    Caption = 'save'
+    TabOrder = 12
+    OnClick = Button12Click
+  end
+  object Button13: TButton
+    Left = 687
+    Top = 86
+    Width = 75
+    Height = 25
+    Caption = 'load'
+    TabOrder = 13
+    OnClick = Button13Click
+  end
+  object Button14: TButton
+    Left = 664
+    Top = 376
+    Width = 75
+    Height = 25
+    Caption = 'Button14'
+    TabOrder = 14
   end
 end

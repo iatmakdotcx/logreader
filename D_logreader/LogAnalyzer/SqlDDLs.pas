@@ -118,6 +118,7 @@ type
   end;
 
   TDDL_Idxs_ColsMgr = class(TObject)
+    FItems: TObjectList;
   private
    type
      TDDL_Idxs_ColsItem_id = class(TObject)
@@ -126,8 +127,6 @@ type
         constructor Create;
         destructor Destroy; override;
       end;
-    var
-    FItems: TObjectList;
   public
     constructor Create;
     destructor Destroy; override;
@@ -145,14 +144,13 @@ type
   end;
 
   TAllocUnitMgr = class(TObject)
+    FItems: TObjectList;
   private
     type
       TAllocUnitMgrItrem = class(TObject)
         AllocId: Int64;
         ObjId: Integer;
       end;
-    var
-      FItems: TObjectList;
   public
     function AllocIdExists(AllocId: Int64): Boolean;
     function GetObjId(AllocId: Int64): Integer;

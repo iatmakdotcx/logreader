@@ -151,7 +151,6 @@
         <DCCReference Include="dbHelper.pas"/>
         <DCCReference Include="ConstString.pas"/>
         <DCCReference Include="comm_func.pas"/>
-        <DCCReference Include="H:\Delphi\通用的自定义单元\MakStrUtils.pas"/>
         <DCCReference Include="LogtransPkg.pas"/>
         <DCCReference Include="OpCode.pas"/>
         <DCCReference Include="contextCode.pas"/>

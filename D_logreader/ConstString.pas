@@ -2,6 +2,9 @@ unit ConstString;
 
 interface
 
+const
+  datapath = '/Data';
+
 function getConstStr(key:string):string;
 
 implementation

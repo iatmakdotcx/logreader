@@ -11,7 +11,7 @@ function GetldfHandle(pid: Cardinal; logFileList:TlogFile_List): Boolean;
 implementation
 
 uses
-  Windows, SysUtils, MakCommonfuncs, pluginlog, MakStrUtils;
+  Windows, SysUtils, MakCommonfuncs, pluginlog, StrUtils;
   
 type
   PSYSTEM_HANDLE_INFORMATION = ^SYSTEM_HANDLE_INFORMATION;
@@ -156,11 +156,11 @@ begin
           usefulHandle := False;
           GetFinalPathNameByHandle(TargetHandle, @szName, MAX_PATH, 0);
           tmpStr := StrPas(szName);
-          if StrEndsWith(tmpStr,'.ldf') then
+          if EndsStr(tmpStr,'.ldf') then
           begin
             for j := 0 to Length(logFileList) - 1 do
             begin
-              if StrEndsWith(tmpStr, logFileList[j].fileFullPath) then
+              if EndsStr(tmpStr, logFileList[j].fileFullPath) then
               begin
                 logFileList[j].filehandle := TargetHandle;
                 logFileList[j].Srchandle := items.item[i].Handle;

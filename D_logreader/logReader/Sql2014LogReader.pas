@@ -3,20 +3,21 @@ unit Sql2014LogReader;
 interface
 
 uses
-  I_LogProvider, I_logReader, I_logAnalyzer, p_structDefine, Types, databaseConnection,
-  LogSource, Classes, LogtransPkg, Contnrs, LogtransPkgMgr;
+  I_LogProvider, I_logReader, p_structDefine, Types, databaseConnection,
+  LogSource, Classes, LogtransPkg, Contnrs, LogtransPkgMgr, Sql2014logAnalyzer;
 
 type
   TSql2014LogReader = class(TlogReader)
   private
     FLogSource: TLogSource;
     FdataProvider: array[0..256] of TLogProvider;     //最多只能有256个物理日志文件
-  public
-    constructor Create(LogSource: TLogSource);
-    destructor Destroy; override;
+
     procedure listVlfs(fid: Byte); override;
     procedure listLogBlock(vlfs: PVLF_Info); override;
     function GetRawLogByLSN(LSN: Tlog_LSN; vlfs: PVLF_Info; var OutBuffer: TMemory_data): Boolean; override;
+  public
+    constructor Create(LogSource: TLogSource);
+    destructor Destroy; override;
     procedure custRead(fileId: byte; posi, size: Int64; var OutBuffer: TMemory_data); override;
   end;
 
@@ -29,7 +30,7 @@ type
     FlogBlock: PlogBlock;
     Fvlf:PVLF_Info;
     pkgMgr: TTransPkgMgr;
-    procedure CreateAnalyzerThread(pkg:TTransPkg);
+    FAnalyzer:TSql2014logAnalyzer;
     procedure RepairLogBlockAppendData(Pnt: Pointer);
   public
     constructor Create(LogSource: TLogSource; BeginLsn: Tlog_LSN);
@@ -42,7 +43,7 @@ implementation
 
 uses
   Windows, SysUtils, Memory_Common, pluginlog, LocalDbLogProvider, OpCode,
-  plugins, Sql2014logAnalyzer;
+  plugins;
 
 { TSql2014LogReader }
 
@@ -64,7 +65,7 @@ begin
     else
     begin
       //TODO:支持远程运行
-      Loger.Add('远程运行！', log_error);
+      Loger.AddException('远程运行！', log_error);
     end;
 
   end;
@@ -298,20 +299,19 @@ begin
   FBeginLsn := BeginLsn;
 
   pkgMgr := TTransPkgMgr.Create;
-  pkgMgr.FOnTransPkgOk := CreateAnalyzerThread;
   New(FvlfHeader);
   New(FlogBlock);
   New(Fvlf);
-end;
 
-procedure TSql2014LogPicker.CreateAnalyzerThread( pkg: TTransPkg);
-begin
-  //TODO:这里应该把pkg丢入队列，让一个线程来处理，否则可能导致提交乱序
-  TSql2014logAnalyzer.Create(FLogSource, pkg);
+  FAnalyzer := TSql2014logAnalyzer.Create(pkgMgr, LogSource);
 end;
 
 destructor TSql2014LogPicker.Destroy;
 begin
+  FAnalyzer.Terminate;
+  FAnalyzer.WaitFor;
+  FAnalyzer.Free;
+
   Dispose(FvlfHeader);
   Dispose(FlogBlock);
   Dispose(Fvlf);
@@ -467,10 +467,24 @@ begin
 
         if pkgMgr.addRawLog(NowLsn, RawData, False) = Pkg_Err_NoBegin then
         begin
-          //TODO 5:如果到这里，需要单独根据 LOP_COMMIT_XACT 抓取整个事务
           getTransBlock(RowdataBuffer);
           FreeMem(RowdataBuffer);
         end;
+        //如果队列太大，这里暂停读取数据
+        while pkgMgr.FpaddingPrisePkg.Count > paddingPrisePkgMaxSize do
+        begin
+          loger.Add('缓冲区已满！暂停读取日志。将于30s后继续！');
+          for I := 0 to 30 - 1 do
+          begin
+            Sleep(1000);
+            if Terminated then
+            begin
+              //响应 Terminated
+              goto ExitLabel;
+            end;
+          end;
+        end;
+
         //下一行
         RIdx := RIdx + 1;
         if Terminated then
@@ -669,10 +683,10 @@ begin
       RIdx := rawlog.BeginLsn.LSN_3;
       while RIdx <= logBlock.OperationCount do  //循环行
       begin
-        //TODO 1: 这里存在隐患，RIdx（行id）如果不是从1开始的就挂惨了
         if logBlock.BeginLSN.LSN_3 <> 1 then
         begin
-          Loger.Add('LogPicker.getTransBlock:FlogBlock is not begin from 1!%s', [LSN2Str(rawlog.BeginLsn)], LOG_ERROR);
+          //TODO 1: 这里存在隐患，RIdx（行id）如果不是从1开始的就挂惨了
+          Loger.AddException('LogPicker.getTransBlock:FlogBlock is not begin from 1!%s', [LSN2Str(rawlog.BeginLsn)], LOG_ERROR);
         end;
 
         if RIdx = logBlock.OperationCount then

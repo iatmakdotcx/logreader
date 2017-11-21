@@ -21,7 +21,6 @@ uses
   dbHelper in 'dbHelper.pas',
   ConstString in 'ConstString.pas',
   comm_func in 'comm_func.pas',
-  MakStrUtils in 'H:\Delphi\通用的自定义单元\MakStrUtils.pas',
   LogtransPkg in 'LogtransPkg.pas',
   OpCode in 'OpCode.pas',
   contextCode in 'contextCode.pas',
@@ -34,14 +33,18 @@ uses
   dbDict in 'dbDict.pas',
   BinDataUtils in 'BinDataUtils.pas',
   dbFieldTypes in 'dbFieldTypes.pas',
-  SqlDDLs in 'LogAnalyzer\SqlDDLs.pas';
-
+  SqlDDLs in 'LogAnalyzer\SqlDDLs.pas',Vcl.Dialogs;
 {$R *.res}
 
 begin
   Application.Initialize;
   Application.MainFormOnTaskbar := True;
-  Application.CreateForm(TForm1, Form1);
-  Application.CreateForm(TForm2, Form2);
-  Application.Run;
+  if IsRunningAsAdmin then
+  begin
+    Application.CreateForm(TForm1, Form1);
+    Application.CreateForm(TForm2, Form2);
+    Application.Run;
+  end else begin
+    showmessage('必须“使用管理员身份”运行本程序');
+  end;
 end.

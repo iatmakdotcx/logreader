@@ -5,6 +5,9 @@ interface
 uses
   System.Contnrs, System.Classes, p_structDefine, LogtransPkg, Types;
 
+const
+  paddingPrisePkgMaxSize = 1000;
+
 type
   TaddRawLog_STATUS = (Pkg_Ignored = 0, Pkg_OK = 1, Pkg_Err_NoBegin = $F1);
   TOnTransPkgOk = procedure(pkg:TTransPkg) of object;
@@ -19,7 +22,7 @@ type
     procedure NotifySubscribe(lsn: Tlog_LSN; Raw: TMemory_data);
     procedure RegLogRowRead;
   public
-    FOnTransPkgOk:TOnTransPkgOk;
+    FpaddingPrisePkg: TObjectQueue;    //按事务id打包好的日志
     constructor Create;
     destructor Destroy; override;
     /// <summary>
@@ -35,7 +38,7 @@ type
 implementation
 
 uses
-  OpCode, plugins;
+  OpCode, plugins, pluginlog;
 
 { TTransPkgMgr }
 
@@ -82,9 +85,6 @@ begin
           if TTsPkg <> nil then
           begin
             TTsPkg.addRawLog(TTransPkgItem.Create(lsn, Raw));
-            //TODO 5: 这里数据应该打包发送给下一流程
-            //loger.Add('pkg LOP_COMMIT_XACT...');
-
             if TTsPkg.Items.Count < 3 then
             begin
               //至少三行数据才是有效数据
@@ -96,8 +96,8 @@ begin
               finally
                 FItems.OwnsObjects := True;
               end;
-              if Assigned(FOnTransPkgOk) then
-                FOnTransPkgOk(TTsPkg);
+              //放到队列
+              FpaddingPrisePkg.Push(TTsPkg);
             end;
           end
           else
@@ -128,6 +128,7 @@ begin
 
   FItems := TObjectList.Create;
   FSubs_func := TList.Create;
+  FpaddingPrisePkg := TObjectQueue.Create;
 
   RegLogRowRead;
 end;
@@ -163,9 +164,18 @@ begin
 end;
 
 destructor TTransPkgMgr.Destroy;
+var
+  I:Integer;
+  tpkg:TTransPkg;
 begin
   FItems.Free;
   FSubs_func.Free;
+  for I := 0 to FpaddingPrisePkg.Count -1 do
+  begin
+    tpkg := TTransPkg(FpaddingPrisePkg.Pop);
+    tpkg.Free;
+  end;
+  FpaddingPrisePkg.Free;
   inherited;
 end;
 
