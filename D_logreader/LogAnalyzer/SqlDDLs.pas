@@ -75,6 +75,12 @@ type
     constructor Create;
     function getObjId: Integer; override;
   end;
+  TDDL_Create_Column = class(TDDLItem_Insert)
+    Table: TdbTableItem;
+    field: TdbFieldItem;
+    constructor Create;
+    function getObjId: Integer; override;
+  end;
 
 {$ENDREGION 'Insert'}
 
@@ -199,7 +205,8 @@ end;
 
 destructor TDDL_Create_Table.Destroy;
 begin
-  TableObj.Free;
+  if TableObj<>nil then
+    TableObj.Free;
   inherited;
 end;
 
@@ -439,6 +446,19 @@ destructor TDDL_Idxs_ColsMgr.TDDL_Idxs_ColsItem_id.Destroy;
 begin
   cols.Free;
   inherited;
+end;
+
+{ TDDL_Create_Column }
+
+constructor TDDL_Create_Column.Create;
+begin
+  inherited;
+  xType := 'column'
+end;
+
+function TDDL_Create_Column.getObjId: Integer;
+begin
+  Result := 0;
 end;
 
 end.

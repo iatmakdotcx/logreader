@@ -56,7 +56,7 @@ type
     function GetCodePageFromCollationName(cName: string): string;
     function GetCollationPropertyFromId(id: Integer): string;
     function GetSchemasName(schema_id: Integer): string;
-
+    function GetObjectIdByPartitionid(partition_id: int64): integer;
   end;
 
 implementation
@@ -281,7 +281,25 @@ begin
   try
     AdoQ.sql.Text := Format('select name from sys.schemas where schema_id=%d', [schema_id]);
     AdoQ.Open;
-    Result := AdoQ.Fields[0].AsString;
+    if not AdoQ.Eof then
+      Result := AdoQ.Fields[0].AsString
+    else
+      Result := '';
+  finally
+    AdoQCs.Leave
+  end;
+end;
+
+function TdatabaseConnection.GetObjectIdByPartitionid(partition_id: int64): integer;
+begin
+  AdoQCs.Enter;
+  try
+    AdoQ.sql.Text := Format('select object_id from sys.partitions where partition_id=%d', [partition_id]);
+    AdoQ.Open;
+    if not AdoQ.Eof then
+      Result := AdoQ.Fields[0].AsInteger
+    else
+      Result := 0;
   finally
     AdoQCs.Leave
   end;

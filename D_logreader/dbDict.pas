@@ -69,11 +69,12 @@ type
     fSorted: Boolean;
     function GetItem(idx: Integer): TdbTableItem;
     function GetItemsCount: Integer;
-    procedure addTable(item: TdbTableItem);
     procedure Sort;
   public
     constructor Create;
     destructor Destroy; override;
+    procedure addTable(item: TdbTableItem);
+    procedure RemoveTable(objId:Integer);
     property Count: Integer read GetItemsCount;
     property Items[idx: Integer]: TdbTableItem read GetItem; default;
     function GetItemById(TableId: Integer): TdbTableItem;
@@ -103,7 +104,7 @@ type
 implementation
 
 uses
-  pluginlog;
+  pluginlog,Types;
 
 { TDbDict }
 
@@ -366,12 +367,23 @@ begin
   begin
     idx := fitems.Add(item);
     FItems_s_Name.Add(item.getFullName, idx);
+    fSorted := False;
   end
   else
   begin
     //如果是忽略的表，这里直接释放掉
     item.Free;
   end;
+end;
+
+procedure TdbTables.RemoveTable(objId: Integer);
+var
+  table:TdbTableItem;
+begin
+  table := GetItemById(objId);
+  FItems_s_Name.Remove(table.getFullName);
+  fitems.Remove(table);
+  fSorted := False;
 end;
 
 constructor TdbTables.Create;
@@ -441,6 +453,8 @@ function TdbTables.GetItemsCount: Integer;
 begin
   Result := FItems.Count;
 end;
+
+
 
 procedure TdbTables.Sort;
 var

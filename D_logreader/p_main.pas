@@ -104,17 +104,17 @@ procedure TForm1.Button8Click(Sender: TObject);
 var
   lsn: Tlog_lsn;
 begin
-//  lsn.LSN_1 := $1f7;
-//  lsn.LSN_2 := $1e8;
-//  lsn.LSN_3 := 2;
+  lsn.LSN_1 := $2c;
+  lsn.LSN_2 := $200;
+  lsn.LSN_3 := 1;
 
 //  lsn.LSN_1 := $2b;
 //  lsn.LSN_2 := $300;
 //  lsn.LSN_3 := $0001;
 
-  lsn.LSN_1 := $2b;
-  lsn.LSN_2 := $258;
-  lsn.LSN_3 := $52;
+//  lsn.LSN_1 := $2b;
+//  lsn.LSN_2 := $258;
+//  lsn.LSN_3 := $52;
 
   logsource.Create_picker(lsn);
 end;
