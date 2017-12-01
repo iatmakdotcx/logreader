@@ -7,8 +7,14 @@
 
 #include "targetver.h"
 
+// Required for extended stored procedures.
+#include <Srv.h>
+
 #define WIN32_LEAN_AND_MEAN             // 从 Windows 头中排除极少使用的资料
 // Windows 头文件: 
 #include <windows.h>
+
+// Required for snprintf
+#include <stdio.h>
 
 // TODO: 在此处引用程序需要的其他头文件

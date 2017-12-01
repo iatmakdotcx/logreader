@@ -17,8 +17,16 @@ _API_STDCALL void domyWork(UINT_PTR eCount, UINT_PTR r14, UINT_PTR logHeader, UI
 _API_STDCALL bool doHook(void);
 _API_STDCALL bool doUnHook(void);
 
-_API_STDCALL void SetSavePath(LPCWSTR srvproc);
-_API_STDCALL LPCWSTR GetSavePath();
+
+
+_API_STDCALL RETCODE xp_example(SRV_PROC *srvproc);
+_API_STDCALL RETCODE SetSavePath(SRV_PROC *srvproc);
+_API_STDCALL RETCODE GetSavePath(SRV_PROC *srvproc);
+
+void initApiFunc(void);
+
+#pragma pack (push)
+#pragma pack (1)
 
 typedef struct LSN
 {
@@ -26,6 +34,20 @@ typedef struct LSN
 	DWORD LSN_2;
 	WORD LSN_3;
 } *PLSN;
+
+typedef struct logRecdItem
+{
+	logRecdItem* n;
+
+	DWORD TranID_1;
+	WORD TranID_2;
+	LSN lsn;
+	DWORD length;
+	void* val;
+
+} *PlogRecdItem;
+
+#pragma pack (pop)
 
 typedef struct LSNItem
 {
@@ -50,19 +72,3 @@ typedef struct TransPkg
 } *PTransPkg;
 
 
-#pragma pack (push)
-#pragma pack (1)
-
-typedef struct logRecdItem
-{
-	logRecdItem* n;
-
-	DWORD TranID_1;
-	WORD TranID_2;
-	LSN lsn;
-	DWORD length;
-	void* val;
-
-} *PlogRecdItem;
-
-#pragma pack (pop)
