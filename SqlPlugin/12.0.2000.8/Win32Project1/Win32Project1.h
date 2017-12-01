@@ -13,21 +13,26 @@
 
 
 _API_STDCALL int test(void);
-_API_STDCALL void domyWork(ULONGLONG eCount, void* eLength, void* eData, void* oldPageData);
+_API_STDCALL void domyWork(UINT_PTR eCount, UINT_PTR r14, UINT_PTR logHeader, UINT_PTR oldPageData);
 _API_STDCALL bool doHook(void);
 _API_STDCALL bool doUnHook(void);
 
 _API_STDCALL void SetSavePath(LPCWSTR srvproc);
 _API_STDCALL LPCWSTR GetSavePath();
 
+typedef struct LSN
+{
+	DWORD LSN_1;
+	DWORD LSN_2;
+	WORD LSN_3;
+} *PLSN;
+
 typedef struct LSNItem
 {
 	LSNItem* p;
 	LSNItem* n;
 
-	DWORD LSN_1;
-	DWORD LSN_2;
-	WORD LSN_3;
+	LSN lsn;
 
 	int length;
 	void* val;
@@ -54,9 +59,7 @@ typedef struct logRecdItem
 
 	DWORD TranID_1;
 	WORD TranID_2;
-	DWORD LSN_1;
-	DWORD LSN_2;
-	WORD LSN_3;
+	LSN lsn;
 	DWORD length;
 	void* val;
 

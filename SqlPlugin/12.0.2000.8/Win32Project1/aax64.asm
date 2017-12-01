@@ -13,11 +13,17 @@ hookfunc PROC
 	push r8
 	push r9
 
+	mov eax, [rbp+8D0h]     ;Header of Log
+	cmp eax,40h				;小于40的都不是更新数据
+	jb @ee
+	
 	mov rcx, r13			;elements count
-	lea rdx, [rbp+8D0h]		;pre elements length
-	lea r8, [rbp+120h]		;list of elements
+	mov rdx, r14			;XdesRMReadWrite object
+	mov r8, [rbp+120h]		;list of elements
 	mov r9, [rbp+70h]		;old page Data
 	call domyWork
+
+	@ee:
 	pop r9
 	pop r8
 	pop rdx

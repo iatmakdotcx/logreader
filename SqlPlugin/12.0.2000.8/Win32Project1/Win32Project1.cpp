@@ -43,158 +43,221 @@ LPCWSTR GetSavePath() {
 }
 
 
-void domyWork2(ULONGLONG eCount, void* eLength, void* eData, void* oldPageData) {
+//void domyWork2(ULONGLONG eCount, void* eLength, void* eData, void* oldPageData) {
+//	__try
+//	{
+//		if (eCount > 0)
+//		{
+//			if (*(ULONG*)eLength > 0x1E)
+//			{
+//				ULONGLONG logHeaderData = *(ULONGLONG*)eData;
+//
+//				DWORD TranID_1 = *(DWORD*)(logHeaderData + 0x10);
+//				WORD TranID_2 = *(WORD*)(logHeaderData + 0x14);
+//				WORD slot = *(WORD*)(logHeaderData + 0x1E);
+//				DWORD LSN_1 = *(DWORD*)(logHeaderData + 0x24);
+//				DWORD LSN_2 = *(DWORD*)(logHeaderData + 0x28);
+//				WORD LSN_3 = *(WORD*)(logHeaderData + 0x2C);
+//				WORD PageSoltCnt = *(WORD*)((ULONGLONG)oldPageData + 0x16);
+//				if (slot < PageSoltCnt)
+//				{
+//					ULONGLONG RowDataOffset = *(WORD*)(((ULONGLONG)oldPageData + 0x2000) - ((slot + 1) * 2));
+//					WORD RowDataEnd = 0;
+//					if (slot + 1 == PageSoltCnt)
+//					{//最后一行
+//						RowDataEnd = *(WORD*)((ULONGLONG)oldPageData + 0x1E);  //m_freeData
+//					}
+//					else {
+//						RowDataEnd = *(WORD*)(((ULONGLONG)oldPageData + 0x2000) - ((slot + 2) * 2)); //NextRow
+//					}
+//					RowDataEnd = RowDataEnd - (WORD)RowDataOffset;
+//					RowDataOffset = RowDataOffset + (ULONGLONG)oldPageData;
+//
+//					BYTE* slotData = new BYTE[RowDataEnd];
+//					memcpy(slotData, (PVOID)RowDataOffset, RowDataEnd);
+//
+//					PTransPkg aTransPkg = list_TransPkg;
+//					//查找列表中是否包含此事务的数据
+//					while (aTransPkg)
+//					{
+//						if (aTransPkg->TranID_1 == TranID_1 && aTransPkg->TranID_2 == TranID_2)
+//						{
+//							break;
+//						}
+//						aTransPkg = aTransPkg->n;
+//					}
+//
+//					PLSNItem aLSNItem = new LSNItem();
+//					aLSNItem->LSN_1 = LSN_1;
+//					aLSNItem->LSN_2 = LSN_2;
+//					aLSNItem->LSN_3 = LSN_3;
+//
+//					aLSNItem->length = RowDataEnd;
+//					aLSNItem->val = slotData;
+//
+//					if (!aTransPkg)
+//					{
+//						//列表中不存在
+//						//新增一个，
+//						aTransPkg = new TransPkg();
+//						aTransPkg->item = aLSNItem;
+//						if (!list_TransPkg)
+//						{
+//							list_TransPkg = aTransPkg;
+//						}
+//						else {
+//							//加到末尾
+//							PTransPkg lastItem = list_TransPkg;
+//							while (1)
+//							{
+//								if (!lastItem->n) {
+//									lastItem->n = aTransPkg;
+//									break;
+//								}
+//								lastItem = lastItem->n;
+//							}
+//						}
+//					}
+//					else {
+//						//加到末尾
+//						PLSNItem lastlsnItem = aTransPkg->item;
+//						while (1)
+//						{
+//							if (!lastlsnItem->n) {
+//								lastlsnItem->n = aLSNItem;
+//								break;
+//							}
+//							lastlsnItem = lastlsnItem->n;
+//						}
+//					}
+//				}
+//			}
+//		}
+//	}
+//	__except (EXCEPTION_EXECUTE_HANDLER)
+//	{
+//
+//	}
+//}
+//
+//void domyWork_old(ULONGLONG eCount, void* eLength, void* eData, void* oldPageData) {
+//	__try
+//	{
+//		if (eCount > 0)
+//		{
+//			if (*(ULONG*)eLength > 0x1E)
+//			{
+//				ULONGLONG logHeaderData = *(ULONGLONG*)eData;
+//
+//				DWORD TranID_1 = *(DWORD*)(logHeaderData + 0x10);
+//				WORD TranID_2 = *(WORD*)(logHeaderData + 0x14);
+//				WORD slot = *(WORD*)(logHeaderData + 0x1E);
+//				DWORD LSN_1 = *(DWORD*)(logHeaderData + 0x24);
+//				DWORD LSN_2 = *(DWORD*)(logHeaderData + 0x28);
+//				WORD LSN_3 = *(WORD*)(logHeaderData + 0x2C);
+//				WORD PageSoltCnt = *(WORD*)((ULONGLONG)oldPageData + 0x16);
+//				if (slot < PageSoltCnt)
+//				{
+//					ULONGLONG RowDataOffset = *(WORD*)(((ULONGLONG)oldPageData + 0x2000) - ((slot + 1) * 2));
+//					WORD RowDataEnd = 0;
+//					if (slot + 1 == PageSoltCnt)
+//					{//最后一行
+//						RowDataEnd = *(WORD*)((ULONGLONG)oldPageData + 0x1E);  //m_freeData
+//					}
+//					else {
+//						RowDataEnd = *(WORD*)(((ULONGLONG)oldPageData + 0x2000) - ((slot + 2) * 2)); //NextRow
+//					}
+//					RowDataEnd = RowDataEnd - (WORD)RowDataOffset;
+//					RowDataOffset = RowDataOffset + (ULONGLONG)oldPageData;
+//
+//					BYTE* slotData = new BYTE[RowDataEnd];
+//					memcpy(slotData, (PVOID)RowDataOffset, RowDataEnd);
+//
+//					PlogRecdItem LR = new logRecdItem;
+//					LR->TranID_1 = TranID_1;
+//					LR->TranID_2 = TranID_2;
+//					LR->LSN_1 = LSN_1;
+//					LR->LSN_2 = LSN_2;
+//					LR->LSN_3 = LSN_3;
+//
+//					LR->length = RowDataEnd;
+//					LR->val = slotData;
+//					LR->n = NULL;
+//					//断链
+//					PlogRecdItem oldLR = (PlogRecdItem)InterlockedExchangePointer((PVOID*)&logRecd_last, LR);					
+//					//接链
+//					if (oldLR)
+//					{
+//						oldLR->n = LR;	
+//					}
+//					else {
+//						logRecd_first = LR;
+//					}			
+//				}
+//			}
+//		}
+//	}
+//	__except (EXCEPTION_EXECUTE_HANDLER)
+//	{
+//
+//	}
+//}
+
+void domyWork(UINT_PTR eCount, UINT_PTR r14, UINT_PTR logHeader, UINT_PTR oldPageData) {
 	__try
 	{
 		if (eCount > 0)
 		{
-			if (*(ULONG*)eLength > 0x1E)
+			//r14+460 database id
+			//r14+32c lsn
+
+			PLSN lsn = (PLSN)(r14 + 0x32c);
+
+			DWORD TranID_1 = *(DWORD*)(logHeader + 0x10);
+			WORD TranID_2 = *(WORD*)(logHeader + 0x14);
+			WORD slot = *(WORD*)(logHeader + 0x1E);
+
+			WORD PageSoltCnt = *(WORD*)(oldPageData + 0x16);
+			if (slot < PageSoltCnt)
 			{
-				ULONGLONG logHeaderData = *(ULONGLONG*)eData;
+				UINT_PTR RowDataOffset = *(WORD*)((oldPageData + 0x2000) - ((slot + 1) * 2));
+				WORD RowDataEnd = 0;
+				if (slot + 1 == PageSoltCnt)
+				{//最后一行
+					RowDataEnd = *(WORD*)(oldPageData + 0x1E);  //m_freeData
+				}
+				else {
+					RowDataEnd = *(WORD*)((oldPageData + 0x2000) - ((slot + 2) * 2)); //NextRow
+				}
+				//行数据长度
+				RowDataEnd = RowDataEnd - (WORD)RowDataOffset;
+				RowDataOffset = RowDataOffset + oldPageData;
 
-				DWORD TranID_1 = *(DWORD*)(logHeaderData + 0x10);
-				WORD TranID_2 = *(WORD*)(logHeaderData + 0x14);
-				WORD slot = *(WORD*)(logHeaderData + 0x1E);
-				DWORD LSN_1 = *(DWORD*)(logHeaderData + 0x24);
-				DWORD LSN_2 = *(DWORD*)(logHeaderData + 0x28);
-				WORD LSN_3 = *(WORD*)(logHeaderData + 0x2C);
-				WORD PageSoltCnt = *(WORD*)((ULONGLONG)oldPageData + 0x16);
-				if (slot < PageSoltCnt)
+				BYTE* slotData = new BYTE[RowDataEnd];
+				memcpy(slotData, (PVOID)RowDataOffset, RowDataEnd);
+
+				PlogRecdItem LR = new logRecdItem;
+				LR->TranID_1 = TranID_1;
+				LR->TranID_2 = TranID_2;
+				LR->lsn.LSN_1 = lsn->LSN_1;
+				LR->lsn.LSN_2 = lsn->LSN_2;
+				LR->lsn.LSN_3 = lsn->LSN_3;
+
+				LR->length = RowDataEnd;
+				LR->val = slotData;
+				LR->n = NULL;
+				//断链
+				PlogRecdItem oldLR = (PlogRecdItem)InterlockedExchangePointer((PVOID*)&logRecd_last, LR);
+				//接链
+				if (oldLR)
 				{
-					ULONGLONG RowDataOffset = *(WORD*)(((ULONGLONG)oldPageData + 0x2000) - ((slot + 1) * 2));
-					WORD RowDataEnd = 0;
-					if (slot + 1 == PageSoltCnt)
-					{//最后一行
-						RowDataEnd = *(WORD*)((ULONGLONG)oldPageData + 0x1E);  //m_freeData
-					}
-					else {
-						RowDataEnd = *(WORD*)(((ULONGLONG)oldPageData + 0x2000) - ((slot + 2) * 2)); //NextRow
-					}
-					RowDataEnd = RowDataEnd - (WORD)RowDataOffset;
-					RowDataOffset = RowDataOffset + (ULONGLONG)oldPageData;
-
-					BYTE* slotData = new BYTE[RowDataEnd];
-					memcpy(slotData, (PVOID)RowDataOffset, RowDataEnd);
-
-					PTransPkg aTransPkg = list_TransPkg;
-					//查找列表中是否包含此事务的数据
-					while (aTransPkg)
-					{
-						if (aTransPkg->TranID_1 == TranID_1 && aTransPkg->TranID_2 == TranID_2)
-						{
-							break;
-						}
-						aTransPkg = aTransPkg->n;
-					}
-
-					PLSNItem aLSNItem = new LSNItem();
-					aLSNItem->LSN_1 = LSN_1;
-					aLSNItem->LSN_2 = LSN_2;
-					aLSNItem->LSN_3 = LSN_3;
-
-					aLSNItem->length = RowDataEnd;
-					aLSNItem->val = slotData;
-
-					if (!aTransPkg)
-					{
-						//列表中不存在
-						//新增一个，
-						aTransPkg = new TransPkg();
-						aTransPkg->item = aLSNItem;
-						if (!list_TransPkg)
-						{
-							list_TransPkg = aTransPkg;
-						}
-						else {
-							//加到末尾
-							PTransPkg lastItem = list_TransPkg;
-							while (1)
-							{
-								if (!lastItem->n) {
-									lastItem->n = aTransPkg;
-									break;
-								}
-								lastItem = lastItem->n;
-							}
-						}
-					}
-					else {
-						//加到末尾
-						PLSNItem lastlsnItem = aTransPkg->item;
-						while (1)
-						{
-							if (!lastlsnItem->n) {
-								lastlsnItem->n = aLSNItem;
-								break;
-							}
-							lastlsnItem = lastlsnItem->n;
-						}
-					}
+					oldLR->n = LR;
+				}
+				else {
+					logRecd_first = LR;
 				}
 			}
-		}
-	}
-	__except (EXCEPTION_EXECUTE_HANDLER)
-	{
-
-	}
-}
-
-void domyWork(ULONGLONG eCount, void* eLength, void* eData, void* oldPageData) {
-	__try
-	{
-		if (eCount > 0)
-		{
-			if (*(ULONG*)eLength > 0x1E)
-			{
-				ULONGLONG logHeaderData = *(ULONGLONG*)eData;
-
-				DWORD TranID_1 = *(DWORD*)(logHeaderData + 0x10);
-				WORD TranID_2 = *(WORD*)(logHeaderData + 0x14);
-				WORD slot = *(WORD*)(logHeaderData + 0x1E);
-				DWORD LSN_1 = *(DWORD*)(logHeaderData + 0x24);
-				DWORD LSN_2 = *(DWORD*)(logHeaderData + 0x28);
-				WORD LSN_3 = *(WORD*)(logHeaderData + 0x2C);
-				WORD PageSoltCnt = *(WORD*)((ULONGLONG)oldPageData + 0x16);
-				if (slot < PageSoltCnt)
-				{
-					ULONGLONG RowDataOffset = *(WORD*)(((ULONGLONG)oldPageData + 0x2000) - ((slot + 1) * 2));
-					WORD RowDataEnd = 0;
-					if (slot + 1 == PageSoltCnt)
-					{//最后一行
-						RowDataEnd = *(WORD*)((ULONGLONG)oldPageData + 0x1E);  //m_freeData
-					}
-					else {
-						RowDataEnd = *(WORD*)(((ULONGLONG)oldPageData + 0x2000) - ((slot + 2) * 2)); //NextRow
-					}
-					RowDataEnd = RowDataEnd - (WORD)RowDataOffset;
-					RowDataOffset = RowDataOffset + (ULONGLONG)oldPageData;
-
-					BYTE* slotData = new BYTE[RowDataEnd];
-					memcpy(slotData, (PVOID)RowDataOffset, RowDataEnd);
-
-					PlogRecdItem LR = new logRecdItem;
-					LR->TranID_1 = TranID_1;
-					LR->TranID_2 = TranID_2;
-					LR->LSN_1 = LSN_1;
-					LR->LSN_2 = LSN_2;
-					LR->LSN_3 = LSN_3;
-
-					LR->length = RowDataEnd;
-					LR->val = slotData;
-					LR->n = NULL;
-					//断链
-					PlogRecdItem oldLR = (PlogRecdItem)InterlockedExchangePointer((PVOID*)&logRecd_last, LR);					
-					//接链
-					if (oldLR)
-					{
-						oldLR->n = LR;	
-					}
-					else {
-						logRecd_first = LR;
-					}			
-				}
-			}
+		
 		}
 	}
 	__except (EXCEPTION_EXECUTE_HANDLER)
@@ -305,23 +368,24 @@ void PageSave2File(void){
 }
 
 unsigned int __stdcall PageSave2FileThread(LPVOID lpParam) {
-	while (true)
+	//线程退出标志，启动的时候置0，停止的时候置1
+	while (!sthde_terminated)
 	{
-		//线程退出标志，启动的时候置0，停止的时候置1
-		if (sthde_terminated)
-		{
-			break;
-		}
 		PageSave2File();
 		//每完成一次，暂停1秒
-		Sleep(1000);
+		for (int i = 0; i < 10; i++)
+		{
+			Sleep(100);
+			if (sthde_terminated)
+			{
+				return 0;
+			}
+		}
 	}
 	return 0;
 }
 
 void RunTimer() {
-	//SetTimer(NULL, 1, 1000, (TIMERPROC)timerAction);
-
 	int state = InterlockedExchange((unsigned int*)&sthde_terminated, 0);
 	if (state == 0)
 	{
@@ -332,8 +396,6 @@ void RunTimer() {
 	}
 }
 void StopTimer() {
-	//KillTimer(NULL, 1);
-
 	int state = InterlockedExchange((unsigned int*)&sthde_terminated, 1);
 	if (state == 0)
 	{
@@ -368,16 +430,15 @@ bool doHook(void) {
 	}
 
 	//TODO:效验sqlmin.dll版本
-	void* sqlminBase = GetModuleHandle(L"sqlmin.dll");
-	//void* sqlminBase = LoadLibrary(L"C:\\Program Files\\Microsoft SQL Server\\MSSQL12.MSSQLSERVER\\MSSQL\\Binn\\sqlmin.dll");
+	void* sqlminBase = GetModuleHandle(L"sqlmin.dll");	
 	if (!sqlminBase)
 	{
 		return false;
 	}
 			
-	ULONGLONG hookPnt = (ULONGLONG)sqlminBase + 0x92F80 + 0x5C1;
-	ULONGLONG hookfuncPnt = (ULONGLONG)&hookfunc;
-	ULONGLONG dwAdr = (ULONGLONG)&hookfuncEnd;
+	UINT_PTR hookPnt = (UINT_PTR)sqlminBase + 0x5FD30 + 0x5C1;
+	UINT_PTR hookfuncPnt = (UINT_PTR)&hookfunc;
+	UINT_PTR dwAdr = (UINT_PTR)&hookfuncEnd;
 	if (((hookPnt >> 32) & 0xFFFFFFFF) != ((dwAdr >> 32) & 0xFFFFFFFF))
 	{
 		//不在同一区域，hook失败！
@@ -394,10 +455,10 @@ bool doHook(void) {
 	*(DWORD*)dwAdr = backPntData;
 
 	VirtualProtect((LPVOID)hookPnt, 5, PAGE_EXECUTE_READWRITE, &dwOldP);	
-	ULONGLONG interLockData = 0x5D8B9000000000E9L;
-	interLockData |= ((ULONGLONG)hookPntData << 8);
-	sQlHookPntData = *(ULONGLONG*)hookPnt;
-	*(ULONGLONG*)hookPnt = interLockData;
+	UINT_PTR interLockData = 0x5D8B9000000000E9L;
+	interLockData |= ((UINT_PTR)hookPntData << 8);
+	sQlHookPntData = *(UINT_PTR*)hookPnt;
+	*(UINT_PTR*)hookPnt = interLockData;
 
 	sQlHookPnt = hookPnt;
 
