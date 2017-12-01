@@ -36,6 +36,7 @@ type
     constructor Create;
     destructor Destroy; override;
     procedure addField(item: TdbFieldItem);
+    procedure RemoveField(ColName:string);
     property Count: Integer read GetItemsCount;
     property Items[idx: Integer]: TdbFieldItem read GetItem; default;
     function GetItemById(ColId: Integer): TdbFieldItem;
@@ -315,6 +316,20 @@ end;
 function TdbFields.GetItemsCount: Integer;
 begin
   Result := FItems.Count;
+end;
+
+procedure TdbFields.RemoveField(ColName: string);
+var
+  field:TdbFieldItem;
+begin
+  field := GetItemByName(ColName);
+  if field<>nil then
+  begin
+    FItems.Remove(field);
+    FItems_s_Name.Remove(ColName);
+    //…æ≥˝¡–≤ª”∞œÏ≈≈–Ú
+    //fSorted := False;
+  end;
 end;
 
 procedure TdbFields.Sort;

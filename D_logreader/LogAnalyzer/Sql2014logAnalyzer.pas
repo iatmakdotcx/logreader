@@ -144,6 +144,9 @@ var
   dtable:TDDL_Delete_Table;
 
   cColumn:TDDL_Create_Column;
+  dColumn:TDDL_Delete_Column;
+
+  TableObj: TdbTableItem;
 begin
   for I := 0 to DDL.FItems.Count - 1 do
   begin
@@ -169,7 +172,12 @@ begin
         FLogSource.Fdbc.dict.tables.RemoveTable(dtable.getObjId);
       end else if ddlitem.xType = 'column' then
       begin
-        //todo: 处理Column新增
+        dColumn := TDDL_Delete_Column(ddlitem);
+        TableObj := FLogSource.Fdbc.dict.tables.GetItemById(dColumn.TableId);
+        if TableObj<>nil then
+        begin
+          TableObj.Fields.RemoveField(dColumn.objName);
+        end;
       end;
 
     end else begin
