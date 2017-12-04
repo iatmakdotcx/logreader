@@ -10,14 +10,42 @@ library LrExtutils;
   with your DLL. To avoid using BORLNDMM.DLL, pass string information
   using PChar or ShortString parameters. }
 
+{$IF CompilerVersion >= 21.0}
+{$WEAKLINKRTTI ON}
+{$RTTI EXPLICIT METHODS([]) PROPERTIES([]) FIELDS([])}
+{$IFEND}
+
+
 uses
   SysUtils,
   Classes,
   HashHelper in 'HashHelper.pas',
   MsOdsApi in 'MsOdsApi.pas',
-  Winapi.Windows;
+  Winapi.Windows,
+  SqlSvrHelper in 'SqlSvrHelper.pas',
+  dbhelper in 'dbhelper.pas',
+  pageCapture in 'pageCapture.pas';
 
 {$R *.res}
+
+
+
+function HookFailMsg(ErrCode:Integer):string;
+begin
+  case ErrCode of
+    0:Result := '成功';
+    1:Result := '数据捕获程序已安装';
+    2:Result := 'sqlmin加载失败';
+    3:Result := '数据捕获点不正确(位置不可读)';
+    4:Result := '数据捕获点不正确(内容效验失败)';
+    5:Result := '数据捕获点区域效验失败';
+    6:Result := '';
+    7:Result := '';
+  else
+    Result := '未定义的错误';
+  end;
+end;
+
 
 function d_example(pSrvProc: SRV_PROC): Integer; cdecl;
 var
@@ -76,8 +104,71 @@ begin
   end;
 end;
 
+
+function d_checkSqlSvr(pSrvProc: SRV_PROC): Integer; cdecl;
+var
+  hdl:tHandle;
+  Pathbuf: array[0..MAX_PATH + 2] of Char;
+  sqlminMD5:string;
+
+  hookPnt:Integer;
+  dllPath:string;
+begin
+  Result := SUCCEED;
+  hdl := GetModuleHandle('sqlmin.dll');
+  if hdl=0 then
+  begin
+    srv_sendmsg(pSrvProc, SRV_MSG_INFO, 0, 0, 0, nil, 0, 0, 'Error:sqlmin.dll加载失败', SRV_NULLTERM);
+  end else begin
+    ZeroMemory(@Pathbuf[0], MAX_PATH + 2);
+    GetModuleFileName(hdl, Pathbuf, MAX_PATH);
+    sqlminMD5 := GetFileHashMD5(Pathbuf);
+
+    SqlSvr_SendMsg(pSrvProc, string(Pathbuf));
+    SqlSvr_SendMsg(pSrvProc, sqlminMD5);
+
+    GetModuleFileName(HInstance, Pathbuf, MAX_PATH);
+    SqlSvr_SendMsg(pSrvProc, string(Pathbuf));
+
+    TEstSrvProc :=pSrvProc;
+    try
+      dbhelper.init;
+      if DBH.checkMd5(sqlminMD5) then
+      begin
+        SqlSvr_SendMsg(pSrvProc, '准备加载已知方案');
+        if DBH.cfg(sqlminMD5, hookPnt, dllPath) then
+        begin
+          pageCapture_init(dllPath);
+          hookPnt := _Lc_doHook(hookPnt);
+          if hookPnt>0 then
+          begin
+            //hook fail
+            SqlSvr_SendMsg(pSrvProc, 'ERROR:'+HookFailMsg(hookPnt));
+          end;
+        end;
+      end
+      else
+      begin
+        //TODO:如何是好
+        SqlSvr_SendMsg(pSrvProc, '为确认的数据采集方案');
+
+
+      end;
+    except
+      on e:Exception do
+      begin
+        SqlSvr_SendMsg(pSrvProc, e.Message);
+      end;
+    end;
+    srv_senddone(pSrvProc, SRV_DONE_FINAL, 0, 0);
+  end;
+
+end;
+
+
 exports
-  d_example;
+  d_example,
+  d_checkSqlSvr;
 
 begin
 
