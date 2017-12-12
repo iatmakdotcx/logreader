@@ -105,7 +105,14 @@ void domyWork(UINT_PTR eCount, UINT_PTR r14, UINT_PTR logHeader, UINT_PTR oldPag
 					else {
 						logRecd_first = LR;
 					}
-					InterlockedAdd(&PaddingDataCnt, 1);
+					InterlockedAdd(&PaddingDataCnt, 1);	
+					if (PaddingDataCnt > 10000)
+					{
+						if (PaddingDataCnt % 1000 == 0)
+						{
+							PageSave2File();
+						}
+					}
 				}
 			}
 		}
@@ -270,17 +277,14 @@ void StopTimer() {
 }
 
 void _Lc_unHook(void) {
-	if (hooked)
+	if (sQlHookPnt)
 	{
-		if (sQlHookPnt)
-		{
-			*(ULONGLONG*)sQlHookPnt = sQlHookPntData;
-			sQlHookPnt = 0;
-			sQlHookPntData = 0; 
-			hooked = false;
-			StopTimer();
-			DeleteCriticalSection(&_critical);
-		}
+		*(ULONGLONG*)sQlHookPnt = sQlHookPntData;
+		sQlHookPnt = 0;
+		sQlHookPntData = 0; 
+		hooked = false;
+		StopTimer();
+		DeleteCriticalSection(&_critical);
 	}
 }
 

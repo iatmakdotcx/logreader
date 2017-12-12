@@ -4,9 +4,6 @@ interface
 uses
   MsOdsApi;
 
-var
-  TEstSrvProc: SRV_PROC;
-
 procedure SqlSvr_SendMsg(pSrvProc: SRV_PROC; msg:PAnsiChar);overload;
 procedure SqlSvr_SendMsg(pSrvProc: SRV_PROC; msg:string);overload;
 

@@ -19,6 +19,8 @@ _API_STDCALL INT64 _Lc_HasBeenHooked(void);
 _API_STDCALL PVOID _Lc_Get_PaddingData(void);
 _API_STDCALL UINT_PTR _Lc_Get_PaddingDataCnt(void);
 _API_STDCALL void _Lc_Set_Databases(INT64 dbId);
+_API_STDCALL void PageSave2File(void);
+
 
 #pragma pack (push)
 #pragma pack (1)
