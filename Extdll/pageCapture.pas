@@ -7,17 +7,17 @@ uses
   Winapi.Windows;
 
 type
-  T_Lc_doHook = function(HookPnt:UINT_PTR):Integer;stdcall;
+  T_Lc_doHook = function(HookPnt: UINT_PTR): Integer; stdcall;
 
-  T_Lc_unHook = procedure();stdcall;
+  T_Lc_unHook = procedure(); stdcall;
 
-  T_Lc_HasBeenHooked = function: UINT_PTR;stdcall;
+  T_Lc_HasBeenHooked = function: UINT_PTR; stdcall;
 
-  T_Lc_Get_PaddingData = function: Pointer;stdcall;
+  T_Lc_Get_PaddingData = function: Pointer; stdcall;
 
-  T_Lc_Get_PaddingDataCnt = function: Int64;stdcall;
+  T_Lc_Get_PaddingDataCnt = function: Int64; stdcall;
 
-  T_Lc_Set_Databases = procedure(databaseId: Int64);stdcall;
+  T_Lc_Set_Databases = procedure(databaseId: Int64); stdcall;
 
 var
   _Lc_doHook: T_Lc_doHook;
@@ -39,7 +39,10 @@ var
   _Lc_Set_Databases: T_Lc_Set_Databases;
 
 procedure pageCapture_init(LcDll: string);
+
 procedure pageCapture_finit();
+
+
 
 implementation
 
@@ -83,10 +86,6 @@ begin
   end;
 end;
 
-initialization
-
-finalization
-  pageCapture_finit;
 
 end.
 

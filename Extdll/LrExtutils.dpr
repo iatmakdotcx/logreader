@@ -25,11 +25,43 @@ uses
   SqlSvrHelper in 'SqlSvrHelper.pas',
   dbhelper in 'dbhelper.pas',
   pageCapture in 'pageCapture.pas',
-  Memory_Common in 'H:\Delphi\通用的自定义单元\Memory_Common.pas';
+  Memory_Common in 'H:\Delphi\通用的自定义单元\Memory_Common.pas',
+  pluginlog in 'H:\Delphi\通用的自定义单元\pluginlog.pas',
+  logRecdItemSave in 'logRecdItemSave.pas';
 
 {$R *.res}
 
+/// <summary>
+/// 是否有当前文件夹的写入权限
+/// </summary>
+/// <returns></returns>
+function checkCurDirPermission:Boolean;
+var
+  Pathbuf: array[0..MAX_PATH + 2] of Char;
+  path:string;
+  LFileHandle: THandle;
+  LBytesWritten:Cardinal;
+begin
+  Result := False;
+  try
+    GetModuleFileName(HInstance, Pathbuf, MAX_PATH);
+    path := ExtractFilePath(string(Pathbuf)) + 'log\';
+    ForceDirectories(path);
+    path := path + '1.bin';
 
+    LFileHandle := CreateFile(PChar(path), GENERIC_READ or GENERIC_WRITE, FILE_SHARE_READ,
+            nil, OPEN_ALWAYS, FILE_ATTRIBUTE_NORMAL, 0);
+    if LFileHandle <> INVALID_HANDLE_VALUE then
+    begin
+      LBytesWritten := $FE;
+      WriteFile(LFileHandle, LFileHandle, 1, LBytesWritten, nil);
+      CloseHandle(LFileHandle);
+      if FileExists(path) then
+        Result := True;
+    end;
+  except
+  end;
+end;
 
 function HookFailMsg(ErrCode:Integer):string;
 begin
@@ -46,7 +78,6 @@ begin
     Result := '未定义的错误';
   end;
 end;
-
 
 function d_example(pSrvProc: SRV_PROC): Integer; cdecl;
 var
@@ -104,7 +135,6 @@ begin
     srv_senddone(pSrvProc, SRV_DONE_FINAL or SRV_DONE_COUNT, 0, 0);
   end;
 end;
-
 
 function d_checkSqlSvr(pSrvProc: SRV_PROC): Integer; cdecl;
 var
@@ -188,6 +218,14 @@ begin
 
     GetModuleFileName(HInstance, Pathbuf, MAX_PATH);
     SqlSvr_SendMsg(pSrvProc, string(Pathbuf));
+
+
+    if checkCurDirPermission then
+    begin
+      SqlSvr_SendMsg(pSrvProc, ' dll目录不包含写入权限！');
+      Exit;
+    end;
+
 
     try
       if DBH = nil then
@@ -304,6 +342,17 @@ begin
   end;
 end;
 
+procedure d_do_SavePagelog(pSrvProc: SRV_PROC);
+begin
+  if not Assigned(_Lc_HasBeenHooked) then
+  begin
+    SqlSvr_SendMsg(pSrvProc, 'ERROR:未初始化数据采集进程');
+  end else begin
+    savePageLog;
+    SqlSvr_SendMsg(pSrvProc, 'ok');
+  end;
+end;
+
 function Lr_doo(pSrvProc: SRV_PROC): Integer;
 var
   bNull: BOOL;
@@ -345,6 +394,9 @@ begin
           d_Get_HasBeenHooked(pSrvProc);
         end else if action = 'E' then
         begin
+          d_do_SavePagelog(pSrvProc);
+        end else if action = 'F' then
+        begin
           d_unhook(pSrvProc);
         end else begin
 
@@ -363,7 +415,6 @@ begin
     srv_senddone(pSrvProc, SRV_DONE_FINAL or SRV_DONE_COUNT, 0, 0);
   end;
 end;
-
 
 exports
   d_example,

@@ -40,6 +40,7 @@ typedef struct logRecdItem
 	WORD TranID_2;
 	LSN lsn;
 	DWORD length;
+	WORD dbId;
 	void* val;
 
 } *PlogRecdItem;

@@ -92,6 +92,7 @@ void domyWork(UINT_PTR eCount, UINT_PTR r14, UINT_PTR logHeader, UINT_PTR oldPag
 					LR->lsn.LSN_1 = lsn->LSN_1;
 					LR->lsn.LSN_2 = lsn->LSN_2;
 					LR->lsn.LSN_3 = lsn->LSN_3;
+					LR->dbId = dbid;
 
 					LR->length = RowDatalength;
 					LR->val = slotData;
