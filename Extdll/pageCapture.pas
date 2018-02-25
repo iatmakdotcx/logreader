@@ -19,6 +19,8 @@ type
 
   T_Lc_Set_Databases = procedure(databaseId: Int64); stdcall;
 
+  T_Lc_Free_PaddingData = procedure(Pnt: Pointer); stdcall;
+
 var
   _Lc_doHook: T_Lc_doHook;
   _Lc_unHook: T_Lc_unHook;
@@ -37,6 +39,10 @@ var
   /// 设置要捕获的数据库id
   /// </summary>
   _Lc_Set_Databases: T_Lc_Set_Databases;
+  /// <summary>
+  /// 释放PaddingData中的单个对象
+  /// </summary>
+  _Lc_Free_PaddingData:T_Lc_Free_PaddingData;
 
 procedure pageCapture_init(LcDll: string);
 
@@ -64,6 +70,7 @@ begin
   _Lc_Get_PaddingData := nil;
   _Lc_Get_PaddingDataCnt := nil;
   _Lc_Set_Databases := nil;
+  _Lc_Free_PaddingData := nil;
 end;
 
 procedure pageCapture_init(LcDll: string);
@@ -83,6 +90,7 @@ begin
     _Lc_Get_PaddingData := GetProcAddress(dllHandle, '_Lc_Get_PaddingData');
     _Lc_Get_PaddingDataCnt := GetProcAddress(dllHandle, '_Lc_Get_PaddingDataCnt');
     _Lc_Set_Databases := GetProcAddress(dllHandle, '_Lc_Set_Databases');
+    _Lc_Free_PaddingData := GetProcAddress(dllHandle, '_Lc_Free_PaddingData');
   end;
 end;
 

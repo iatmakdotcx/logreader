@@ -17,6 +17,8 @@ library LrExtutils;
 
 
 uses
+  FastMM4 in 'H:\Delphi\FastMMnew\FastMM4.pas',
+  FastMM4Messages in 'H:\Delphi\FastMMnew\FastMM4Messages.pas',
   SysUtils,
   Classes,
   HashHelper in 'HashHelper.pas',
@@ -27,7 +29,9 @@ uses
   pageCapture in 'pageCapture.pas',
   Memory_Common in 'H:\Delphi\通用的自定义单元\Memory_Common.pas',
   pluginlog in 'H:\Delphi\通用的自定义单元\pluginlog.pas',
-  logRecdItemSave in 'logRecdItemSave.pas';
+  logRecdItemSave in 'logRecdItemSave.pas',
+  QMapSymbols in 'H:\Delphi\QWorker3.0_20160317\QMapSymbols.pas'
+  ;
 
 {$R *.res}
 
@@ -43,23 +47,31 @@ var
   LBytesWritten:Cardinal;
 begin
   Result := False;
+  LFileHandle := 0;
   try
-    GetModuleFileName(HInstance, Pathbuf, MAX_PATH);
-    path := ExtractFilePath(string(Pathbuf)) + 'log\';
-    ForceDirectories(path);
-    path := path + '1.bin';
+    try
+      GetModuleFileName(HInstance, Pathbuf, MAX_PATH);
+      path := ExtractFilePath(string(Pathbuf)) + 'log\';
+      ForceDirectories(path);
+      path := path + '1.bin';
 
-    LFileHandle := CreateFile(PChar(path), GENERIC_READ or GENERIC_WRITE, FILE_SHARE_READ,
-            nil, OPEN_ALWAYS, FILE_ATTRIBUTE_NORMAL, 0);
-    if LFileHandle <> INVALID_HANDLE_VALUE then
-    begin
-      LBytesWritten := $FE;
-      WriteFile(LFileHandle, LFileHandle, 1, LBytesWritten, nil);
-      CloseHandle(LFileHandle);
-      if FileExists(path) then
-        Result := True;
+      LFileHandle := CreateFile(PChar(path), GENERIC_READ or GENERIC_WRITE, FILE_SHARE_READ, nil, OPEN_ALWAYS, FILE_ATTRIBUTE_NORMAL, 0);
+      if LFileHandle <> INVALID_HANDLE_VALUE then
+      begin
+        LBytesWritten := $FE;
+        WriteFile(LFileHandle, LFileHandle, 1, LBytesWritten, nil);
+        SetFilePointer(LFileHandle, 0, nil, 0);
+        ReadFile(LFileHandle, LBytesWritten, 1, LBytesWritten, nil);
+        if LBytesWritten = $FE then
+        begin
+          Result := True;
+        end;
+      end;
+    except
     end;
-  except
+  finally
+    if LFileHandle > 0 then
+      CloseHandle(LFileHandle);
   end;
 end;
 
@@ -348,7 +360,7 @@ begin
   begin
     SqlSvr_SendMsg(pSrvProc, 'ERROR:未初始化数据采集进程');
   end else begin
-    savePageLog;
+    savePageLog2;
     SqlSvr_SendMsg(pSrvProc, 'ok');
   end;
 end;
@@ -416,12 +428,41 @@ begin
   end;
 end;
 
+function Lr_clearCache(pSrvProc: SRV_PROC): Integer;
+begin
+  ClearSaveCache;
+  Result := 0;
+end;
+
+procedure DLLMainHandler(Reason: Integer);
+begin
+  case Reason of
+    DLL_PROCESS_ATTACH:
+      begin
+
+      end;
+    DLL_PROCESS_DETACH:
+      begin
+        pluginlog.finalLoger;
+      end;
+  end;
+end;
+
 exports
   d_example,
-  Lr_doo;
+  Lr_doo,
+  Lr_clearCache;
 
 begin
-  dbhelper.init;
+//  DLLProc := @DLLMainHandler; //动态库地址告诉系统，结束的时候执行卸载
+ // DLLMainHandler(DLL_PROCESS_ATTACH);
 
+  dbhelper.init;
+  TObject.Create;
+
+  //test code
+  pageCapture_init('project1.exe');
+
+  savePageLog2;
 end.
 
