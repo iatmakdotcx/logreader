@@ -451,7 +451,8 @@ end;
 exports
   d_example,
   Lr_doo,
-  Lr_clearCache;
+  Lr_clearCache,
+  d_do_SavePagelog;
 
 begin
 //  DLLProc := @DLLMainHandler; //动态库地址告诉系统，结束的时候执行卸载
@@ -463,6 +464,5 @@ begin
   //test code
   pageCapture_init('project1.exe');
 
-  savePageLog2;
 end.
 

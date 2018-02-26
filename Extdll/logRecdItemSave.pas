@@ -345,10 +345,46 @@ procedure TVlfMgr.WriteIdxExists(tmpxx: PIdxData);
     end;
     FreeMem(pp);
   end;
+  /// <summary>
+  /// 向idx文件中写入一个新的索引记录
+  /// </summary>
+  /// <param name="itemIdx">写入开始位置</param>
+  procedure writeNewObj(itemIdx:DWORD);
+  var
+    tmpSize:DWORD;
+    tmpBuf:Pointer;
+    TmpPosi:Cardinal;
+    wSize:Cardinal;
+  begin
+    //项目块大小
+    tmpSize := 4 + 2 + tmpxx.Size * (2 + 4);
+    //后移目录
+    IdxMovebackData(itemIdx, tmpSize);
+    tmpBuf := AllocMem(tmpSize);
+
+    TmpPosi := 0;
+    //TIdxData.lsn2
+    PDWORD(UINT_PTR(tmpBuf)+TmpPosi)^ := tmpxx.lsn2;
+    TmpPosi := TmpPosi + 4;
+    //TIdxData.Size
+    PWORD(UINT_PTR(tmpBuf)+TmpPosi)^ := tmpxx.Size;
+    TmpPosi := TmpPosi + 2;
+    //后面跟新的lsn3
+    Move(tmpxx.lsn3[0], PByte(UINT_PTR(tmpBuf)+TmpPosi)^, tmpxx.Size*2);
+    TmpPosi := TmpPosi + tmpxx.Size*2;
+    //后面跟新的offset
+    Move(tmpxx.offse[0], PByte(UINT_PTR(tmpBuf)+TmpPosi)^, tmpxx.Size*4);
+    TmpPosi := TmpPosi + tmpxx.Size*4;
+
+    //重写当前条目
+    SetFilePointer(IdxFile, itemIdx, nil, soFromBeginning);
+    WriteFile(IdxFile, tmpBuf^, tmpSize, wSize, nil);
+    FreeMem(tmpBuf);
+  end;
 var
   aBuf:Pointer;
   rSize,wSize:Cardinal;
-  id2:Cardinal;
+  Glo_idx:Cardinal;   //读取文件全局索引
   position:Cardinal;
 
   b_lsn2:DWORD;
@@ -362,108 +398,95 @@ var
 begin
   aBuf := AllocMem($2000);
   try
-    id2 := 0; //第几次读取数据
-    SetFilePointer(IdxFile, 0, nil, soFromBeginning);
-    while ReadFile(IdxFile, aBuf^, $2000, rSize, nil) and (rSize > 0) do
+    Glo_idx := 0;
+    wSize := GetFileSize(IdxFile, nil);
+    if wSize=0 then
     begin
-      position := 0;
-//          TIdxData = packed record
-//            lsn2: DWORD;
-//            Size: Word;
-//            lsn3: array[0..0] of WORD;
-//            offse: array[0..0] of DWORD;
-//          end;
-      //+12一个项目最小有12字节
-      while (position + 12) < rSize do
+      writeNewObj(0);
+    end else begin
+      SetFilePointer(IdxFile, 0, nil, soFromBeginning);
+      //TODO:文件可能为0大小（从未写入过数据），计算下个读取段方式有问题（ 用id2可能导致计算位置偏差，换成全局position
+      while ReadFile(IdxFile, aBuf^, $2000, rSize, nil) and (rSize > 0) do
       begin
-        //判断当前项目是否完整
-        wcnt := PWORD(UINT_PTR(aBuf) + position + 4)^;
-        if position + 6 + (wcnt * 6) > rSize then
+        position := 0;
+  //          TIdxData = packed record
+  //            lsn2: DWORD;
+  //            Size: Word;
+  //            lsn3: array[0..0] of WORD;
+  //            offse: array[0..0] of DWORD;
+  //          end;
+        //+12一个项目最小有12字节
+        while (position + 12) <= rSize do
         begin
-          //不完整
-          Break;
+          //判断当前项目是否完整
+          wcnt := PWORD(UINT_PTR(aBuf) + position + 4)^;
+          if position + 6 + (wcnt * 6) > rSize then
+          begin
+            //不完整
+            Break;
+          end;
+
+          b_lsn2 := PDWORD(UINT_PTR(aBuf)+position)^;
+          if b_lsn2 = tmpxx.lsn2 then
+          begin
+            //存在
+            itemIdx := Glo_idx + position;
+            //计算目录末尾位置
+            tmpOffset := itemIdx + 4 + 2 + wcnt * (2 + 4);
+            position := position + 4;
+            wcnt := PWORD(UINT_PTR(aBuf)+position)^;
+            position := position + 2;
+            //写入内容大小
+            blankSize := tmpxx.Size * (2 + 4);
+            //后移目录
+            IdxMovebackData(tmpOffset, blankSize);
+            //新的项目大小 (不包含lsn2)
+            tmpSize := 2 + (wcnt + tmpxx.Size) * (2 + 4);
+
+            tmpBuf := AllocMem(tmpSize);
+            TmpPosi := 0;
+            //TIdxData.Size
+            PWORD(UINT_PTR(tmpBuf)+TmpPosi)^ := wcnt + tmpxx.Size;
+            TmpPosi := TmpPosi + 2;
+            //老的lsn3
+            Move(Pbyte(UINT_PTR(aBuf)+position)^, PByte(UINT_PTR(tmpBuf)+TmpPosi)^, wcnt*2);
+            TmpPosi := TmpPosi + wcnt*2;
+            //后面跟新的lsn3
+            Move(tmpxx.lsn3[0], PByte(UINT_PTR(tmpBuf)+TmpPosi)^, tmpxx.Size*2);
+            TmpPosi := TmpPosi + tmpxx.Size*2;
+
+
+            position := position + wcnt * 2;
+            //老的offse
+            Move(Pbyte(UINT_PTR(aBuf)+position)^, PByte(UINT_PTR(tmpBuf)+TmpPosi)^, wcnt*4);
+            TmpPosi := TmpPosi + wcnt*4;
+            //后面跟新的offset
+            Move(tmpxx.offse[0], PByte(UINT_PTR(tmpBuf)+TmpPosi)^, tmpxx.Size*4);
+            TmpPosi := TmpPosi + tmpxx.Size*4;
+
+            //重写当前条目(不包含lsn2)
+            SetFilePointer(IdxFile, itemIdx + 4, nil, soFromBeginning);
+            WriteFile(IdxFile, tmpBuf^, tmpSize, wSize, nil);
+            FreeMem(tmpBuf);
+            Exit;
+          end else if b_lsn2 > tmpxx.lsn2 then
+          begin
+            //不存在
+            itemIdx := Glo_idx + position;
+            writeNewObj(itemIdx);
+            Exit;
+          end else begin
+            //焦点下一个项目
+            position := position + 6 + (wcnt * 6);
+          end;
         end;
-
-
-        b_lsn2 := PDWORD(UINT_PTR(aBuf)+position)^;
-        if b_lsn2 = tmpxx.lsn2 then
+        if (position = 0) then
         begin
-          //存在
-          itemIdx := (id2 * $2000) + position;
-          //计算目录末尾位置
-          tmpOffset := itemIdx + 4 + 2 + wcnt * (2 + 4);
-          position := position + 4;
-          wcnt := PWORD(UINT_PTR(aBuf)+position)^;
-          position := position + 2;
-          //写入内容大小
-          blankSize := tmpxx.Size * (2 + 4);
-          //后移目录
-          IdxMovebackData(tmpOffset, blankSize);
-          //新的项目大小 (不包含lsn2)
-          tmpSize := 2 + (wcnt + tmpxx.Size) * (2 + 4);
-
-          tmpBuf := AllocMem(tmpSize);
-          TmpPosi := 0;
-          //TIdxData.Size
-          PWORD(UINT_PTR(tmpBuf)+TmpPosi)^ := wcnt + tmpxx.Size;
-          TmpPosi := TmpPosi + 2;
-          //老的lsn3
-          Move(Pbyte(UINT_PTR(aBuf)+position)^, PByte(UINT_PTR(tmpBuf)+TmpPosi)^, wcnt*2);
-          TmpPosi := TmpPosi + wcnt*2;
-          //后面跟新的lsn3
-          Move(tmpxx.lsn3[0], PByte(UINT_PTR(tmpBuf)+TmpPosi)^, tmpxx.Size*2);
-          TmpPosi := TmpPosi + tmpxx.Size*2;
-
-
-          position := position + wcnt * 2;
-          //老的offse
-          Move(Pbyte(UINT_PTR(aBuf)+position)^, PByte(UINT_PTR(tmpBuf)+TmpPosi)^, wcnt*4);
-          TmpPosi := TmpPosi + wcnt*4;
-          //后面跟新的offset
-          Move(tmpxx.offse[0], PByte(UINT_PTR(tmpBuf)+TmpPosi)^, tmpxx.Size*4);
-          TmpPosi := TmpPosi + tmpxx.Size*4;
-
-          //重写当前条目(不包含lsn2)
-          SetFilePointer(IdxFile, itemIdx + 4, nil, soFromBeginning);
-          WriteFile(IdxFile, tmpBuf^, tmpSize, wSize, nil);
-          FreeMem(tmpBuf);
-          Exit;
-        end else if b_lsn2 > tmpxx.lsn2 then
-        begin
-          //不存在
-          itemIdx := (id2 * $2000) + position;
-          //项目大小
-          tmpSize := 4 + 2 + tmpxx.Size * (2 + 4);
-          //后移目录
-          IdxMovebackData(itemIdx, tmpSize);
-          tmpBuf := AllocMem(tmpSize);
-
-          TmpPosi := 0;
-          //TIdxData.lsn2
-          PDWORD(UINT_PTR(tmpBuf)+TmpPosi)^ := wcnt + tmpxx.lsn2;
-          TmpPosi := TmpPosi + 4;
-          //TIdxData.Size
-          PWORD(UINT_PTR(tmpBuf)+TmpPosi)^ := wcnt + tmpxx.Size;
-          TmpPosi := TmpPosi + 2;
-          //后面跟新的lsn3
-          Move(tmpxx.lsn3[0], PByte(UINT_PTR(tmpBuf)+TmpPosi)^, tmpxx.Size*2);
-          TmpPosi := TmpPosi + tmpxx.Size*2;
-          //后面跟新的offset
-          Move(tmpxx.offse[0], PByte(UINT_PTR(tmpBuf)+TmpPosi)^, tmpxx.Size*4);
-          TmpPosi := TmpPosi + tmpxx.Size*4;
-
-          //重写当前条目
-          SetFilePointer(IdxFile, itemIdx, nil, soFromBeginning);
-          WriteFile(IdxFile, tmpBuf^, tmpSize, wSize, nil);
-          FreeMem(tmpBuf);
-          Exit;
-        end else begin
-          //焦点下一个项目
-          position := position + 6 + (wcnt * 6);
+          break;
         end;
+        Glo_idx := Glo_idx + position;
+        SetFilePointer(IdxFile, Glo_idx , nil, soFromBeginning);
       end;
-      SetFilePointer(IdxFile, (id2 * $2000) + position, nil, soFromBeginning);
-      id2 := id2 + 1;
     end;
   finally
     FreeMem(aBuf);
@@ -542,8 +565,8 @@ begin
   //            offse: array[0..0] of DWORD;
   //          end;
             tmpLsn := logs[J];
-            tmp.lsn3[Wsize + Cardinal(J)] := tmpLsn.lsn_3;
-            tmp.offse[Wsize + Cardinal(J)] := lsize + tmpLsn.Offset;
+            tmp.lsn3[Wsize + DWORD(J)] := tmpLsn.lsn_3;
+            tmp.offse[Wsize + DWORD(J)] := lsize + tmpLsn.Offset;
           end;
           hasFound := True;
           Break;
