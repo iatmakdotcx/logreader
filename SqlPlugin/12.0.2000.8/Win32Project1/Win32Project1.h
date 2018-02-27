@@ -13,14 +13,17 @@
 
 
 _API_STDCALL void domyWork(UINT_PTR eCount, UINT_PTR r14, UINT_PTR logHeader, UINT_PTR oldPageData);
+
 _API_STDCALL int _Lc_doHook(UINT_PTR HookPnt);
 _API_STDCALL void _Lc_unHook(void);
 _API_STDCALL INT64 _Lc_HasBeenHooked(void);
 _API_STDCALL PVOID _Lc_Get_PaddingData(void);
 _API_STDCALL UINT_PTR _Lc_Get_PaddingDataCnt(void);
 _API_STDCALL void _Lc_Set_Databases(INT64 dbId);
-_API_STDCALL void PageSave2File(void);
+_API_STDCALL INT64 _Lc_Get_Databases(void);
 
+void f_initialization();
+void f_finalization();
 
 #pragma pack (push)
 #pragma pack (1)
@@ -70,3 +73,4 @@ typedef struct TransPkg
 } *PTransPkg;
 
 
+_API_STDCALL void _Lc_Free_PaddingData(PlogRecdItem logRecd_first);

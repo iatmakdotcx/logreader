@@ -38,6 +38,8 @@ hookfuncEnd PROC
 	nop
 	nop
 	nop
+	nop
+	nop
 	ret
 hookfuncEnd ENDP
 

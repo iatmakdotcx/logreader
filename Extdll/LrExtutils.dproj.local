@@ -1,7 +1,23 @@
 ﻿<?xml version="1.0" encoding="utf-8"?>
 <BorlandProject>
 	<Transactions>
-    <Transaction>1899-12-30 00:00:00.000.bdsproj,H:\Java\workspace\logreaderV2.0\Extdll\Project1.bdsproj=C:\Users\Chin\Documents\RAD Studio\Projects\Project1.bdsproj</Transaction>
     <Transaction>1899-12-30 00:00:00.000.bdsproj,H:\Java\workspace\logreaderV2.0\Extdll\LrExtutils.bdsproj=H:\Java\workspace\logreaderV2.0\Extdll\Project1.bdsproj</Transaction>
+    <Transaction>1899-12-30 00:00:00.000.bdsproj,H:\Java\workspace\logreaderV2.0\Extdll\Project1.bdsproj=C:\Users\Chin\Documents\RAD Studio\Projects\Project1.bdsproj</Transaction>
   </Transactions>
+	<ProjectSortOrder AutoSort="0" SortType="0">
+    <File Path="H:"/>
+    <File Path="H:\Delphi"/>
+    <File Path="H:\Delphi\FastMMnew"/>
+    <File Path="H:\Delphi\FastMMnew\FastMM4.pas"/>
+    <File Path="H:\Delphi\通用的自定义单元"/>
+    <File Path="H:\Delphi\通用的自定义单元\Memory_Common.pas"/>
+    <File Path="H:\Delphi\通用的自定义单元\pluginlog.pas"/>
+    <File Path="H:\Delphi\通用的自定义单元\MakCommonfuncs.pas"/>
+    <File Path="dbhelper.pas"/>
+    <File Path="HashHelper.pas"/>
+    <File Path="logRecdItemSave.pas"/>
+    <File Path="MsOdsApi.pas"/>
+    <File Path="pageCaptureDllHandler.pas"/>
+    <File Path="SqlSvrHelper.pas"/>
+  </ProjectSortOrder>
 </BorlandProject>

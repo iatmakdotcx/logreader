@@ -94,7 +94,7 @@ var
 implementation
 
 uses
-  pageCapture, System.SysUtils, pluginlog;
+  pageCaptureDllHandler, System.SysUtils, pluginlog;
 
 procedure ClearSaveCache;
 begin
@@ -374,7 +374,7 @@ procedure TVlfMgr.WriteIdxExists(tmpxx: PIdxData);
     TmpPosi := TmpPosi + tmpxx.Size*2;
     //后面跟新的offset
     Move(tmpxx.offse[0], PByte(UINT_PTR(tmpBuf)+TmpPosi)^, tmpxx.Size*4);
-    TmpPosi := TmpPosi + tmpxx.Size*4;
+    //TmpPosi := TmpPosi + tmpxx.Size*4;
 
     //重写当前条目
     SetFilePointer(IdxFile, itemIdx, nil, soFromBeginning);
@@ -681,7 +681,6 @@ initialization
   PagelogFileMgr := TPagelogFileMgr.Create;
 
 finalization
-  pageCapture_finit;
   PagelogFileMgr.Free;
 
 end.

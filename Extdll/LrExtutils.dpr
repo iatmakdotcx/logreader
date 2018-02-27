@@ -15,10 +15,10 @@ library LrExtutils;
 {$RTTI EXPLICIT METHODS([]) PROPERTIES([]) FIELDS([])}
 {$IFEND}
 
-
 uses
+  {$IFDEF DEBUG}
   FastMM4 in 'H:\Delphi\FastMMnew\FastMM4.pas',
-  FastMM4Messages in 'H:\Delphi\FastMMnew\FastMM4Messages.pas',
+  {$ENDIF }
   SysUtils,
   Classes,
   HashHelper in 'HashHelper.pas',
@@ -26,12 +26,11 @@ uses
   Winapi.Windows,
   SqlSvrHelper in 'SqlSvrHelper.pas',
   dbhelper in 'dbhelper.pas',
-  pageCapture in 'pageCapture.pas',
+  pageCaptureDllHandler in 'pageCaptureDllHandler.pas',
   Memory_Common in 'H:\Delphi\通用的自定义单元\Memory_Common.pas',
   pluginlog in 'H:\Delphi\通用的自定义单元\pluginlog.pas',
   logRecdItemSave in 'logRecdItemSave.pas',
-  QMapSymbols in 'H:\Delphi\QWorker3.0_20160317\QMapSymbols.pas'
-  ;
+  MakCommonfuncs in 'H:\Delphi\通用的自定义单元\MakCommonfuncs.pas';
 
 {$R *.res}
 
@@ -39,12 +38,12 @@ uses
 /// 是否有当前文件夹的写入权限
 /// </summary>
 /// <returns></returns>
-function checkCurDirPermission:Boolean;
+function checkCurDirPermission: Boolean;
 var
   Pathbuf: array[0..MAX_PATH + 2] of Char;
-  path:string;
+  path: string;
   LFileHandle: THandle;
-  LBytesWritten:Cardinal;
+  LBytesWritten: Cardinal;
 begin
   Result := False;
   LFileHandle := 0;
@@ -75,17 +74,25 @@ begin
   end;
 end;
 
-function HookFailMsg(ErrCode:Integer):string;
+function HookFailMsg(ErrCode: Integer): string;
 begin
   case ErrCode of
-    0:Result := '成功';
-    1:Result := '数据捕获程序已安装';
-    2:Result := 'sqlmin加载失败';
-    3:Result := '数据捕获点不正确(位置不可读)';
-    4:Result := '数据捕获点不正确(内容效验失败)';
-    5:Result := '数据捕获点区域效验失败';
-    6:Result := '';
-    7:Result := '';
+    0:
+      Result := '成功';
+    1:
+      Result := '数据捕获程序已安装';
+    2:
+      Result := 'sqlmin加载失败';
+    3:
+      Result := '数据捕获点不正确(位置不可读)';
+    4:
+      Result := '数据捕获点不正确(内容效验失败)';
+    5:
+      Result := '数据捕获点区域效验失败';
+    6:
+      Result := '';
+    7:
+      Result := '';
   else
     Result := '未定义的错误';
   end;
@@ -136,7 +143,7 @@ begin
         end;
       end;
     except
-      on e:Exception do
+      on e: Exception do
       begin
         srv_sendmsg(pSrvProc, SRV_MSG_ERROR, 0, 0, 0, nil, 0, 0, PAnsiChar(AnsiString(e.Message)), SRV_NULLTERM);
       end;
@@ -148,79 +155,68 @@ begin
   end;
 end;
 
-function d_checkSqlSvr(pSrvProc: SRV_PROC): Integer; cdecl;
+function d_checkSqlSvr(pSrvProc: SRV_PROC): Integer;
 var
-  hdl:tHandle;
+  hdl: tHandle;
   Pathbuf: array[0..MAX_PATH + 2] of Char;
-  sqlminMD5:string;
-
-  hookPnt:Integer;
-  dllPath:string;
+  sqlminMD5: string;
 begin
-  Result := SUCCEED;
+  Result := 0;
   hdl := GetModuleHandle('sqlmin.dll');
-  if hdl=0 then
+  if hdl = 0 then
   begin
-    srv_sendmsg(pSrvProc, SRV_MSG_INFO, 0, 0, 0, nil, 0, 0, 'Error:sqlmin.dll加载失败', SRV_NULLTERM);
-  end else begin
+    SqlSvr_SendMsg(pSrvProc, 'Error:sqlmin.dll加载失败');
+  end
+  else
+  begin
     ZeroMemory(@Pathbuf[0], MAX_PATH + 2);
     GetModuleFileName(hdl, Pathbuf, MAX_PATH);
     sqlminMD5 := GetFileHashMD5(Pathbuf);
 
-    SqlSvr_SendMsg(pSrvProc, string(Pathbuf));
-    SqlSvr_SendMsg(pSrvProc, sqlminMD5);
+    //SqlSvr_SendMsg(pSrvProc, string(Pathbuf));
+    //SqlSvr_SendMsg(pSrvProc, 'sqlmin:'+sqlminMD5);
 
-    GetModuleFileName(HInstance, Pathbuf, MAX_PATH);
-    SqlSvr_SendMsg(pSrvProc, string(Pathbuf));
+    //GetModuleFileName(HInstance, Pathbuf, MAX_PATH);
+    //SqlSvr_SendMsg(pSrvProc, string(Pathbuf));
 
     try
-      dbhelper.init;
+      if DBH = nil then
+        dbhelper.init;
+
       if DBH.checkMd5(sqlminMD5) then
       begin
-        SqlSvr_SendMsg(pSrvProc, '准备加载已知方案');
-        if DBH.cfg(sqlminMD5, hookPnt, dllPath) then
-        begin
-          pageCapture_init(dllPath);
-          hookPnt := _Lc_doHook(hookPnt);
-          if hookPnt>0 then
-          begin
-            //hook fail
-            SqlSvr_SendMsg(pSrvProc, 'ERROR:'+HookFailMsg(hookPnt));
-          end;
-        end;
+        Result := 1;
       end
       else
       begin
-        //TODO:如何是好
-        SqlSvr_SendMsg(pSrvProc, '未确认的数据采集方案');
-
+        Result := 2;
       end;
     except
-      on e:Exception do
+      on e: Exception do
       begin
         SqlSvr_SendMsg(pSrvProc, e.Message);
       end;
     end;
-    srv_senddone(pSrvProc, SRV_DONE_FINAL, 0, 0);
   end;
 
 end;
 
 function d_hook(pSrvProc: SRV_PROC): Integer;
 var
-  hdl:tHandle;
+  hdl: tHandle;
   Pathbuf: array[0..MAX_PATH + 2] of Char;
-  sqlminMD5:string;
-
-  hookPnt:Integer;
-  dllPath:string;
+  sqlminMD5: string;
+  hookPnt: Integer;
+  dllPath: string;
 begin
   Result := SUCCEED;
   hdl := GetModuleHandle('sqlmin.dll');
-  if hdl=0 then
+  if hdl = 0 then
   begin
     srv_sendmsg(pSrvProc, SRV_MSG_INFO, 0, 0, 0, nil, 0, 0, 'Error:sqlmin.dll加载失败', SRV_NULLTERM);
-  end else begin
+  end
+  else
+  begin
     ZeroMemory(@Pathbuf[0], MAX_PATH + 2);
     GetModuleFileName(hdl, Pathbuf, MAX_PATH);
     sqlminMD5 := GetFileHashMD5(Pathbuf);
@@ -231,13 +227,11 @@ begin
     GetModuleFileName(HInstance, Pathbuf, MAX_PATH);
     SqlSvr_SendMsg(pSrvProc, string(Pathbuf));
 
-
     if checkCurDirPermission then
     begin
       SqlSvr_SendMsg(pSrvProc, ' dll目录不包含写入权限！');
       Exit;
     end;
-
 
     try
       if DBH = nil then
@@ -250,10 +244,12 @@ begin
         begin
           pageCapture_init(dllPath);
           hookPnt := _Lc_doHook(hookPnt);
-          if hookPnt>0 then
+          //hook fail
+          if hookPnt=0 then
           begin
-            //hook fail
-            SqlSvr_SendMsg(pSrvProc, 'ERROR:'+HookFailMsg(hookPnt));
+            SqlSvr_SendMsg(pSrvProc, '成功');
+          end else begin
+            SqlSvr_SendMsg(pSrvProc, 'ERROR:' + HookFailMsg(hookPnt));
           end;
         end;
       end
@@ -261,10 +257,9 @@ begin
       begin
         //TODO:如何是好
         SqlSvr_SendMsg(pSrvProc, 'ERROR:未确认的数据采集方案');
-
       end;
     except
-      on e:Exception do
+      on e: Exception do
       begin
         SqlSvr_SendMsg(pSrvProc, e.Message);
       end;
@@ -277,7 +272,9 @@ begin
   if not Assigned(_Lc_unHook) then
   begin
     SqlSvr_SendMsg(pSrvProc, 'ERROR:未初始化数据采集进程');
-  end else begin
+  end
+  else
+  begin
     _Lc_unHook;
   end;
 end;
@@ -291,37 +288,43 @@ var
   uLen: ULONG;
   uMaxLen: ULONG;
   DataBuf: array of Byte;
-  DBids:UInt64;
+  DBids: UInt64;
 begin
   if srv_rpcparams(pSrvProc) <> 2 then
   begin
     srv_sendmsg(pSrvProc, SRV_MSG_INFO, 0, 0, 0, nil, 0, 0, 'Error:此方法需要【2】个参数！', SRV_NULLTERM);
-  end else begin
+  end
+  else
+  begin
     srv_paraminfo(pSrvProc, 2, @bType, @uMaxLen, @uLen, nil, @bNull);
-    SetLength(DataBuf, uLen+2);
-    ZeroMemory(@DataBuf[0], uLen+2);
+    SetLength(DataBuf, uLen + 2);
+    ZeroMemory(@DataBuf[0], uLen + 2);
     srv_paraminfo(pSrvProc, 2, @bType, @uMaxLen, @uLen, @DataBuf[0], @bNull);
 
-//    SqlSvr_SendMsg(pSrvProc, Format('bType:%d,%d,%d',[bType, uMaxLen, uLen]));
-//    SqlSvr_SendMsg(pSrvProc, bytestostr(DataBuf));
     if uLen = 1 then
     begin
       DBids := PByte(@DataBuf[0])^;
-    end else if uLen = 2 then
+    end
+    else if uLen = 2 then
     begin
       DBids := PWORD(@DataBuf[0])^;
-    end else if (uLen = 3) or (uLen = 4) then
+    end
+    else if (uLen = 3) or (uLen = 4) then
     begin
       DBids := PDWORD(@DataBuf[0])^;
-    end else begin
+    end
+    else
+    begin
       DBids := PUInt64(@DataBuf[3])^;
     end;
 
-    SqlSvr_SendMsg(pSrvProc, 'DBids:'+UIntToStr(DBids));
+    SqlSvr_SendMsg(pSrvProc, 'DBids:' + UIntToStr(DBids));
     if not Assigned(_Lc_Set_Databases) then
     begin
-      SqlSvr_SendMsg(pSrvProc, 'ERROR:未初始化数据采集进程:'+UIntToStr(DBids));
-    end else begin
+      SqlSvr_SendMsg(pSrvProc, 'ERROR:未初始化数据采集进程:' + UIntToStr(DBids));
+    end
+    else
+    begin
       _Lc_Set_Databases(DBids);
       SqlSvr_SendMsg(pSrvProc, '完成');
     end;
@@ -330,12 +333,14 @@ end;
 
 procedure d_Get_PaddingDataCnt(pSrvProc: SRV_PROC);
 var
-  DataCnt:UInt64;
+  DataCnt: UInt64;
 begin
   if not Assigned(_Lc_Get_PaddingDataCnt) then
   begin
     SqlSvr_SendMsg(pSrvProc, 'ERROR:未初始化数据采集进程');
-  end else begin
+  end
+  else
+  begin
     DataCnt := _Lc_Get_PaddingDataCnt;
     SqlSvr_SendMsg(pSrvProc, UIntToStr(DataCnt));
   end;
@@ -343,12 +348,14 @@ end;
 
 procedure d_Get_HasBeenHooked(pSrvProc: SRV_PROC);
 var
-  DataCnt:UInt64;
+  DataCnt: UInt64;
 begin
   if not Assigned(_Lc_HasBeenHooked) then
   begin
     SqlSvr_SendMsg(pSrvProc, 'ERROR:未初始化数据采集进程');
-  end else begin
+  end
+  else
+  begin
     DataCnt := _Lc_HasBeenHooked;
     SqlSvr_SendMsg(pSrvProc, UIntToStr(DataCnt));
   end;
@@ -359,12 +366,80 @@ begin
   if not Assigned(_Lc_HasBeenHooked) then
   begin
     SqlSvr_SendMsg(pSrvProc, 'ERROR:未初始化数据采集进程');
-  end else begin
+  end
+  else
+  begin
     savePageLog2;
     SqlSvr_SendMsg(pSrvProc, 'ok');
   end;
 end;
 
+
+/// <summary>
+/// 打印当前系统状态
+/// </summary>
+/// <param name="pSrvProc"></param>
+procedure PrintState(pSrvProc: SRV_PROC);
+
+  function validCfgNam(Cfgval: Integer): string;
+  begin
+    case Cfgval of
+      0:
+        Result := '执行出错';
+      1:
+        Result := '配置方案已确定';
+      2:
+        Result := '未知方案';
+    else
+      Result := 'UNKNOWN';
+    end;
+  end;
+
+var
+  validCfg: Integer;
+  dbids: UInt64;
+  I: Integer;
+  TmpStr: string;
+begin
+  SqlSvr_SendMsg(pSrvProc, 'checking.....');
+  validCfg := d_checkSqlSvr(pSrvProc);
+  SqlSvr_SendMsg(pSrvProc, Format('validCfg:%d(%s)', [validCfg, validCfgNam(validCfg)]));
+  if Assigned(_Lc_HasBeenHooked) then
+  begin
+    SqlSvr_SendMsg(pSrvProc, 'HookState:1(启用)');
+    if Assigned(_Lc_Get_Databases) then
+    begin
+      dbids := _Lc_Get_Databases;
+      TmpStr := TmpStr;
+      for I := 1 to 64 do
+      begin
+        if ((1 shl I) and dbids) > 0 then
+        begin
+          TmpStr := TmpStr + ',' + IntToStr(I);
+        end;
+      end;
+      SqlSvr_SendMsg(pSrvProc, 'DBs:' + TmpStr);
+    end;
+
+    if Assigned(_Lc_Get_PaddingDataCnt) then
+    begin
+      SqlSvr_SendMsg(pSrvProc, 'DBs:' + inttostr(_Lc_Get_PaddingDataCnt));
+    end;
+
+  end
+  else
+  begin
+    SqlSvr_SendMsg(pSrvProc, 'HookState:0(未启用)');
+  end;
+
+  SqlSvr_SendMsg(pSrvProc, 'check end.....');
+end;
+
+/// <summary>
+/// 控制主函数
+/// </summary>
+/// <param name="pSrvProc"></param>
+/// <returns></returns>
 function Lr_doo(pSrvProc: SRV_PROC): Integer;
 var
   bNull: BOOL;
@@ -372,51 +447,59 @@ var
   uLen: ULONG;
   uMaxLen: ULONG;
   DataBuf: array of Byte;
-  action:string;
+  action: string;
 begin
   Result := SUCCEED;
   try
     try
       if srv_rpcparams(pSrvProc) < 1 then
       begin
-        srv_sendmsg(pSrvProc, SRV_MSG_INFO, 0, 0, 0, nil, 0, 0, 'Error:必须传入一个或多个参数', SRV_NULLTERM);
+        //srv_sendmsg(pSrvProc, SRV_MSG_INFO, 0, 0, 0, nil, 0, 0, 'Error:必须传入一个或多个参数', SRV_NULLTERM);
+        PrintState(pSrvProc);
       end
       else
       begin
         srv_paraminfo(pSrvProc, 1, @bType, @uMaxLen, @uLen, nil, @bNull);
-        SetLength(DataBuf, uLen+2);
-        ZeroMemory(@DataBuf[0], uLen+2);
+        SetLength(DataBuf, uLen + 2);
+        ZeroMemory(@DataBuf[0], uLen + 2);
         srv_paraminfo(pSrvProc, 1, @bType, @uMaxLen, @uLen, @DataBuf[0], @bNull);
 
         action := string(PAnsiChar(@DataBuf[0]));
 
-        SqlSvr_SendMsg(pSrvProc, 'action:'+action);
+        SqlSvr_SendMsg(pSrvProc, 'action:' + action);
 
         if action = 'A' then
         begin
           d_hook(pSrvProc);
-        end else if action = 'B' then
+        end
+        else if action = 'B' then
         begin
           d_Set_Databases(pSrvProc);
-        end else if action = 'C' then
+        end
+        else if action = 'C' then
         begin
           d_Get_PaddingDataCnt(pSrvProc);
-        end else if action = 'D' then
+        end
+        else if action = 'D' then
         begin
           d_Get_HasBeenHooked(pSrvProc);
-        end else if action = 'E' then
+        end
+        else if action = 'E' then
         begin
           d_do_SavePagelog(pSrvProc);
-        end else if action = 'F' then
+        end
+        else if action = 'F' then
         begin
           d_unhook(pSrvProc);
-        end else begin
+        end
+        else
+        begin
 
         end;
 
       end;
     except
-      on e:Exception do
+      on e: Exception do
       begin
         srv_sendmsg(pSrvProc, SRV_MSG_ERROR, 0, 0, 0, nil, 0, 0, PAnsiChar(AnsiString(e.Message)), SRV_NULLTERM);
       end;
@@ -449,20 +532,21 @@ begin
 end;
 
 exports
-  d_example,
-  Lr_doo,
+  {$IFDEF DEBUG}
   Lr_clearCache,
-  d_do_SavePagelog;
+  d_do_SavePagelog,
+  {$ENDIF}
+  d_example,
+  Lr_doo;
 
 begin
 //  DLLProc := @DLLMainHandler; //动态库地址告诉系统，结束的时候执行卸载
  // DLLMainHandler(DLL_PROCESS_ATTACH);
 
   dbhelper.init;
-  TObject.Create;
-
+  {$IFDEF DEBUG}
   //test code
   pageCapture_init('project1.exe');
-
+  {$ENDIF}
 end.
 

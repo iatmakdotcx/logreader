@@ -3,7 +3,7 @@
         <ProjectGuid>{4940BA3D-4C59-4467-B66C-ACAFD292D033}</ProjectGuid>
         <MainSource>LrExtutils.dpr</MainSource>
         <Base>True</Base>
-        <Config Condition="'$(Config)'==''">Debug</Config>
+        <Config Condition="'$(Config)'==''">Release</Config>
         <TargetedPlatforms>1027</TargetedPlatforms>
         <AppType>Library</AppType>
         <FrameworkType>None</FrameworkType>
@@ -98,7 +98,7 @@
         <BT_BuildType>Debug</BT_BuildType>
     </PropertyGroup>
     <PropertyGroup Condition="'$(Cfg_1_Win64)'!=''">
-        <DCC_ExeOutput>H:\Java\workspace\logreaderV2.0\Extdll\</DCC_ExeOutput>
+        <DCC_ExeOutput>C:\</DCC_ExeOutput>
         <Debugger_HostApplication>H:\Java\workspace\logreaderV2.0\Extdll\Project1.exe</Debugger_HostApplication>
         <VerInfo_Locale>1033</VerInfo_Locale>
         <VerInfo_IncludeVerInfo>true</VerInfo_IncludeVerInfo>
@@ -124,16 +124,15 @@
             <MainSource>MainSource</MainSource>
         </DelphiCompile>
         <DCCReference Include="H:\Delphi\FastMMnew\FastMM4.pas"/>
-        <DCCReference Include="H:\Delphi\FastMMnew\FastMM4Messages.pas"/>
         <DCCReference Include="HashHelper.pas"/>
         <DCCReference Include="MsOdsApi.pas"/>
         <DCCReference Include="SqlSvrHelper.pas"/>
         <DCCReference Include="dbhelper.pas"/>
-        <DCCReference Include="pageCapture.pas"/>
+        <DCCReference Include="pageCaptureDllHandler.pas"/>
         <DCCReference Include="H:\Delphi\通用的自定义单元\Memory_Common.pas"/>
         <DCCReference Include="H:\Delphi\通用的自定义单元\pluginlog.pas"/>
         <DCCReference Include="logRecdItemSave.pas"/>
-        <DCCReference Include="H:\Delphi\QWorker3.0_20160317\QMapSymbols.pas"/>
+        <DCCReference Include="H:\Delphi\通用的自定义单元\MakCommonfuncs.pas"/>
         <BuildConfiguration Include="Debug">
             <Key>Cfg_2</Key>
             <CfgParent>Base</CfgParent>
@@ -192,7 +191,7 @@
                         <Overwrite>true</Overwrite>
                     </Platform>
                 </DeployFile>
-                <DeployFile LocalName="c:\LrExtutils.dll" Configuration="Release" Class="ProjectOutput">
+                <DeployFile LocalName="C:\LrExtutils.dll" Configuration="Release" Class="ProjectOutput">
                     <Platform Name="Win64">
                         <RemoteName>LrExtutils.dll</RemoteName>
                         <Overwrite>true</Overwrite>

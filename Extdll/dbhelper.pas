@@ -30,7 +30,7 @@ procedure init;
 implementation
 
 uses
-  Winapi.Windows, System.SysUtils, SqlSvrHelper;
+  Winapi.Windows, System.SysUtils, SqlSvrHelper, pluginlog;
 
 procedure init;
 begin
@@ -75,6 +75,7 @@ begin
   end
   else
   begin
+    Loger.Add('mapdb.cfg²»´æÔÚ£¡', LOG_ERROR);
     result := False;
   end;
 end;
@@ -86,6 +87,7 @@ var
 begin
   GetModuleFileName(HInstance, buffPath, MAX_PATH);
   dbPath := ExtractFilePath(string(buffPath)) + 'mapdb.db';
+  Loger.Add('mapdb:'+dbPath);
   DBConnt := TFDConnection.Create(nil);
   DBConnt.Params.Clear;
   DBConnt.Params.Add('Database=' + dbPath);
