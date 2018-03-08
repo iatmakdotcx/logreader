@@ -72,12 +72,12 @@ type
   private
     const
       SsPath = 'data\';
-    procedure dbidsObjAction(AItem, AData: Pointer; out AContinue: Boolean);
-    procedure VlfMgrObjAction(AItem, AData: Pointer; out AContinue: Boolean);
     var
       f_path: string;
       SaveCs: TCriticalSection;
       dbids: TDbidCustomBucketList;
+    procedure dbidsObjAction(AItem, AData: Pointer; out AContinue: Boolean);
+    procedure VlfMgrObjAction(AItem, AData: Pointer; out AContinue: Boolean);
   public
     constructor Create;
     destructor Destroy; override;
@@ -94,7 +94,7 @@ var
 implementation
 
 uses
-  pageCaptureDllHandler, System.SysUtils, pluginlog;
+  pageCaptureDllHandler, System.SysUtils, pluginlog,Memory_Common;
 
 procedure ClearSaveCache;
 begin
@@ -205,7 +205,13 @@ end;
 
 procedure TPagelogFileMgr.ClearSaveCache;
 begin
-  dbids.ForEach(dbidsObjAction);
+  SaveCs.Enter;
+  try
+    dbids.ForEach(dbidsObjAction);
+    dbids.Clear;
+  finally
+    SaveCs.Leave;
+  end;
 end;
 
 constructor TPagelogFileMgr.Create;
@@ -235,23 +241,28 @@ var
   DB: TDbidCustomBucketList;
   ReqNo: TVlfMgr;
 begin
-  if (dbid > 0) and (lsn1 > 0) then
-  begin
-    DB := dbids[dbid];
-    if DB = nil then
+  SaveCs.Enter;
+  try
+    if (dbid > 0) and (lsn1 > 0) then
     begin
-      DB := TDbidCustomBucketList.Create;
-      dbids.Add(dbid, DB);
+      DB := dbids[dbid];
+      if DB = nil then
+      begin
+        DB := TDbidCustomBucketList.Create;
+        dbids.Add(dbid, DB);
+      end;
+      ReqNo := DB[lsn1];
+      if ReqNo = nil then
+      begin
+        ReqNo := TVlfMgr.Create(dbid, lsn1, f_path);
+        DB.Add(lsn1, ReqNo)
+      end;
+      Result := ReqNo.save(lsn2, logs, data);
+    end else begin
+      Result := false;
     end;
-    ReqNo := DB[lsn1];
-    if ReqNo = nil then
-    begin
-      ReqNo := TVlfMgr.Create(dbid, lsn1, f_path);
-      DB.Add(lsn1, ReqNo)
-    end;
-    Result := ReqNo.save(lsn2, logs, data);
-  end else begin
-    Result := false;
+  finally
+    SaveCs.Leave;
   end;
 end;
 
@@ -302,14 +313,16 @@ begin
           nil, OPEN_ALWAYS, FILE_ATTRIBUTE_NORMAL, 0);
   if IdxFile = INVALID_HANDLE_VALUE then
   begin
-    loger.Add('创建文件失败！'+syserrormessage(GetLastError));
+    loger.Add('创建文件失败！'+syserrormessage(GetLastError)+':'+tmpFilePath+'1.idx',LOG_ERROR);
+    loger.Add('之后采集数据将输出到本日志文件！');
   end;
 
   DataFile := CreateFile(PChar(tmpFilePath+'1.data'), GENERIC_READ or GENERIC_WRITE, FILE_SHARE_READ,
           nil, OPEN_ALWAYS, FILE_ATTRIBUTE_NORMAL, 0);
   if DataFile = INVALID_HANDLE_VALUE then
   begin
-    loger.Add('创建文件失败！'+syserrormessage(GetLastError));
+    loger.Add('创建文件失败！'+syserrormessage(GetLastError)+':'+tmpFilePath+'1.data');
+    loger.Add('之后采集数据将输出到本日志文件！');
   end;
 end;
 
@@ -529,9 +542,37 @@ var
   Wsize:DWORD;
   hasFound:Boolean;
   min_id:Integer;
+  OutPutStr:string;
+  TmpDataStr:string;
 begin
   if logs.Count > 0 then
   begin
+    if ((IdxFile + 1) = 0) or ((DataFile + 1) = 0) then
+    begin
+      //如果日志输出文件打开失败，将数据直接输出到日志，
+      OutPutStr := '<Root>';
+      OutPutStr := OutPutStr + Format('<dbid>%d</dbid>', [fdbid]);
+      OutPutStr := OutPutStr + Format('<lsn1>%d</lsn1>', [ReqNo]);
+      OutPutStr := OutPutStr + Format('<lsn2>%d</lsn2>', [lsn2]);
+      OutPutStr := OutPutStr+'<idx>';
+      for J := 0 to logs.Count - 1 do
+      begin
+        tmpLsn := logs[J];
+        OutPutStr := OutPutStr + '<row>';
+        OutPutStr := OutPutStr + Format('<lsn3>%d</lsn3>', [tmpLsn.lsn_3]);
+        OutPutStr := OutPutStr + Format('<Offset>%d</Offset>', [tmpLsn.Offset]);
+        OutPutStr := OutPutStr + '</row>';
+      end;
+      OutPutStr := OutPutStr + '</idx><data>';
+      TmpDataStr := bytestostr(data.Memory, data.Size, $FFFFFFFF, False, False);
+      TmpDataStr := StringReplace(TmpDataStr, ' ', '', [rfReplaceAll]);
+      OutPutStr := OutPutStr + TmpDataStr + '</data></root>';
+      //TODO:输出到日志的数据是否需要加密？
+      Loger.Add(OutPutStr, LOG_DATA or LOG_IMPORTANT);
+      Result := False;
+      Exit;
+    end;
+
     //先直接写入log到文件
     DataFileCS.Enter;
     try

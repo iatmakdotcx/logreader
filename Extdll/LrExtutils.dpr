@@ -18,6 +18,7 @@ library LrExtutils;
 uses
   {$IFDEF DEBUG}
   FastMM4 in 'H:\Delphi\FastMMnew\FastMM4.pas',
+  FastMM4Messages in 'H:\Delphi\FastMMnew\FastMM4Messages.pas',
   {$ENDIF }
   SysUtils,
   Classes,
@@ -30,7 +31,8 @@ uses
   Memory_Common in 'H:\Delphi\通用的自定义单元\Memory_Common.pas',
   pluginlog in 'H:\Delphi\通用的自定义单元\pluginlog.pas',
   logRecdItemSave in 'logRecdItemSave.pas',
-  MakCommonfuncs in 'H:\Delphi\通用的自定义单元\MakCommonfuncs.pas';
+  MakCommonfuncs in 'H:\Delphi\通用的自定义单元\MakCommonfuncs.pas',
+  logRecdItemReader in 'logRecdItemReader.pas';
 
 {$R *.res}
 
@@ -71,6 +73,7 @@ begin
   finally
     if LFileHandle > 0 then
       CloseHandle(LFileHandle);
+    DeleteFile(PChar(path));
   end;
 end;
 
@@ -374,7 +377,6 @@ begin
   end;
 end;
 
-
 /// <summary>
 /// 打印当前系统状态
 /// </summary>
@@ -402,34 +404,34 @@ var
   TmpStr: string;
 begin
   SqlSvr_SendMsg(pSrvProc, 'checking.....');
-  validCfg := d_checkSqlSvr(pSrvProc);
-  SqlSvr_SendMsg(pSrvProc, Format('validCfg:%d(%s)', [validCfg, validCfgNam(validCfg)]));
   if Assigned(_Lc_HasBeenHooked) then
   begin
     SqlSvr_SendMsg(pSrvProc, 'HookState:1(启用)');
     if Assigned(_Lc_Get_Databases) then
     begin
       dbids := _Lc_Get_Databases;
-      TmpStr := TmpStr;
+      TmpStr := '';
       for I := 1 to 64 do
       begin
-        if ((1 shl I) and dbids) > 0 then
+        if ((Uint64(1) shl Uint64(I - 1)) and dbids) > 0 then
         begin
           TmpStr := TmpStr + ',' + IntToStr(I);
         end;
       end;
-      SqlSvr_SendMsg(pSrvProc, 'DBs:' + TmpStr);
+      SqlSvr_SendMsg(pSrvProc, Format('DBs(%d):%s',[dbids, TmpStr]));
     end;
 
     if Assigned(_Lc_Get_PaddingDataCnt) then
     begin
-      SqlSvr_SendMsg(pSrvProc, 'DBs:' + inttostr(_Lc_Get_PaddingDataCnt));
+      SqlSvr_SendMsg(pSrvProc, 'PaddingDataCnt:' + inttostr(_Lc_Get_PaddingDataCnt));
     end;
 
   end
   else
   begin
     SqlSvr_SendMsg(pSrvProc, 'HookState:0(未启用)');
+    validCfg := d_checkSqlSvr(pSrvProc);
+    SqlSvr_SendMsg(pSrvProc, Format('validCfg:%d(%s)', [validCfg, validCfgNam(validCfg)]));
   end;
 
   SqlSvr_SendMsg(pSrvProc, 'check end.....');
@@ -511,6 +513,47 @@ begin
   end;
 end;
 
+/// <summary>
+/// 读取日志主函数
+/// </summary>
+/// <param name="pSrvProc"></param>
+/// <returns></returns>
+function Lr_roo(pSrvProc: SRV_PROC): Integer;
+var
+  //param
+  dbid :Byte;
+  lsn1,lsn2: Dword;
+  lsn3:Word;
+  parCnt:Integer;
+  xmlResult:string;
+begin
+  Result := SUCCEED;
+  parCnt := srv_rpcparams(pSrvProc);
+  if parCnt = 2 then
+  begin
+    dbid := getParam_int(pSrvProc, 1);
+    lsn1 := getParam_int(pSrvProc, 2);
+    SqlSvr_SendMsg(pSrvProc, Format('dbid:%d, lsn1:%d',[dbid,lsn1]));
+    xmlResult := Read_logAll(dbid, Lsn1);
+    Read_logXmlToTableResults(pSrvProc, Lsn1, xmlResult);
+  end else if parCnt = 4 then
+  begin
+    dbid := getParam_int(pSrvProc, 1);
+    lsn1 := getParam_int(pSrvProc, 2);
+    lsn2 := getParam_int(pSrvProc, 3);
+    lsn3 := getParam_int(pSrvProc, 4);
+
+    SqlSvr_SendMsg(pSrvProc, Format('dbid:%d, lsn:%.8x:%.8x:%.4x',[dbid,lsn1,lsn2,lsn3]));
+    xmlResult := Read_log_One(dbid, Lsn1, lsn2, lsn3);
+    Read_logXmlToTableResults(pSrvProc, Lsn1, xmlResult);
+
+  end else begin
+    SqlSvr_SendMsg(pSrvProc, '参数不正确！');
+  end;
+  srv_senddone(pSrvProc, SRV_DONE_FINAL or SRV_DONE_COUNT, 0, 0);
+end;
+
+
 function Lr_clearCache(pSrvProc: SRV_PROC): Integer;
 begin
   ClearSaveCache;
@@ -526,22 +569,24 @@ begin
       end;
     DLL_PROCESS_DETACH:
       begin
-        pluginlog.finalLoger;
+        ClearSaveCache;
       end;
   end;
 end;
 
 exports
-  {$IFDEF DEBUG}
   Lr_clearCache,
+  {$IFDEF DEBUG}
   d_do_SavePagelog,
+  Read_log_One,
   {$ENDIF}
   d_example,
-  Lr_doo;
+  Lr_doo,
+  Lr_roo;
 
 begin
-//  DLLProc := @DLLMainHandler; //动态库地址告诉系统，结束的时候执行卸载
- // DLLMainHandler(DLL_PROCESS_ATTACH);
+  DLLProc := @DLLMainHandler; //动态库地址告诉系统，结束的时候执行卸载
+  DLLMainHandler(DLL_PROCESS_ATTACH);
 
   dbhelper.init;
   {$IFDEF DEBUG}
@@ -550,3 +595,5 @@ begin
   {$ENDIF}
 end.
 
+//设置目录允许sqlserver访问
+//cacls "c:\data" /T /e /g MSSQLSERVER:f

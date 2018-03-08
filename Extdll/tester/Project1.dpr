@@ -6,7 +6,10 @@ uses
   Vcl.Forms,
   Unit1 in 'Unit1.pas' {Form1},
   Winapi.Windows {Form1},
-  logCreatehelper in 'logCreatehelper.pas';
+  logCreatehelper in 'logCreatehelper.pas',
+  MakCommonfuncs in 'H:\Delphi\通用的自定义单元\MakCommonfuncs.pas',
+  Memory_Common in 'H:\Delphi\通用的自定义单元\Memory_Common.pas',
+  pluginlog in 'H:\Delphi\通用的自定义单元\pluginlog.pas';
 
 {$R *.res}
 

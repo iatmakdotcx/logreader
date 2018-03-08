@@ -23,6 +23,11 @@ type
     Button13: TButton;
     Button14: TButton;
     Button15: TButton;
+    Button16: TButton;
+    Button17: TButton;
+    Button18: TButton;
+    Button19: TButton;
+    Button20: TButton;
     procedure Button1Click(Sender: TObject);
     procedure Button2Click(Sender: TObject);
     procedure Button3Click(Sender: TObject);
@@ -35,6 +40,10 @@ type
     procedure Button7Click(Sender: TObject);
     procedure Button14Click(Sender: TObject);
     procedure Button15Click(Sender: TObject);
+    procedure Button17Click(Sender: TObject);
+    procedure Button18Click(Sender: TObject);
+    procedure Button19Click(Sender: TObject);
+    procedure Button20Click(Sender: TObject);
   private
     { Private declarations }
   public
@@ -46,6 +55,10 @@ var
   hh: THandle;
   Lr_clearCache: function(pSrvProc: Pointer): Integer;
   d_do_SavePagelog: function(pSrvProc: Pointer): Integer;
+  Read_logAllWithTableResults:function (pSrvProc: Pointer; dbid: Byte; Lsn1: Dword):Integer;stdcall;
+  Read_log_One:function (dbid: Byte; Lsn1: Dword; Lsn2: Dword; Lsn3: word):PAnsiChar;stdcall;
+
+   aaaaaa: function :PansiChar;stdcall;
 
 implementation
 uses
@@ -56,7 +69,6 @@ uses
 procedure TForm1.Button10Click(Sender: TObject);
 var
   rspp: PlogRecdItem;
-  bb2: PlogRecdItem;
 begin
   New(rspp);
   ____PaddingData := rspp;
@@ -223,11 +235,57 @@ begin
 
 end;
 
+procedure TForm1.Button17Click(Sender: TObject);
+var
+  rspp: PlogRecdItem;
+begin
+  New(rspp);
+  ____PaddingData := rspp;
+//  TlogRecdItem = packed record
+//    n: PlogRecdItem;
+//    TranID_1: DWORD;
+//    TranID_2: WORD;
+//    lsn: TLSN;
+//    length: DWORD;
+//    dbId: Word;
+//    val: Pointer;
+//  end;
+  rspp.TranID_1 := $2A7F;
+  rspp.TranID_2 := $0;
+  rspp.lsn.lsn_1 := $0200;
+  rspp.lsn.lsn_2 := $02f0;
+  rspp.lsn.lsn_3 := $02;
+  rspp.dbId := 5;
+  rspp.length := $c;
+  rspp.val := PAnsiChar('1234567890');
+
+  rspp.n := nil;
+  d_do_SavePagelog(nil);
+end;
+
+procedure TForm1.Button18Click(Sender: TObject);
+begin
+  Read_logAllWithTableResults(nil,5,512);
+end;
+
+procedure TForm1.Button19Click(Sender: TObject);
+begin
+  ShowMessage(string(Read_log_One(50,512,504,2)));
+end;
+
 procedure TForm1.Button1Click(Sender: TObject);
 begin
   hh := LoadLibrary('LrExtutils.dll');
   Lr_clearCache := getprocaddress(hh, 'Lr_clearCache');
   d_do_SavePagelog := getprocaddress(hh, 'd_do_SavePagelog');
+  Read_logAllWithTableResults := getprocaddress(hh, 'Read_logAllWithTableResults');
+  Read_log_One := getprocaddress(hh, 'Read_log_One');
+  aaaaaa := getprocaddress(hh, 'aaaaaa');
+end;
+
+procedure TForm1.Button20Click(Sender: TObject);
+begin
+  ShowMessage(aaaaaa);
 end;
 
 procedure TForm1.Button2Click(Sender: TObject);
@@ -302,7 +360,6 @@ end;
 procedure TForm1.Button5Click(Sender: TObject);
 var
   rspp: PlogRecdItem;
-  bb2: PlogRecdItem;
 begin
   New(rspp);
   ____PaddingData := rspp;
@@ -358,7 +415,6 @@ end;
 procedure TForm1.Button7Click(Sender: TObject);
 var
   rspp: PlogRecdItem;
-  bb2: PlogRecdItem;
 begin
   New(rspp);
   ____PaddingData := rspp;

@@ -145,4 +145,48 @@ object Form1: TForm1
     TabOrder = 14
     OnClick = Button15Click
   end
+  object Button16: TButton
+    Left = 488
+    Top = 8
+    Width = 75
+    Height = 25
+    Caption = 'RadLogFile'
+    TabOrder = 15
+  end
+  object Button17: TButton
+    Left = 48
+    Top = 328
+    Width = 75
+    Height = 25
+    Caption = 'Button17'
+    TabOrder = 16
+    OnClick = Button17Click
+  end
+  object Button18: TButton
+    Left = 488
+    Top = 88
+    Width = 75
+    Height = 25
+    Caption = 'testTableview'
+    TabOrder = 17
+    OnClick = Button18Click
+  end
+  object Button19: TButton
+    Left = 592
+    Top = 88
+    Width = 75
+    Height = 25
+    Caption = 'Button19'
+    TabOrder = 18
+    OnClick = Button19Click
+  end
+  object Button20: TButton
+    Left = 504
+    Top = 169
+    Width = 75
+    Height = 25
+    Caption = 'Button20'
+    TabOrder = 19
+    OnClick = Button20Click
+  end
 end

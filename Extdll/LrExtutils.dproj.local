@@ -19,5 +19,6 @@
     <File Path="MsOdsApi.pas"/>
     <File Path="pageCaptureDllHandler.pas"/>
     <File Path="SqlSvrHelper.pas"/>
+    <File Path="logRecdItemReader.pas"/>
   </ProjectSortOrder>
 </BorlandProject>
