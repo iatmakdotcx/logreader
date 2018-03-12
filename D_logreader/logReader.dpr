@@ -1,5 +1,7 @@
 program logReader;
 
+{$R 'res.res' 'res\res.rc'}
+
 uses
   FastMM4 in 'H:\Delphi\FastMMnew\FastMM4.pas',
   FastMM4Messages in 'H:\Delphi\FastMMnew\FastMM4Messages.pas',
@@ -19,7 +21,6 @@ uses
   databaseConnection in 'databaseConnection.pas',
   dbConnectionCfg in 'UI\dbConnectionCfg.pas' {frm_dbConnectionCfg},
   dbHelper in 'dbHelper.pas',
-  ConstString in 'ConstString.pas',
   comm_func in 'comm_func.pas',
   LogtransPkg in 'LogtransPkg.pas',
   OpCode in 'OpCode.pas',
@@ -33,7 +34,12 @@ uses
   dbDict in 'dbDict.pas',
   BinDataUtils in 'BinDataUtils.pas',
   dbFieldTypes in 'dbFieldTypes.pas',
-  SqlDDLs in 'LogAnalyzer\SqlDDLs.pas',Vcl.Dialogs;
+  SqlDDLs in 'LogAnalyzer\SqlDDLs.pas',
+  Vcl.Dialogs,
+  impConfig in 'impConfig.pas',
+  ResHelper in 'res\ResHelper.pas',
+  sqlextendedprocHelper in 'sqlextendedprocHelper.pas';
+
 {$R *.res}
 
 begin
@@ -42,8 +48,8 @@ begin
   if IsRunningAsAdmin then
   begin
     Application.CreateForm(TForm1, Form1);
-    Application.CreateForm(TForm2, Form2);
-    Application.Run;
+  Application.CreateForm(TForm2, Form2);
+  Application.Run;
   end else begin
     showmessage('必须“使用管理员身份”运行本程序');
   end;

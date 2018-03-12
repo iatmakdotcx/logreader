@@ -4,24 +4,44 @@ interface
 
 uses
   Windows, Messages, SysUtils, Variants, Classes, Graphics, Controls, Forms,
-  Dialogs, StdCtrls, DB, ADODB, databaseConnection;
+  Dialogs, StdCtrls, DB, ADODB, databaseConnection, Vcl.ExtCtrls, Vcl.Imaging.GIFImg;
 
 type
   Tfrm_dbConnectionCfg = class(TForm)
+    Panel1: TPanel;
     Label1: TLabel;
-    edt_svr: TEdit;
     Label2: TLabel;
-    edt_user: TEdit;
     Label3: TLabel;
-    edt_passwd: TEdit;
     Label4: TLabel;
+    edt_svr: TEdit;
+    edt_user: TEdit;
+    edt_passwd: TEdit;
     edt_DatabaseName: TComboBox;
     btn_ok: TButton;
     btn_cancel: TButton;
+    pnl_checkipt: TPanel;
+    Label5: TLabel;
+    Label6: TLabel;
+    Button1: TButton;
+    Button2: TButton;
+    Button3: TButton;
+    Image1: TImage;
+    Image2: TImage;
+    Image3: TImage;
+    Label7: TLabel;
+    Label8: TLabel;
+    Image4: TImage;
+    Label9: TLabel;
+    Image5: TImage;
+    Label10: TLabel;
+    Image6: TImage;
+    Label11: TLabel;
     procedure FormCreate(Sender: TObject);
     procedure edt_DatabaseNameDropDown(Sender: TObject);
     procedure btn_okClick(Sender: TObject);
   private
+    procedure checkIptCfg;
+
     { Private declarations }
   public
     databaseConnection:TdatabaseConnection;
@@ -34,7 +54,7 @@ var
 implementation
 
 uses
-  dbHelper, ConstString;
+  dbHelper, ResHelper;
 
 {$R *.dfm}
 
@@ -42,19 +62,19 @@ procedure Tfrm_dbConnectionCfg.btn_okClick(Sender: TObject);
 begin
   if edt_svr.Text = '' then
   begin
-    Application.MessageBox(PChar(getConstStr('a01')), PChar(Caption), MB_OK + MB_ICONINFORMATION);
+    Application.MessageBox(PChar('请填写数据库服务器'), PChar(Caption), MB_OK + MB_ICONINFORMATION);
     edt_svr.SetFocus;
     exit;
   end;
   if edt_user.Text = '' then
   begin
-    Application.MessageBox(PChar(getConstStr('a02')), PChar(Caption), MB_OK + MB_ICONINFORMATION);
+    Application.MessageBox(PChar('请填写数据库登录用户名'), PChar(Caption), MB_OK + MB_ICONINFORMATION);
     edt_user.SetFocus;
     exit;
   end;
   if edt_DatabaseName.Text = '' then
   begin
-    Application.MessageBox(PChar(getConstStr('a03')), PChar(Caption), MB_OK + MB_ICONINFORMATION);
+    Application.MessageBox(PChar('请选择数据库'), PChar(Caption), MB_OK + MB_ICONINFORMATION);
     edt_DatabaseName.SetFocus;
     exit;
   end;
@@ -66,12 +86,38 @@ begin
   
   if not databaseConnection.CheckIsLocalHost then
   begin
-    Application.MessageBox(PChar(getConstStr('a04')), PChar(Caption), MB_OK + MB_ICONINFORMATION);
+    Application.MessageBox(PChar('本程序必须数据库服务器上运行'), PChar(Caption), MB_OK + MB_ICONINFORMATION);
   end
   else
   begin
-    Self.ModalResult := mrOk;
+    checkIptCfg;
   end;
+end;
+
+
+procedure Tfrm_dbConnectionCfg.checkIptCfg;
+begin
+  pnl_checkipt.BringToFront;
+
+  SetImgData(Image1,'img_load','IMG');
+  Image2.Picture.Assign(nil);
+  Application.ProcessMessages;
+
+
+  try
+    databaseConnection.getDb_dbInfo;
+  except
+    SetImgData(Image1,'img_err','IMG');
+    Exit;
+  end;
+  SetImgData(Image1,'img_ok','IMG');
+  Application.ProcessMessages;
+
+
+
+
+
+  Self.ModalResult := mrOk;
 end;
 
 
@@ -104,7 +150,11 @@ begin
   edt_passwd.Text := 'aa1234569';
 {$ENDIF}
 
- databaseConnection := TdatabaseConnection.create;
+  databaseConnection := TdatabaseConnection.create;
+
+//  SetImgData(Image1,'img_load','IMG');
+//  SetImgData(Image2,'img_ok','IMG');
+//  SetImgData(Image3,'img_err','IMG');
 end;
 
 end.

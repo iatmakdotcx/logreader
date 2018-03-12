@@ -108,6 +108,7 @@ begin
   ClrLogSource;
   Fdbc := dbc;
   result := init;
+  Fdbc.refreshDict;
 end;
 
 function TLogSource.init: Boolean;

@@ -11,6 +11,10 @@ type
     AdoQCs: TCriticalSection;
     AdoQ: TADOQuery;
     ADOConn: TADOConnection;
+    AdoQCsMaster: TCriticalSection;
+    AdoQMaster: TADOQuery;
+    ADOConnMaster: TADOConnection;
+
   public
      //手动设置部分
     Host: string;
@@ -57,12 +61,26 @@ type
     function GetCollationPropertyFromId(id: Integer): string;
     function GetSchemasName(schema_id: Integer): string;
     function GetObjectIdByPartitionid(partition_id: int64): integer;
+    /// <summary>
+    /// 在Master表执行Sql ，并获取执行结果
+    /// </summary>
+    /// <param name="aSql">要执行的sql</param>
+    /// <param name="resDataset">执行的返回结果。如果函数执行成功，应该手动释放此结果集</param>
+    /// <returns>执行是否成功</returns>
+    function ExecSqlOnMaster(aSql: string; out resDataset: TCustomADODataSet;withOpen:Boolean=True): Boolean;
+    /// <summary>
+    /// 在当前实例库中执行sql，并获取执行结果
+    /// </summary>
+    /// <param name="aSql">要执行的sql</param>
+    /// <param name="resDataset">执行的返回结果集。如果函数执行成功，应该手动释放此结果集</param>
+    /// <returns>执行是否成功</returns>
+    function ExecSql(aSql: string; out resDataset: TCustomADODataSet;withOpen:Boolean=True): Boolean;
   end;
 
 implementation
 
 uses
-  Windows, SysUtils, dbHelper, comm_func, MakCommonfuncs;
+  Windows, SysUtils, dbHelper, comm_func, MakCommonfuncs, pluginlog;
 
 function TdatabaseConnection.CheckIsLocalHost: Boolean;
 var
@@ -86,6 +104,7 @@ end;
 
 constructor TdatabaseConnection.Create;
 begin
+  //提取基本信息用
   AdoQCs := TCriticalSection.Create;
   ADOConn := TADOConnection.Create(nil);
   ADOConn.LoginPrompt := False;
@@ -93,6 +112,14 @@ begin
 
   AdoQ := TADOQuery.Create(nil);
   AdoQ.Connection := ADOConn;
+  //Master扩展过程通讯用
+  AdoQCsMaster := TCriticalSection.Create;
+  ADOConnMaster := TADOConnection.Create(nil);
+  ADOConnMaster.LoginPrompt := False;
+  ADOConnMaster.KeepConnection := False;
+
+  AdoQMaster := TADOQuery.Create(nil);
+  AdoQMaster.Connection := ADOConnMaster;
 
   dict := TDbDict.Create;
 end;
@@ -101,6 +128,10 @@ destructor TdatabaseConnection.Destroy;
 begin
   dict.Free;
 
+  AdoQMaster.Free;
+  ADOConnMaster.Free;
+  AdoQCsMaster.Free;
+
   AdoQ.Free;
   ADOConn.Free;
   AdoQCs.Free;
@@ -108,132 +139,123 @@ begin
 end;
 
 function TdatabaseConnection.getDb_AllDatabases: TStringList;
+var
+  rDataset:TCustomADODataSet;
+  aSql:string;
 begin
   Result := TStringList.Create;
-  AdoQCs.Enter;
-  try
-
-    AdoQ.sql.Text := 'select name from sys.databases order by 1';
-    AdoQ.Open;
-    while not AdoQ.Eof do
+  aSql := 'select name from sys.databases order by 1';
+  if ExecSql(aSql, rDataset) then
+  begin
+    rDataset.First;
+    while not rDataset.Eof do
     begin
-      Result.Add(AdoQ.Fields[0].AsString);
-      AdoQ.Next;
+      Result.Add(rDataset.Fields[0].AsString);
+      rDataset.Next;
     end;
-    AdoQ.Close;
-    AdoQ.Connection.Connected := False;
-  finally
-    AdoQCs.Leave
+    rDataset.Free;
   end;
 end;
 
 procedure TdatabaseConnection.getDb_allLogFiles;
 var
   I: Integer;
+  rDataset:TCustomADODataSet;
+  aSql:string;
 begin
-  AdoQCs.Enter;
-  try
-
-    if dbVer_Major < 10 then
+  if dbVer_Major < 10 then
+  begin
+    aSql := 'SELECT fileid,name,[filename] FROM sysfiles WHERE status & 0x40 = 0x40 ORDER BY fileid';
+    if ExecSql(aSql, rDataset) then
     begin
-      AdoQ.sql.Text := 'SELECT fileid,name,[filename] FROM sysfiles WHERE status & 0x40 = 0x40 ORDER BY fileid';
-      AdoQ.Open;
-      SetLength(FlogFileList, AdoQ.RecordCount);
-      for I := 0 to AdoQ.RecordCount - 1 do
+      SetLength(FlogFileList, rDataset.RecordCount);
+      for I := 0 to rDataset.RecordCount - 1 do
       begin
-        FlogFileList[I].fileId := AdoQ.Fields[0].AsInteger;
-        FlogFileList[I].fileName := AdoQ.Fields[1].AsString;
-        FlogFileList[I].fileFullPath := AdoQ.Fields[2].AsString;
+        FlogFileList[I].fileId := rDataset.Fields[0].AsInteger;
+        FlogFileList[I].fileName := rDataset.Fields[1].AsString;
+        FlogFileList[I].fileFullPath := rDataset.Fields[2].AsString;
       end;
-      AdoQ.Close;
-    //2008之前的版本只能遍历句柄
+      rDataset.Free;
+      //2008之前的版本只能遍历句柄
       GetldfHandle(SvrProcessID, FlogFileList);
-    end
-    else
-    begin
-    //2008 之后有了 sys.dm_io_virtual_file_stats 可以直接获取文件句柄
-      AdoQ.sql.Text := 'SELECT fileid,name,[filename],Convert(int,file_handle) FROM sysfiles a join sys.dm_io_virtual_file_stats(DB_ID(),null) b on a.fileid=b.file_id  WHERE status & 0x40 = 0x40 ORDER BY fileid';
-      AdoQ.Open;
-      SetLength(FlogFileList, AdoQ.RecordCount);
-      for I := 0 to AdoQ.RecordCount - 1 do
-      begin
-        FlogFileList[I].fileId := AdoQ.Fields[0].AsInteger;
-        FlogFileList[I].fileName := AdoQ.Fields[1].AsString;
-        FlogFileList[I].fileFullPath := AdoQ.Fields[2].AsString;
-        FlogFileList[I].Srchandle := AdoQ.Fields[3].AsInteger;
-        FlogFileList[I].filehandle := DuplicateHandleToCurrentProcesses(SvrProcessID, AdoQ.Fields[3].AsInteger);
-        AdoQ.Next;
-      end;
-      AdoQ.Close;
     end;
-    AdoQ.Connection.Connected := False;
-  finally
-    AdoQCs.Leave
+  end
+  else
+  begin
+    //2008 之后有了 sys.dm_io_virtual_file_stats 可以直接获取文件句柄
+    aSql := 'SELECT fileid,name,[filename],Convert(int,file_handle) FROM sysfiles a join sys.dm_io_virtual_file_stats(DB_ID(),null) b on a.fileid=b.file_id  WHERE status & 0x40 = 0x40 ORDER BY fileid';
+    if ExecSql(aSql, rDataset) then
+    begin
+      SetLength(FlogFileList, rDataset.RecordCount);
+      for I := 0 to rDataset.RecordCount - 1 do
+      begin
+        FlogFileList[I].fileId := rDataset.Fields[0].AsInteger;
+        FlogFileList[I].fileName := rDataset.Fields[1].AsString;
+        FlogFileList[I].fileFullPath := rDataset.Fields[2].AsString;
+        FlogFileList[I].Srchandle := rDataset.Fields[3].AsInteger;
+        FlogFileList[I].filehandle := DuplicateHandleToCurrentProcesses(SvrProcessID, rDataset.Fields[3].AsInteger);
+        rDataset.Next;
+      end;
+      rDataset.Free;
+    end;
   end;
 end;
 
 function TdatabaseConnection.getDb_ComputerNamePhysicalNetBIOS: string;
+var
+  rDataset:TCustomADODataSet;
+  aSql:string;
 begin
-  AdoQCs.Enter;
-  try
-
-    AdoQ.sql.Text := 'SELECT CONVERT(nvarchar(256), SERVERPROPERTY(''ComputerNamePhysicalNetBIOS''))';
-    AdoQ.Open;
-    Result := AdoQ.Fields[0].AsString;
-    AdoQ.Close;
-    AdoQ.Connection.Connected := False;
-  finally
-    AdoQCs.Leave
+  aSql := 'SELECT CONVERT(nvarchar(256), SERVERPROPERTY(''ComputerNamePhysicalNetBIOS''))';
+  if ExecSql(aSql, rDataset) then
+  begin
+    Result := rDataset.Fields[0].AsString;
+    rDataset.Free;
   end;
 end;
 
 procedure TdatabaseConnection.getDb_dbInfo;
 var
   microsoftversion: Integer;
+  rDataset:TCustomADODataSet;
+  aSql:string;
 begin
-  AdoQCs.Enter;
-  try
-
-    AdoQ.sql.Text := 'SELECT DB_ID(),recovery_model,@@microsoftversion,SERVERPROPERTY(''ProcessID'') FROM sys.databases WHERE database_id = DB_ID()';
-    AdoQ.Open;
-    dbID := AdoQ.Fields[0].AsInteger;
-    recovery_model := AdoQ.Fields[1].AsInteger;
-    microsoftversion := AdoQ.Fields[2].AsInteger;
-    SvrProcessID := AdoQ.Fields[3].AsInteger;
+  aSql := 'SELECT DB_ID(),recovery_model,@@microsoftversion,SERVERPROPERTY(''ProcessID'') FROM sys.databases WHERE database_id = DB_ID()';
+  if ExecSql(aSql, rDataset) then
+  begin
+    dbID := rDataset.Fields[0].AsInteger;
+    recovery_model := rDataset.Fields[1].AsInteger;
+    microsoftversion := rDataset.Fields[2].AsInteger;
+    SvrProcessID := rDataset.Fields[3].AsInteger;
     dbVer_Major := (microsoftversion shr 24) and $FF;
     dbVer_Minor := (microsoftversion shr 16) and $FF;
     dbVer_BuildNumber := microsoftversion and $FFFF;
-    AdoQ.Close;
-    AdoQ.Connection.Connected := False;
-  finally
-    AdoQCs.Leave
+    rDataset.Free;
   end;
 end;
 
 procedure TdatabaseConnection.getDb_VLFs;
 var
   I: Integer;
+  rDataset:TCustomADODataSet;
+  aSql:string;
 begin
-  AdoQCs.Enter;
-  try
-
   //查询全部的vlfs
-    AdoQ.sql.Text := 'dbcc loginfo';
-    AdoQ.Open;
-    SetLength(FVLF_List, AdoQ.RecordCount);
-    for I := 0 to AdoQ.RecordCount - 1 do
+  aSql := 'dbcc loginfo';
+  if ExecSql(aSql, rDataset) then
+  begin
+    SetLength(FVLF_List, rDataset.RecordCount);
+    rDataset.First;
+    for I := 0 to rDataset.RecordCount - 1 do
     begin
-      FVLF_List[I].fileId := AdoQ.FieldByName('FileId').AsInteger;
-      FVLF_List[I].SeqNo := AdoQ.FieldByName('FSeqNo').AsInteger;
-      FVLF_List[I].VLFSize := AdoQ.FieldByName('FileSize').AsInteger;
-      FVLF_List[I].VLFOffset := AdoQ.FieldByName('StartOffset').AsInteger;
-      FVLF_List[I].state := AdoQ.FieldByName('Status').AsInteger;
-      AdoQ.Next;
+      FVLF_List[I].fileId := rDataset.FieldByName('FileId').AsInteger;
+      FVLF_List[I].SeqNo := rDataset.FieldByName('FSeqNo').AsInteger;
+      FVLF_List[I].VLFSize := rDataset.FieldByName('FileSize').AsInteger;
+      FVLF_List[I].VLFOffset := rDataset.FieldByName('StartOffset').AsInteger;
+      FVLF_List[I].state := rDataset.FieldByName('Status').AsInteger;
+      rDataset.Next;
     end;
-    AdoQ.Close;
-    AdoQ.Connection.Connected := False;
-  finally
-    AdoQCs.Leave
+    rDataset.Free;
   end;
 end;
 
@@ -247,90 +269,162 @@ begin
   finally
     AdoQCs.Leave
   end;
+
+  AdoQCsMaster.Enter;
+  try
+    ADOConnMaster.ConnectionString := getConnectionString(Host, user, PassWd, 'master');
+  finally
+    AdoQCsMaster.Leave
+  end;
+end;
+
+function TdatabaseConnection.ExecSqlOnMaster(aSql:string;out resDataset:TCustomADODataSet;withOpen:Boolean=True):Boolean;
+begin
+  Result := False;
+  AdoQCsMaster.Enter;
+  try
+    resDataset := TCustomADODataSet.Create(nil);
+    try
+      AdoQMaster.Close;
+      AdoQMaster.SQL.Text := aSql;
+      AdoQMaster.Open;
+      resDataset.Recordset := AdoQMaster.Recordset;
+      AdoQMaster.Close;
+      AdoQMaster.Connection.Connected := False;
+      Result := True;
+    except
+      on e: Exception do
+      begin
+        Loger.Add(' ExecSqlOnMaster fail。%s,[%s]', [e.Message, aSql], LOG_ERROR);
+        resDataset.Free;
+      end;
+    end;
+  finally
+    AdoQCsMaster.Leave;
+  end;
+end;
+
+function TdatabaseConnection.ExecSql(aSql:string;out resDataset:TCustomADODataSet;withOpen:Boolean=True):Boolean;
+begin
+  Result := False;
+  AdoQCs.Enter;
+  try
+    resDataset := nil;
+    try
+      AdoQ.Close;
+      AdoQ.SQL.Text := aSql;
+      if withOpen then
+      begin
+        AdoQ.Open;
+        resDataset := TCustomADODataSet.Create(nil);
+        resDataset.Recordset := AdoQ.Recordset;
+      end else begin
+        AdoQ.ExecSQL;
+      end;
+
+      AdoQ.Close;
+      AdoQ.Connection.Connected := False;
+      Result := True;
+    except
+      on e: Exception do
+      begin
+        Loger.Add(' ExecSql fail。%s,[%s]', [e.Message, aSql], LOG_ERROR);
+        if resDataset<>nil then
+          resDataset.Free;
+      end;
+    end;
+  finally
+    AdoQCs.Leave;
+  end;
 end;
 
 function TdatabaseConnection.GetCollationPropertyFromId(id: Integer): string;
+var
+  rDataset:TCustomADODataSet;
+  aSql:string;
 begin
-  AdoQCs.Enter;
-  try
-
-    AdoQ.sql.Text := Format('SELECT COLLATIONPROPERTYFROMID(%d,''Name'')', [id]);
-    AdoQ.Open;
-    Result := AdoQ.Fields[0].AsString;
-  finally
-    AdoQCs.Leave
+  aSql := Format('SELECT COLLATIONPROPERTYFROMID(%d,''Name'')', [id]);
+  if ExecSql(aSql, rDataset) then
+  begin
+    Result := rDataset.Fields[0].AsString;
+    rDataset.Free;
   end;
 end;
 
 function TdatabaseConnection.GetCodePageFromCollationName(cName: string): string;
+var
+  rDataset:TCustomADODataSet;
+  aSql:string;
 begin
-  AdoQCs.Enter;
-  try
-
-    AdoQ.sql.Text := Format('SELECT COLLATIONPROPERTY(''%s'',''CodePage'')', [cName]);
-    AdoQ.Open;
-    Result := AdoQ.Fields[0].AsString;
-  finally
-    AdoQCs.Leave
+  aSql := Format('SELECT COLLATIONPROPERTY(''%s'',''CodePage'')', [cName]);
+  if ExecSql(aSql, rDataset) then
+  begin
+    Result := rDataset.Fields[0].AsString;
+    rDataset.Free;
   end;
 end;
 
 function TdatabaseConnection.GetSchemasName(schema_id: Integer): string;
+var
+  rDataset:TCustomADODataSet;
+  aSql:string;
 begin
-  AdoQCs.Enter;
-  try
-    AdoQ.sql.Text := Format('select name from sys.schemas where schema_id=%d', [schema_id]);
-    AdoQ.Open;
-    if not AdoQ.Eof then
-      Result := AdoQ.Fields[0].AsString
-    else
-      Result := '';
-  finally
-    AdoQCs.Leave
+  Result := '';
+  aSql := Format('select name from sys.schemas where schema_id=%d', [schema_id]);
+  if ExecSql(aSql, rDataset) then
+  begin
+    if not rDataset.Eof then
+      Result := rDataset.Fields[0].AsString;
+
+    rDataset.Free;
   end;
 end;
 
 function TdatabaseConnection.GetObjectIdByPartitionid(partition_id: int64): integer;
+var
+  rDataset:TCustomADODataSet;
+  aSql:string;
 begin
-  AdoQCs.Enter;
-  try
-    AdoQ.sql.Text := Format('select object_id from sys.partitions where partition_id=%d', [partition_id]);
-    AdoQ.Open;
-    if not AdoQ.Eof then
-      Result := AdoQ.Fields[0].AsInteger
-    else
-      Result := 0;
-  finally
-    AdoQCs.Leave
+  Result := 0;
+  aSql := Format('select object_id from sys.partitions where partition_id=%d', [partition_id]);
+  if ExecSql(aSql, rDataset) then
+  begin
+    if not rDataset.Eof then
+      Result := rDataset.Fields[0].AsInteger;
+    rDataset.Free;
   end;
 end;
 
 procedure TdatabaseConnection.refreshDict;
+var
+  rDataset:TCustomADODataSet;
+  aSql:string;
 begin
-  AdoQCs.Enter;
-  try
-    //刷新表信息
-    AdoQ.sql.Text := 'select s.name,a.object_id, a.name from sys.objects a, sys.schemas s where (a.type = ''U'' or a.type = ''S'') and a.schema_id = s.schema_id --and a.object_id=1989582126';
-    AdoQ.Open;
-    dict.RefreshTables(AdoQ);
-    AdoQ.Close;
-    //刷新列信息
-    AdoQ.sql.Text := 'select cols.object_id,cols.column_id,cols.system_type_id,cols.max_length,cols.precision,cols.scale,cols.is_nullable,cols.name, ' +
+  //刷新表信息
+  aSql := 'select s.name,a.object_id, a.name from sys.objects a, sys.schemas s where (a.type = ''U'' or a.type = ''S'') and a.schema_id = s.schema_id';
+  if ExecSql(aSql, rDataset) then
+  begin
+    dict.RefreshTables(rDataset);
+    rDataset.Free;
+  end;
+  //刷新列信息
+  aSql := 'select cols.object_id,cols.column_id,cols.system_type_id,cols.max_length,cols.precision,cols.scale,cols.is_nullable,cols.name, ' +
       ' p_cols.leaf_null_bit nullmap,p_cols.leaf_offset leaf_pos,cols.collation_name,Convert(int,COLLATIONPROPERTY(cols.collation_name, ''CodePage'')) cp  ' +
       ' from sys.all_columns cols,sys.system_internals_partition_columns p_cols ' +
       ' where p_cols.leaf_null_bit > 0 and cols.column_id = p_cols.partition_column_id and ' +
       ' p_cols.partition_id in (Select partitions.partition_id from sys.partitions partitions where partitions.index_id <= 1 and partitions.object_id=cols.object_id) ' +
       ' order by cols.object_id,cols.column_id ';
-    AdoQ.Open;
-    dict.RefreshTablesFields(AdoQ);
-    AdoQ.Close;
-    //刷新唯一键信息
-    AdoQ.sql.Text := 'select a.id,a.colid from sysindexkeys a join (select object_id,min(index_id) idxid from sys.indexes where is_unique=1 group by object_id) b on a.id=b.object_id and a.indid=b.idxid order by a.id,keyno ';
-    AdoQ.Open;
-    dict.RefreshTablesUniqueKey(AdoQ);
-    AdoQ.Close;
-  finally
-    AdoQCs.Leave
+  if ExecSql(aSql, rDataset) then
+  begin
+    dict.RefreshTablesFields(rDataset);
+    rDataset.Free;
+  end;
+  //刷新唯一键信息
+  aSql := 'select a.id,a.colid from sysindexkeys a join (select object_id,min(index_id) idxid from sys.indexes where is_unique=1 group by object_id) b on a.id=b.object_id and a.indid=b.idxid order by a.id,keyno ';
+  if ExecSql(aSql, rDataset) then
+  begin
+    dict.RefreshTablesUniqueKey(rDataset);
+    rDataset.Free;
   end;
 end;
 

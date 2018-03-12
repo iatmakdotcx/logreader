@@ -8,31 +8,28 @@ uses
 
 type
   TForm1 = class(TForm)
-    Button1: TButton;
-    Button2: TButton;
     Button3: TButton;
-    Button4: TButton;
-    Button5: TButton;
-    Button6: TButton;
-    Memo1: TMemo;
-    Button7: TButton;
     Button8: TButton;
     Button9: TButton;
     Button10: TButton;
-    Button11: TButton;
+    GroupBox1: TGroupBox;
+    Button7: TButton;
     Button12: TButton;
     Button13: TButton;
-    Button14: TButton;
+    GroupBox2: TGroupBox;
+    Button1: TButton;
+    Button2: TButton;
+    Mom_ExistsCfg: TMemo;
     procedure FormCreate(Sender: TObject);
     procedure Button3Click(Sender: TObject);
     procedure FormDestroy(Sender: TObject);
     procedure Button7Click(Sender: TObject);
     procedure Button8Click(Sender: TObject);
     procedure Button9Click(Sender: TObject);
-    procedure Button11Click(Sender: TObject);
     procedure Button12Click(Sender: TObject);
     procedure Button13Click(Sender: TObject);
     procedure Button10Click(Sender: TObject);
+    procedure Button1Click(Sender: TObject);
   private
     { Private declarations }
   public
@@ -56,11 +53,6 @@ begin
   logsource.Fdbc.refreshDict;
 end;
 
-procedure TForm1.Button11Click(Sender: TObject);
-begin
-  ShowMessage(hexToAnsiiData('0x28283132332929'));
-end;
-
 procedure TForm1.Button12Click(Sender: TObject);
 begin
   logsource.saveToFile('d:\1.bin');
@@ -69,6 +61,26 @@ end;
 procedure TForm1.Button13Click(Sender: TObject);
 begin
   logsource.loadFromFile('d:\1.bin');
+end;
+
+procedure TForm1.Button1Click(Sender: TObject);
+var
+  savePath:string;
+  lst:TStringList;
+  I: Integer;
+
+begin
+  savePath := ExtractFilePath(GetModuleName(0)) + 'cfg\*.lrd';
+  lst := searchAllFileAdv(savePath);
+  for I := 0 to lst.Count - 1 do
+  begin
+    Mom_ExistsCfg.Lines.Add(lst[i]);
+
+
+  end;
+
+
+
 end;
 
 procedure TForm1.Button3Click(Sender: TObject);

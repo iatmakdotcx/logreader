@@ -2,7 +2,7 @@ object Form1: TForm1
   Left = 0
   Top = 0
   Caption = 'Form1'
-  ClientHeight = 436
+  ClientHeight = 737
   ClientWidth = 770
   Color = clBtnFace
   Font.Charset = DEFAULT_CHARSET
@@ -15,133 +15,111 @@ object Form1: TForm1
   OnDestroy = FormDestroy
   PixelsPerInch = 96
   TextHeight = 13
-  object Button1: TButton
-    Left = 32
-    Top = 24
-    Width = 75
-    Height = 25
-    Caption = 'ldf'
-    TabOrder = 0
-  end
-  object Button2: TButton
-    Left = 144
-    Top = 24
-    Width = 75
-    Height = 25
-    Caption = 'Button2'
-    TabOrder = 1
-  end
   object Button3: TButton
-    Left = 591
-    Top = 24
+    Left = 375
+    Top = 23
     Width = 75
     Height = 25
     Caption = 'DBConnectionCfg'
-    TabOrder = 2
+    TabOrder = 0
     OnClick = Button3Click
   end
-  object Button4: TButton
-    Left = 329
-    Top = 24
-    Width = 75
-    Height = 25
-    Caption = 'listLogBlock'
-    TabOrder = 3
-  end
-  object Button5: TButton
-    Left = 248
-    Top = 24
-    Width = 75
-    Height = 25
-    Caption = 'listVlfs'
-    TabOrder = 4
-  end
-  object Button6: TButton
-    Left = 410
-    Top = 24
-    Width = 113
-    Height = 25
-    Caption = 'Get row log by lsn'
-    TabOrder = 5
-  end
-  object Memo1: TMemo
-    Left = 34
-    Top = 55
-    Width = 551
-    Height = 218
-    Lines.Strings = (
-      'Memo1')
-    TabOrder = 6
-  end
-  object Button7: TButton
-    Left = 591
-    Top = 62
-    Width = 75
-    Height = 25
-    Caption = 'copyFile'
-    TabOrder = 7
-    OnClick = Button7Click
-  end
   object Button8: TButton
-    Left = 591
-    Top = 104
+    Left = 656
+    Top = 52
     Width = 75
     Height = 25
     Caption = 'C_picker'
-    TabOrder = 8
+    TabOrder = 1
     OnClick = Button8Click
   end
   object Button9: TButton
-    Left = 591
-    Top = 135
+    Left = 656
+    Top = 83
     Width = 75
     Height = 25
     Caption = 'S_Picker'
-    TabOrder = 9
+    TabOrder = 2
     OnClick = Button9Click
   end
   object Button10: TButton
-    Left = 687
-    Top = 24
+    Left = 656
+    Top = 8
     Width = 75
     Height = 25
     Caption = 'RefreshDict'
-    TabOrder = 10
+    TabOrder = 3
     OnClick = Button10Click
   end
-  object Button11: TButton
-    Left = 520
-    Top = 376
-    Width = 75
-    Height = 25
-    Caption = 'Button11'
-    TabOrder = 11
-    OnClick = Button11Click
+  object GroupBox1: TGroupBox
+    Left = 575
+    Top = 379
+    Width = 176
+    Height = 153
+    Caption = 'Test'
+    TabOrder = 4
+    object Button7: TButton
+      Left = 3
+      Top = 16
+      Width = 75
+      Height = 25
+      Caption = 'copyFile'
+      TabOrder = 0
+      OnClick = Button7Click
+    end
+    object Button12: TButton
+      Left = 3
+      Top = 88
+      Width = 75
+      Height = 25
+      Caption = 'save'
+      TabOrder = 1
+      OnClick = Button12Click
+    end
+    object Button13: TButton
+      Left = 84
+      Top = 88
+      Width = 75
+      Height = 25
+      Caption = 'load'
+      TabOrder = 2
+      OnClick = Button13Click
+    end
   end
-  object Button12: TButton
-    Left = 687
-    Top = 55
-    Width = 75
-    Height = 25
-    Caption = 'save'
-    TabOrder = 12
-    OnClick = Button12Click
-  end
-  object Button13: TButton
-    Left = 687
-    Top = 86
-    Width = 75
-    Height = 25
-    Caption = 'load'
-    TabOrder = 13
-    OnClick = Button13Click
-  end
-  object Button14: TButton
-    Left = 664
-    Top = 376
-    Width = 75
-    Height = 25
-    Caption = 'Button14'
-    TabOrder = 14
+  object GroupBox2: TGroupBox
+    Left = 8
+    Top = 23
+    Width = 361
+    Height = 285
+    Caption = #21152#36733#24050#23384#22312
+    TabOrder = 5
+    object Button1: TButton
+      Left = 15
+      Top = 18
+      Width = 122
+      Height = 47
+      Caption = #24320#22987#25235#26085#24535
+      TabOrder = 0
+      OnClick = Button1Click
+    end
+    object Button2: TButton
+      Left = 143
+      Top = 18
+      Width = 122
+      Height = 47
+      Caption = #20572#27490#35299#26512#26085#24535
+      TabOrder = 1
+    end
+    object Mom_ExistsCfg: TMemo
+      Left = 15
+      Top = 71
+      Width = 330
+      Height = 89
+      Lines.Strings = (
+        'Mom_ExistsCfg')
+      ScrollBars = ssBoth
+      TabOrder = 2
+      WordWrap = False
+    end
   end
 end

@@ -57,9 +57,6 @@ type
 
     function Serialize:TMemoryStream;
     procedure Deserialize(data:TMemoryStream);
-
-    //TODO:test
-    procedure drop;
   end;
 
   TdbTables = class(TObject)
@@ -85,9 +82,9 @@ type
   TDbDict = class(TObject)
   public
     tables: TdbTables;
-    procedure RefreshTables(Qry: TADOQuery);
-    procedure RefreshTablesFields(Qry: TADOQuery);
-    procedure RefreshTablesUniqueKey(Qry: TADOQuery);
+    procedure RefreshTables(Qry: TCustomADODataSet);
+    procedure RefreshTablesFields(Qry: TCustomADODataSet);
+    procedure RefreshTablesUniqueKey(Qry: TCustomADODataSet);
     constructor Create;
     destructor Destroy; override;
 
@@ -119,10 +116,11 @@ begin
   tables.Free;
 end;
 
-procedure TDbDict.RefreshTables(Qry: TADOQuery);
+procedure TDbDict.RefreshTables(Qry: TCustomADODataSet);
 var
   tti: TdbTableItem;
 begin
+  //非线程安全，保证在事务线程启动之前运行
   while not Qry.Eof do
   begin
     tti := TdbTableItem.Create;
@@ -134,7 +132,7 @@ begin
   end;
 end;
 
-procedure TDbDict.RefreshTablesFields(Qry: TADOQuery);
+procedure TDbDict.RefreshTablesFields(Qry: TCustomADODataSet);
 var
   tti: TdbTableItem;
   tblId: Integer;
@@ -172,7 +170,7 @@ begin
   end;
 end;
 
-procedure TDbDict.RefreshTablesUniqueKey(Qry: TADOQuery);
+procedure TDbDict.RefreshTablesUniqueKey(Qry: TCustomADODataSet);
 var
   tti: TdbTableItem;
   tblId: Integer;
@@ -510,11 +508,6 @@ begin
   UniqueKeys.Free;
   Fields.Free;
   inherited;
-end;
-
-procedure TdbTableItem.drop;
-begin
-  Loger.add('========%s==%d,%d',[TableNmae,Fields.FItems.Count , Length(Fields.FItems_s_Id)]);
 end;
 
 function TdbTableItem.getFullName: string;
