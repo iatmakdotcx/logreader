@@ -2,7 +2,7 @@ object Form1: TForm1
   Left = 0
   Top = 0
   Caption = 'Form1'
-  ClientHeight = 737
+  ClientHeight = 349
   ClientWidth = 770
   Color = clBtnFace
   Font.Charset = DEFAULT_CHARSET
@@ -52,8 +52,8 @@ object Form1: TForm1
     OnClick = Button10Click
   end
   object GroupBox1: TGroupBox
-    Left = 575
-    Top = 379
+    Left = 567
+    Top = 131
     Width = 176
     Height = 153
     Caption = 'Test'
@@ -121,5 +121,14 @@ object Form1: TForm1
       TabOrder = 2
       WordWrap = False
     end
+  end
+  object Button4: TButton
+    Left = 464
+    Top = 296
+    Width = 75
+    Height = 25
+    Caption = 'Button4'
+    TabOrder = 6
+    OnClick = Button4Click
   end
 end

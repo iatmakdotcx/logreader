@@ -14,7 +14,6 @@ type
     AdoQCsMaster: TCriticalSection;
     AdoQMaster: TADOQuery;
     ADOConnMaster: TADOConnection;
-
   public
      //手动设置部分
     Host: string;
@@ -75,12 +74,26 @@ type
     /// <param name="resDataset">执行的返回结果集。如果函数执行成功，应该手动释放此结果集</param>
     /// <returns>执行是否成功</returns>
     function ExecSql(aSql: string; out resDataset: TCustomADODataSet;withOpen:Boolean=True): Boolean;
+    function CheckIsSysadmin:Boolean;
   end;
 
 implementation
 
 uses
-  Windows, SysUtils, dbHelper, comm_func, MakCommonfuncs, pluginlog;
+  Windows, SysUtils, dbHelper, comm_func, MakCommonfuncs, pluginlog,
+  Winapi.ADOInt, System.Variants;
+
+function CloneRecordset(const Data: _Recordset): _Recordset;
+var
+  newRec: _Recordset;
+  stm: Stream;
+begin
+  newRec := CoRecordset.Create as _Recordset;
+  stm := CoStream.Create;
+  Data.Save(stm, adPersistADTG);
+  newRec.Open(stm, EmptyParam, CursorTypeEnum(adOpenUnspecified), LockTypeEnum(adLockReadOnly), 0);
+  Result := newRec;
+end;
 
 function TdatabaseConnection.CheckIsLocalHost: Boolean;
 var
@@ -211,6 +224,8 @@ begin
   begin
     Result := rDataset.Fields[0].AsString;
     rDataset.Free;
+  end else begin
+    Result := '';
   end;
 end;
 
@@ -283,12 +298,18 @@ begin
   Result := False;
   AdoQCsMaster.Enter;
   try
-    resDataset := TCustomADODataSet.Create(nil);
+    resDataset := nil;
     try
       AdoQMaster.Close;
       AdoQMaster.SQL.Text := aSql;
-      AdoQMaster.Open;
-      resDataset.Recordset := AdoQMaster.Recordset;
+      if withOpen then
+      begin
+        AdoQMaster.Open;
+        resDataset := TCustomADODataSet.Create(nil);
+        resDataset.Recordset := CloneRecordset(AdoQMaster.Recordset);
+      end else begin
+        AdoQMaster.ExecSQL;
+      end;
       AdoQMaster.Close;
       AdoQMaster.Connection.Connected := False;
       Result := True;
@@ -317,11 +338,10 @@ begin
       begin
         AdoQ.Open;
         resDataset := TCustomADODataSet.Create(nil);
-        resDataset.Recordset := AdoQ.Recordset;
+        resDataset.Recordset := CloneRecordset(AdoQ.Recordset);
       end else begin
         AdoQ.ExecSQL;
       end;
-
       AdoQ.Close;
       AdoQ.Connection.Connected := False;
       Result := True;
@@ -338,6 +358,21 @@ begin
   end;
 end;
 
+function TdatabaseConnection.CheckIsSysadmin: Boolean;
+var
+  rDataset:TCustomADODataSet;
+  aSql:string;
+begin
+  Result := False;
+  aSql := 'select IS_SRVROLEMEMBER(''sysadmin'')';
+  if ExecSql(aSql, rDataset) then
+  begin
+    if rDataset.Fields[0].AsString = '1' then
+      Result := True;
+    rDataset.Free;
+  end;
+end;
+
 function TdatabaseConnection.GetCollationPropertyFromId(id: Integer): string;
 var
   rDataset:TCustomADODataSet;
@@ -348,6 +383,8 @@ begin
   begin
     Result := rDataset.Fields[0].AsString;
     rDataset.Free;
+  end else begin
+    Result := '';
   end;
 end;
 
@@ -361,6 +398,8 @@ begin
   begin
     Result := rDataset.Fields[0].AsString;
     rDataset.Free;
+  end else begin
+    Result := '';
   end;
 end;
 
@@ -377,6 +416,8 @@ begin
       Result := rDataset.Fields[0].AsString;
 
     rDataset.Free;
+  end else begin
+    Result := '';
   end;
 end;
 

@@ -8,7 +8,7 @@ uses
 
 type
   Tfrm_dbConnectionCfg = class(TForm)
-    Panel1: TPanel;
+    pnl_ipt: TPanel;
     Label1: TLabel;
     Label2: TLabel;
     Label3: TLabel;
@@ -32,13 +32,13 @@ type
     Label8: TLabel;
     Image4: TImage;
     Label9: TLabel;
-    Image5: TImage;
-    Label10: TLabel;
-    Image6: TImage;
-    Label11: TLabel;
+    mon_EMsg: TMemo;
     procedure FormCreate(Sender: TObject);
     procedure edt_DatabaseNameDropDown(Sender: TObject);
     procedure btn_okClick(Sender: TObject);
+    procedure Button2Click(Sender: TObject);
+    procedure Button3Click(Sender: TObject);
+    procedure Button1Click(Sender: TObject);
   private
     procedure checkIptCfg;
 
@@ -54,7 +54,7 @@ var
 implementation
 
 uses
-  dbHelper, ResHelper;
+  dbHelper, ResHelper, sqlextendedprocHelper, MakCommonfuncs, winshellHelper;
 
 {$R *.dfm}
 
@@ -95,29 +95,112 @@ begin
 end;
 
 
-procedure Tfrm_dbConnectionCfg.checkIptCfg;
+procedure Tfrm_dbConnectionCfg.Button1Click(Sender: TObject);
 begin
+  pnl_ipt.BringToFront;
+  pnl_checkipt.SendToBack;
+end;
+
+procedure Tfrm_dbConnectionCfg.Button2Click(Sender: TObject);
+begin
+  Self.ModalResult := mrOk;
+end;
+
+procedure Tfrm_dbConnectionCfg.Button3Click(Sender: TObject);
+begin
+  Self.ModalResult := mrCancel;
+end;
+
+procedure Tfrm_dbConnectionCfg.checkIptCfg;
+var
+  appPath:string;
+begin
+  mon_EMsg.Hide;
+  Application.ProcessMessages;
   pnl_checkipt.BringToFront;
 
   SetImgData(Image1,'img_load','IMG');
   Image2.Picture.Assign(nil);
   Application.ProcessMessages;
-
-
+  //检测与数据库的连接，检测用户是否有访问此数据库的权限
   try
     databaseConnection.getDb_dbInfo;
+    if databaseConnection.dbID = 0 then
+    begin
+      Abort;
+    end;
   except
     SetImgData(Image1,'img_err','IMG');
+    mon_EMsg.Text := '连接数据库失败，或读取数据库信息失败！';
+    mon_EMsg.Show;
     Exit;
   end;
   SetImgData(Image1,'img_ok','IMG');
+  SetImgData(Image2,'img_load','IMG');
   Application.ProcessMessages;
+  //权限检测，检测是否能创建和执行扩展存储过程 (只有sysadmin组成员才能执行和创建扩展存储过程
+  if not databaseConnection.CheckIsSysadmin then
+  begin
+    //如果语句执行失败，或没有返回行,或返回值不等于1
+    SetImgData(Image2,'img_err','IMG');
+    mon_EMsg.Text := '当前数据库用户不是 sysadmin 成员！';
+    mon_EMsg.Show;
+    Exit;
+  end;
+  SetImgData(Image2,'img_ok','IMG');
+  SetImgData(Image3,'img_load','IMG');
+  Application.ProcessMessages;
+  //查看数据库版本是否支持
+  if (databaseConnection.dbVer_Major < 8) or (databaseConnection.dbVer_Major > 12) then
+  begin
+    SetImgData(Image3,'img_err','IMG');
+    mon_EMsg.Text := '当前数据库不在可支持的范围内。支持的数据库版本：2000-2014';
+    mon_EMsg.Show;
+    Exit;
+  end;
+  if not checkCfgExists(databaseConnection) then
+  begin
+    SetImgData(Image3,'img_err','IMG');
+    mon_EMsg.Text := '没有当前数据库版本的有效配置！请更新配置。';
+    mon_EMsg.Show;
+    Exit;
+  end;
+  SetImgData(Image3,'img_ok','IMG');
+  SetImgData(Image4,'img_load','IMG');
+  Application.ProcessMessages;
+  //目录权限设置
+  if databaseConnection.CheckIsLocalHost then
+  begin
+    if not IsRunningAsAdmin then
+    begin
+      SetImgData(Image4,'img_err','IMG');
+      mon_EMsg.Text := '需要管理员身份运行本程序！';
+      mon_EMsg.Show;
+      Exit;
+    end;
 
-
-
-
-
-  Self.ModalResult := mrOk;
+    appPath := ExtractFilePath(GetModuleName(HInstance));
+    if not DirectoryExists(appPath+'data') then
+      ForceDirectories(appPath+'data');
+    if not Check_LrExtutils_DataPath_Authentication(appPath+'data') then
+    begin
+      //目录授权失败
+      SetImgData(Image4,'img_err','IMG');
+      mon_EMsg.Text := '目录授权失败！' + appPath + 'data';
+      mon_EMsg.Show;
+      Exit;
+    end;
+  end else begin
+    //暂不支持远程连接
+    SetImgData(Image4,'img_err','IMG');
+    mon_EMsg.Text := '暂不支持远程连接';
+    mon_EMsg.Show;
+    Exit;
+  end;
+  SetImgData(Image4,'img_ok','IMG');
+  //SetImgData(Image5,'img_load','IMG');
+  Application.ProcessMessages;
+  Button2.Enabled := True;
 end;
 
 
@@ -152,9 +235,9 @@ begin
 
   databaseConnection := TdatabaseConnection.create;
 
-//  SetImgData(Image1,'img_load','IMG');
-//  SetImgData(Image2,'img_ok','IMG');
-//  SetImgData(Image3,'img_err','IMG');
+  Button2.Enabled := False;
+  pnl_ipt.BringToFront;
+  pnl_checkipt.SendToBack;
 end;
 
 end.

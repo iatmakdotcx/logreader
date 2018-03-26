@@ -450,6 +450,8 @@ var
   uMaxLen: ULONG;
   DataBuf: array of Byte;
   action: string;
+
+  tmpint:Integer;
 begin
   Result := SUCCEED;
   try
@@ -494,11 +496,17 @@ begin
         begin
           d_unhook(pSrvProc);
         end
+        else if action = 'G' then
+        begin
+          srv_describe(pSrvProc, 1, 'status', SRV_NULLTERM, SRVINT4, sizeof(DBSMALLINT), SRVINT2, sizeof(DBSMALLINT), nil);
+          tmpint := d_checkSqlSvr(pSrvProc);
+          srv_setcoldata(pSrvProc, 1, @tmpint);
+          srv_sendrow(pSrvProc);
+        end
         else
         begin
 
         end;
-
       end;
     except
       on e: Exception do

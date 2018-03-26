@@ -38,7 +38,8 @@ uses
   Vcl.Dialogs,
   impConfig in 'impConfig.pas',
   ResHelper in 'res\ResHelper.pas',
-  sqlextendedprocHelper in 'sqlextendedprocHelper.pas';
+  sqlextendedprocHelper in 'sqlextendedprocHelper.pas',
+  winshellHelper in 'winshellHelper.pas';
 
 {$R *.res}
 

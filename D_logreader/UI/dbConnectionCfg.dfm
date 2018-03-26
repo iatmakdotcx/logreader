@@ -16,7 +16,7 @@ object frm_dbConnectionCfg: Tfrm_dbConnectionCfg
   OnCreate = FormCreate
   PixelsPerInch = 96
   TextHeight = 13
-  object Panel1: TPanel
+  object pnl_ipt: TPanel
     Left = 0
     Top = 0
     Width = 639
@@ -24,10 +24,6 @@ object frm_dbConnectionCfg: Tfrm_dbConnectionCfg
     Align = alClient
     BevelOuter = bvNone
     TabOrder = 0
-    ExplicitLeft = 41
-    ExplicitTop = 22
-    ExplicitWidth = 545
-    ExplicitHeight = 273
     object Label1: TLabel
       Left = 214
       Top = 82
@@ -114,8 +110,6 @@ object frm_dbConnectionCfg: Tfrm_dbConnectionCfg
     Align = alClient
     BevelOuter = bvNone
     TabOrder = 1
-    ExplicitLeft = -176
-    ExplicitTop = -25
     object Label5: TLabel
       Left = 40
       Top = 40
@@ -173,32 +167,6 @@ object frm_dbConnectionCfg: Tfrm_dbConnectionCfg
       Top = 193
       Width = 72
       Height = 13
-      Caption = #21019#24314#23384#20648#36807#31243
-    end
-    object Image5: TImage
-      Left = 64
-      Top = 226
-      Width = 24
-      Height = 24
-    end
-    object Label10: TLabel
-      Left = 104
-      Top = 231
-      Width = 72
-      Height = 13
-      Caption = #39564#35777#23384#20648#36807#31243
-    end
-    object Image6: TImage
-      Left = 64
-      Top = 262
-      Width = 24
-      Height = 24
-    end
-    object Label11: TLabel
-      Left = 104
-      Top = 267
-      Width = 72
-      Height = 13
       Caption = #35774#32622#30446#24405#26435#38480
     end
     object Button1: TButton
@@ -208,6 +176,7 @@ object frm_dbConnectionCfg: Tfrm_dbConnectionCfg
       Height = 25
       Caption = #19978#19968#27493
       TabOrder = 0
+      OnClick = Button1Click
     end
     object Button2: TButton
       Left = 427
@@ -216,6 +185,7 @@ object frm_dbConnectionCfg: Tfrm_dbConnectionCfg
       Height = 25
       Caption = #23436#25104
       TabOrder = 1
+      OnClick = Button2Click
     end
     object Button3: TButton
       Left = 523
@@ -224,6 +194,20 @@ object frm_dbConnectionCfg: Tfrm_dbConnectionCfg
       Height = 25
       Caption = #20851#38381
       TabOrder = 2
+      OnClick = Button3Click
+    end
+    object mon_EMsg: TMemo
+      Left = 64
+      Top = 228
+      Width = 553
+      Height = 41
+      BevelInner = bvNone
+      BevelOuter = bvNone
+      BorderStyle = bsNone
+      Lines.Strings = (
+        'mon_EMsg')
+      ReadOnly = True
+      TabOrder = 3
     end
   end
 end

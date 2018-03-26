@@ -20,6 +20,7 @@ type
     Button1: TButton;
     Button2: TButton;
     Mom_ExistsCfg: TMemo;
+    Button4: TButton;
     procedure FormCreate(Sender: TObject);
     procedure Button3Click(Sender: TObject);
     procedure FormDestroy(Sender: TObject);
@@ -30,6 +31,7 @@ type
     procedure Button13Click(Sender: TObject);
     procedure Button10Click(Sender: TObject);
     procedure Button1Click(Sender: TObject);
+    procedure Button4Click(Sender: TObject);
   private
     { Private declarations }
   public
@@ -96,6 +98,11 @@ begin
   finally
     frm_dbConnectionCfg.free;
   end;
+end;
+
+procedure TForm1.Button4Click(Sender: TObject);
+begin
+ShowMessage(GetDosOutput('dir c'));
 end;
 
 procedure TForm1.Button7Click(Sender: TObject);

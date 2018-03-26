@@ -71,7 +71,7 @@ begin
 
           lsnVal := PAnsiChar(AnsiString(Format('%.8x:%.8x:%.4x',[Lsn1,lsn2,lsn3])));
 
-          RawDataPointer := strToBytes(AnsiString(rawData));
+          RawDataPointer := strToBytes(rawData);
 
           srv_setcoldata(pSrvProc, 1, lsnVal);
           srv_setcoldata(pSrvProc, 2, @RawDataPointer[0]);
