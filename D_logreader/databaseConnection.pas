@@ -53,7 +53,7 @@ type
     function CheckIsLocalHost: Boolean;
     function getDb_ComputerNamePhysicalNetBIOS: string;
     function getDb_AllDatabases: TStringList;
-    procedure getDb_dbInfo;
+    procedure getDb_dbInfo(checkLoadedInfo:Boolean = False);
     procedure getDb_allLogFiles;
     procedure getDb_VLFs;
     function GetCodePageFromCollationName(cName: string): string;
@@ -229,7 +229,7 @@ begin
   end;
 end;
 
-procedure TdatabaseConnection.getDb_dbInfo;
+procedure TdatabaseConnection.getDb_dbInfo(checkLoadedInfo:Boolean);
 var
   microsoftversion: Integer;
   rDataset:TCustomADODataSet;
@@ -238,13 +238,34 @@ begin
   aSql := 'SELECT DB_ID(),recovery_model,@@microsoftversion,SERVERPROPERTY(''ProcessID'') FROM sys.databases WHERE database_id = DB_ID()';
   if ExecSql(aSql, rDataset) then
   begin
-    dbID := rDataset.Fields[0].AsInteger;
     recovery_model := rDataset.Fields[1].AsInteger;
     microsoftversion := rDataset.Fields[2].AsInteger;
     SvrProcessID := rDataset.Fields[3].AsInteger;
-    dbVer_Major := (microsoftversion shr 24) and $FF;
-    dbVer_Minor := (microsoftversion shr 16) and $FF;
-    dbVer_BuildNumber := microsoftversion and $FFFF;
+    if checkLoadedInfo then
+    begin
+      if dbID <> rDataset.Fields[0].AsInteger then
+      begin
+        Loger.Add('数据库id与配置不匹配！请重新配置。', LOG_ERROR);
+
+      end;
+      if dbVer_Major <> (microsoftversion shr 24) and $FF then
+      begin
+
+      end;
+      if dbVer_Minor <> (microsoftversion shr 16) and $FF then
+      begin
+
+      end;
+      if dbVer_BuildNumber <> microsoftversion and $FFFF then
+      begin
+
+      end;
+    end else begin
+      dbID := rDataset.Fields[0].AsInteger;
+      dbVer_Major := (microsoftversion shr 24) and $FF;
+      dbVer_Minor := (microsoftversion shr 16) and $FF;
+      dbVer_BuildNumber := microsoftversion and $FFFF;
+    end;
     rDataset.Free;
   end;
 end;

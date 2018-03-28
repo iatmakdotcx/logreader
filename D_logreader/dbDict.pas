@@ -228,14 +228,17 @@ var
   table:TdbTableItem;
 begin
   Rter := TReader.Create(data, 1);
-  tableCount := Rter.ReadInteger;
-  for I := 0 to tableCount -1 do
-  begin
-    table := TdbTableItem.Create;
-    table.Deserialize(data);
-    tables.addTable(table);
+  try
+    tableCount := Rter.ReadInteger;
+    for I := 0 to tableCount -1 do
+    begin
+      table := TdbTableItem.Create;
+      tables.addTable(table);
+      table.Deserialize(data);
+    end;
+  finally
+    Rter.Free;
   end;
-  Rter.Free;
 end;
 
 { TdbFields }
@@ -565,34 +568,37 @@ var
   field: TdbFieldItem;
 begin
   Rter := TReader.Create(data, 1);
-  TableId := Rter.ReadInteger;
-  TableNmae := Rter.ReadString;
-  Owner := Rter.ReadString;
-  FieldCount := Rter.ReadInteger;
-  for I := 0 to FieldCount - 1 do
-  begin
-    field := TdbFieldItem.Create;
-    field.Col_id := Rter.ReadInteger;
-    field.ColName := Rter.ReadString;
-    field.type_id := Rter.ReadInteger;
-    field.type_id := Rter.ReadInteger;
-    field.nullMap := Rter.ReadInteger;
-    field.Max_length := Rter.ReadInteger;
-    field.procision := Rter.ReadInteger;
-    field.scale := Rter.ReadInteger;
-    field.is_nullable := Rter.ReadBoolean;
-    field.leaf_pos := Rter.ReadInteger;
-    field.collation_name := Rter.ReadString;
-    field.CodePage := Rter.ReadInteger;
-    Fields.addField(field);
+  try
+    TableId := Rter.ReadInteger;
+    TableNmae := Rter.ReadString;
+    Owner := Rter.ReadString;
+    FieldCount := Rter.ReadInteger;
+    for I := 0 to FieldCount - 1 do
+    begin
+      field := TdbFieldItem.Create;
+      Fields.addField(field);
+      field.Col_id := Rter.ReadInteger;
+      field.ColName := Rter.ReadString;
+      field.type_id := Rter.ReadInteger;
+      field.type_id := Rter.ReadInteger;
+      field.nullMap := Rter.ReadInteger;
+      field.Max_length := Rter.ReadInteger;
+      field.procision := Rter.ReadInteger;
+      field.scale := Rter.ReadInteger;
+      field.is_nullable := Rter.ReadBoolean;
+      field.leaf_pos := Rter.ReadInteger;
+      field.collation_name := Rter.ReadString;
+      field.CodePage := Rter.ReadInteger;
+    end;
+    // UniqueKeys.Count
+    FieldCount := Rter.ReadInteger;
+    for I := 0 to FieldCount - 1 do
+    begin
+      UniqueKeys.Add(Fields.GetItemById(Rter.ReadInteger));
+    end;
+  finally
+    Rter.Free;
   end;
-  // UniqueKeys.Count
-  FieldCount := Rter.ReadInteger;
-  for I := 0 to FieldCount - 1 do
-  begin
-    UniqueKeys.Add(Fields.GetItemById(Rter.ReadInteger));
-  end;
-  Rter.Free;
 end;
 
 { TdbFieldItem }

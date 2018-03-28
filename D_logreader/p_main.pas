@@ -4,7 +4,7 @@ interface
 
 uses
   Windows, Messages, SysUtils, Variants, Classes, Graphics, Controls, Forms,
-  Dialogs, StdCtrls, LogSource;
+  Dialogs, StdCtrls, LogSource, Vcl.ComCtrls;
 
 type
   TForm1 = class(TForm)
@@ -20,7 +20,10 @@ type
     Button1: TButton;
     Button2: TButton;
     Mom_ExistsCfg: TMemo;
-    Button4: TButton;
+    ReloadList: TButton;
+    ListView1: TListView;
+    Button5: TButton;
+    Memo1: TMemo;
     procedure FormCreate(Sender: TObject);
     procedure Button3Click(Sender: TObject);
     procedure FormDestroy(Sender: TObject);
@@ -30,8 +33,8 @@ type
     procedure Button12Click(Sender: TObject);
     procedure Button13Click(Sender: TObject);
     procedure Button10Click(Sender: TObject);
-    procedure Button1Click(Sender: TObject);
-    procedure Button4Click(Sender: TObject);
+    procedure ReloadListClick(Sender: TObject);
+    procedure Button5Click(Sender: TObject);
   private
     { Private declarations }
   public
@@ -46,7 +49,7 @@ implementation
 
 uses
   dbConnectionCfg, databaseConnection, p_structDefine, Memory_Common, plugins,
-  MakCommonfuncs;
+  MakCommonfuncs, pluginlog;
 
 {$R *.dfm}
 
@@ -65,33 +68,27 @@ begin
   logsource.loadFromFile('d:\1.bin');
 end;
 
-procedure TForm1.Button1Click(Sender: TObject);
+procedure TForm1.Button3Click(Sender: TObject);
 var
   savePath:string;
-  lst:TStringList;
-  I: Integer;
-
-begin
-  savePath := ExtractFilePath(GetModuleName(0)) + 'cfg\*.lrd';
-  lst := searchAllFileAdv(savePath);
-  for I := 0 to lst.Count - 1 do
-  begin
-    Mom_ExistsCfg.Lines.Add(lst[i]);
-
-
-  end;
-
-
-
-end;
-
-procedure TForm1.Button3Click(Sender: TObject);
+  logsource:TLogSource;
 begin
   frm_dbConnectionCfg := Tfrm_dbConnectionCfg.create(nil);
   try
     if frm_dbConnectionCfg.ShowModal = mrOk then
     begin
+      logsource := TLogSource.Create;
       logsource.SetConnection(frm_dbConnectionCfg.databaseConnection);
+      logsource.Fdbc.refreshDict;
+      savePath := ExtractFilePath(GetModuleName(0)) + Format('cfg\%d.lrd',[logsource.Fdbc.dbID]);
+      if logsource.saveToFile(savePath) then
+      begin
+        //保存配置成功才继续，否则处理失败
+        LogSourceList.Add(logsource);
+      end else begin
+        logsource.Free;
+        ShowMessage('配置保存失败，确认目录权限.');
+      end;
     end
     else
       frm_dbConnectionCfg.databaseConnection.Free;
@@ -100,9 +97,15 @@ begin
   end;
 end;
 
-procedure TForm1.Button4Click(Sender: TObject);
+procedure msgOut(aMsg: string; level: Integer);
 begin
-ShowMessage(GetDosOutput('dir c'));
+  Form1.Memo1.Lines.add(FormatDateTime('yyyy-MM-dd HH:mm:ss', Now) + ' - ' + IntToStr(level) + ' >>' + aMsg);
+end;
+
+procedure TForm1.Button5Click(Sender: TObject);
+begin
+  loger.registerCallBack(msgOut);
+  loger.Add('=================loger callback======================');
 end;
 
 procedure TForm1.Button7Click(Sender: TObject);
@@ -151,6 +154,39 @@ end;
 procedure TForm1.FormDestroy(Sender: TObject);
 begin
   logsource.Free;
+end;
+
+procedure TForm1.ReloadListClick(Sender: TObject);
+var
+  savePath:string;
+  lst:TStringList;
+  I: Integer;
+  Tmplogsource : TLogSource;
+begin
+  savePath := ExtractFilePath(GetModuleName(0)) + 'cfg\*.lrd';
+  lst := searchAllFileAdv(savePath);
+  for I := 0 to lst.Count - 1 do
+  begin
+    Mom_ExistsCfg.Lines.Add(lst[I]);
+    Tmplogsource := TLogSource.Create;
+    try
+      Tmplogsource.loadFromFile(lst[I]);
+      LogSourceList.Add(Tmplogsource)
+    except
+      Tmplogsource.Free;
+    end;
+  end;
+  lst.Free;
+  for I := 0 to LogSourceList.Count - 1 do
+  begin
+    Tmplogsource := LogSourceList.Get(i);
+    with ListView1.Items.Add do
+    begin
+      Caption := IntToStr(i + 1);
+      SubItems.Add(Tmplogsource.Fdbc.Host);
+      SubItems.Add(Tmplogsource.Fdbc.dbName);
+    end;
+  end;
 end;
 
 end.

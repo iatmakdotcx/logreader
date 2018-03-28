@@ -3,11 +3,16 @@ unit LogSource;
 interface
 
 uses
-  I_LogProvider, I_logReader, databaseConnection, p_structDefine, Types;
+  I_LogProvider, I_logReader, databaseConnection, p_structDefine, Types,
+  System.Classes;
+
+type
+  LS_STATUE = (tLS_unknown, tLS_NotConfig, tLs_notInit, tLS_running, tLS_stopped, tLS_suspension);
 
 type
   TLogSource = class(TObject)
   private
+    Fstatus:LS_STATUE;
     procedure ClrLogSource;
     function init: Boolean;
   public
@@ -22,6 +27,7 @@ type
     function GetRawLogByLSN(LSN: Tlog_LSN;var OutBuffer: TMemory_data): Boolean;
     function Create_picker(LSN: Tlog_LSN):Boolean;
     procedure Stop_picker;
+    function status:LS_STATUE;
     //test func
     procedure listVlfs;
     procedure listLogBlock(SeqNo:DWORD);
@@ -29,14 +35,30 @@ type
     function init_Process(Pid, hdl: Cardinal): Boolean;
     procedure NotifySubscribe(lsn: Tlog_LSN; Raw: TMemory_data);
 
-    procedure loadFromFile(aPath: string);
-    procedure saveToFile(aPath: string);
+    function loadFromFile(aPath: string):Boolean;
+    function saveToFile(aPath: string):Boolean;
   end;
+
+  TLogSourceList = class(TObject)
+  private
+    ObjList:TList;
+  public
+    constructor Create;
+    destructor Destroy; override;
+    function Add(Item: TLogSource): Integer;
+    function Get(Index: Integer): TLogSource;
+    function Count: Integer;
+    procedure Delete(Index: Integer);
+  end;
+
+
+var
+  LogSourceList:TLogSourceList;
 
 implementation
 
 uses
-  LdfLogProvider, Classes, Sql2014LogReader, LocalDbLogProvider, MakCommonfuncs,
+  LdfLogProvider, Sql2014LogReader, LocalDbLogProvider, MakCommonfuncs,
   Windows, pluginlog, SysUtils;
 
 { TLogSource }
@@ -58,6 +80,7 @@ end;
 constructor TLogSource.Create;
 begin
   inherited;
+  Fstatus := tLS_NotConfig;
 end;
 
 function TLogSource.Create_picker(LSN: Tlog_LSN): Boolean;
@@ -111,6 +134,11 @@ begin
   Fdbc.refreshDict;
 end;
 
+function TLogSource.status: LS_STATUE;
+begin
+  Result := Fstatus;
+end;
+
 function TLogSource.init: Boolean;
 begin
   Fdbc.refreshConnection;
@@ -120,6 +148,7 @@ begin
   if Fdbc.dbVer_Major > 10 then
   begin
     FLogReader := TSql2014LogReader.Create(Self);
+    Fstatus := tLS_stopped;
     Result := True;
   end else begin
     Loger.Add('不支持的数据库版本！');
@@ -170,7 +199,7 @@ end;
 
 procedure TLogSource.Stop_picker;
 begin
-  if FLogPicker<>nil then
+  if FLogPicker <> nil then
   begin
     FLogPicker.Terminate;
     FLogPicker.WaitFor;
@@ -179,44 +208,68 @@ begin
   end;
 end;
 
-procedure TLogSource.loadFromFile(aPath: string);
+function TLogSource.loadFromFile(aPath: string):Boolean;
 var
   mmo: TMemoryStream;
   Rter: TReader;
   tmpStr: string;
 begin
+  Result := False;
   ClrLogSource;
 
   mmo := TMemoryStream.Create;
   try
-    mmo.LoadFromFile(aPath);
-    Rter := TReader.Create(mmo, 1);
-    if Rter.ReadInteger = $FB then
-    begin
-      tmpStr := Rter.ReadStr;
-      if tmpStr = 'TDbDict v 1.0' then
+    try
+      mmo.LoadFromFile(aPath);
+      Rter := TReader.Create(mmo, 1);
+      try
+        if Rter.ReadInteger = $FB then
+        begin
+          tmpStr := Rter.ReadStr;
+          if tmpStr = 'TDbDict v 1.0' then
+          begin
+            Fdbc := TdatabaseConnection.create;
+            try
+              Fdbc.Host := Rter.ReadString;
+              Fdbc.user := Rter.ReadString;
+              Fdbc.PassWd := Rter.ReadString;
+              Fdbc.dbName := Rter.ReadString;
+              Fdbc.dbID :=  Rter.ReadInteger;
+              Fdbc.dbVer_Major :=  Rter.ReadInteger;
+              Fdbc.dbVer_Minor :=  Rter.ReadInteger;
+              Fdbc.dbVer_BuildNumber :=  Rter.ReadInteger;
+              Fdbc.dict.Deserialize(mmo);
+              //init;
+              Fstatus := tLs_notInit;
+              Result := True;
+            except
+              Fdbc.Free
+            end;
+          end;
+        end;
+      finally
+        Rter.Free;
+      end;
+    except
+      on EE:Exception do
       begin
-        Fdbc := TdatabaseConnection.create;
-        Fdbc.Host := Rter.ReadString;
-        Fdbc.user := Rter.ReadString;
-        Fdbc.PassWd := Rter.ReadString;
-        Fdbc.dbName := Rter.ReadString;
-        Fdbc.dict.Deserialize(mmo);
-        init;
+
+
       end;
     end;
-    Rter.Free;
   finally
     mmo.Free;
   end;
 end;
 
-procedure TLogSource.saveToFile(aPath: string);
+function TLogSource.saveToFile(aPath: string):Boolean;
 var
   wter: TWriter;
   mmo: TMemoryStream;
   dictBin: TMemoryStream;
+  pathName:string;
 begin
+  Result := False;
   mmo := TMemoryStream.Create;
   try
     wter := TWriter.Create(mmo, 1);
@@ -227,6 +280,10 @@ begin
     wter.WriteString(Fdbc.user);
     wter.WriteString(Fdbc.PassWd);
     wter.WriteString(Fdbc.dbName);
+    wter.WriteInteger(Fdbc.dbID);
+    wter.WriteInteger(Fdbc.dbVer_Major);
+    wter.WriteInteger(Fdbc.dbVer_Minor);
+    wter.WriteInteger(Fdbc.dbVer_BuildNumber);
     //表结构
     dictBin := Fdbc.dict.Serialize;
     dictBin.seek(0, 0);
@@ -235,12 +292,72 @@ begin
     //
     wter.FlushBuffer;
     wter.Free;
-    mmo.SaveToFile(aPath);
+
+    pathName := ExtractFilePath(aPath);
+    if not DirectoryExists(pathName) then
+    begin
+      Loger.Add('目录创建:' + BoolToStr(ForceDirectories(pathName), true) + ':' + pathName);
+    end;
+
+    try
+      mmo.SaveToFile(aPath);
+      Result := True;
+    except
+      on ee:Exception do
+      begin
+        Loger.Add('LogSource.saveToFile 配置保存失败！' + ee.message);
+      end;
+    end;
   finally
     mmo.Free;
   end;
 end;
 
+
+{ TLogSourceList }
+
+function TLogSourceList.Add(Item: TLogSource): Integer;
+begin
+  Result := ObjList.Add(Item);
+end;
+
+function TLogSourceList.Count: Integer;
+begin
+  Result := ObjList.Count;
+end;
+
+constructor TLogSourceList.Create;
+begin
+  ObjList := TList.Create;
+end;
+
+procedure TLogSourceList.Delete(Index: Integer);
+begin
+  ObjList.Delete(Index);
+end;
+
+destructor TLogSourceList.Destroy;
+var
+  I: Integer;
+begin
+  for I := 0 to ObjList.Count - 1 do
+  begin
+    TLogSource(ObjList[i]).free;
+  end;
+  ObjList.Free;
+  inherited;
+end;
+
+function TLogSourceList.Get(Index: Integer): TLogSource;
+begin
+  Result := ObjList[Index];
+end;
+
+initialization
+  LogSourceList := TLogSourceList.Create;
+
+finalization
+  LogSourceList.Free;
 
 end.
 
