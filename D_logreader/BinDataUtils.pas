@@ -106,7 +106,7 @@ function TbinDataReader.readByte: Byte;
 begin
   if FPosition < FRangeH then
   begin
-    Result := Pbyte(Cardinal(FBufBase) + FPosition)^;
+    Result := Pbyte(UIntPtr(FBufBase) + FPosition)^;
     FPosition := FPosition + 1;
   end
   else
@@ -119,7 +119,7 @@ function TbinDataReader.readSInt: ShortInt;
 begin
   if FPosition < FRangeH then
   begin
-    Result := PShortInt(Cardinal(FBufBase) + FPosition)^;
+    Result := PShortInt(UIntPtr(FBufBase) + FPosition)^;
     FPosition := FPosition + 1;
   end
   else
@@ -132,7 +132,7 @@ function TbinDataReader.readDWORD: DWORD;
 begin
   if FPosition + 3 < FRangeH then
   begin
-    Result := PDword(Cardinal(FBufBase) + FPosition)^;
+    Result := PDword(UIntPtr(FBufBase) + FPosition)^;
     FPosition := FPosition + 4;
   end
   else
@@ -145,7 +145,7 @@ function TbinDataReader.readInt: Integer;
 begin
   if FPosition + 3 < FRangeH then
   begin
-    Result := Pinteger(Cardinal(FBufBase) + FPosition)^;
+    Result := Pinteger(UIntPtr(FBufBase) + FPosition)^;
     FPosition := FPosition + 4;
   end
   else
@@ -158,7 +158,7 @@ function TbinDataReader.readInt64: Int64;
 begin
   if FPosition + 7 < FRangeH then
   begin
-    Result := PInt64(Cardinal(FBufBase) + FPosition)^;
+    Result := PInt64(UIntPtr(FBufBase) + FPosition)^;
     FPosition := FPosition + 8;
   end
   else
@@ -171,7 +171,7 @@ function TbinDataReader.readQWORD: QWORD;
 begin
   if FPosition + 7 < FRangeH then
   begin
-    Result := PQword(Cardinal(FBufBase) + FPosition)^;
+    Result := PQword(UIntPtr(FBufBase) + FPosition)^;
     FPosition := FPosition + 8;
   end
   else
@@ -184,7 +184,7 @@ function TbinDataReader.readShort: SHORT;
 begin
   if FPosition + 1 < FRangeH then
   begin
-    Result := Pshort(Cardinal(FBufBase) + FPosition)^;
+    Result := Pshort(UIntPtr(FBufBase) + FPosition)^;
     FPosition := FPosition + 2;
   end
   else
@@ -197,7 +197,7 @@ function TbinDataReader.readWord: Word;
 begin
   if FPosition + 1 < FRangeH then
   begin
-    Result := PWord(Cardinal(FBufBase) + FPosition)^;
+    Result := PWord(UIntPtr(FBufBase) + FPosition)^;
     FPosition := FPosition + 2;
   end
   else
@@ -211,7 +211,7 @@ begin
   if FPosition + aLen - 1 < FRangeH then
   begin
     SetLength(Result, aLen);
-    Move(Pointer(Cardinal(FBufBase) + FPosition)^, Result[0], aLen);
+    Move(Pointer(UIntPtr(FBufBase) + FPosition)^, Result[0], aLen);
     FPosition := FPosition + aLen;
   end
   else

@@ -53,21 +53,11 @@ var
   logp: TLocalDbLogProvider;
 begin
   FLogSource := LogSource;
-
   for I := 0 to Length(FLogSource.Fdbc.FlogFileList) - 1 do
   begin
-    if LogSource.Fdbc.CheckIsLocalHost then
-    begin
-      logp := TLocalDbLogProvider.Create;
-      logp.init(FLogSource.Fdbc.FlogFileList[I].filehandle);
-      FdataProvider[FLogSource.Fdbc.FlogFileList[I].fileId] := logp;
-    end
-    else
-    begin
-      //TODO:支持远程运行
-      Loger.AddException('远程运行！', log_error);
-    end;
-
+    logp := TLocalDbLogProvider.Create;
+    logp.init(FLogSource.Fdbc.FlogFileList[I].filehandle);
+    FdataProvider[FLogSource.Fdbc.FlogFileList[I].fileId] := logp;
   end;
 end;
 
@@ -223,6 +213,7 @@ begin
         Exit;
       end;
       OutBuffer.dataSize := RowLength;
+      Result := true;
     end;
   finally
     Dispose(abuf);
@@ -327,10 +318,10 @@ var
   eBlockPosi:DWORD;
 begin
   bBlockPosi := 0;
-  eBlockPosi := Cardinal(Pnt) + FlogBlock.Size - 1;
+  eBlockPosi := UIntPtr(Pnt) + FlogBlock.Size - 1;
   while bBlockPosi < FlogBlock.Size do
   begin
-    PByte(Cardinal(Pnt) + bBlockPosi)^ := Pbyte(eBlockPosi)^;
+    PByte(UIntPtr(Pnt) + bBlockPosi)^ := Pbyte(eBlockPosi)^;
     bBlockPosi := bBlockPosi + $200;
     eBlockPosi := eBlockPosi - 1;
   end;
@@ -435,7 +426,7 @@ begin
       SetLength(RowOffsetTable, FlogBlock.OperationCount);
       for I := 0 to FlogBlock.OperationCount - 1 do
       begin
-        RowOffsetTable[I] := PWORD(Cardinal(LogBlock) + Cardinal(FlogBlock.endOfBlock - I * 2 - 2))^;
+        RowOffsetTable[I] := PWORD(UIntPtr(LogBlock) + UIntPtr(FlogBlock.endOfBlock - I * 2 - 2))^;
       end;
       RIdx := 0;
       if FlogBlock.BeginLSN.LSN_3 <> 1 then
@@ -448,12 +439,12 @@ begin
         if RIdx = FlogBlock.OperationCount - 1 then
         begin
           //最后一个
-          RowOffset := Cardinal(LogBlock) + RowOffsetTable[RIdx];
-          RowLength := Cardinal(LogBlock) + Cardinal(FlogBlock.endOfBlock - FlogBlock.OperationCount * 2) - RowOffset;
+          RowOffset := UIntPtr(LogBlock) + RowOffsetTable[RIdx];
+          RowLength := UIntPtr(LogBlock) + UIntPtr(FlogBlock.endOfBlock - FlogBlock.OperationCount * 2) - RowOffset;
         end
         else
         begin
-          RowOffset := Cardinal(LogBlock) + RowOffsetTable[RIdx];
+          RowOffset := UIntPtr(LogBlock) + RowOffsetTable[RIdx];
           RowLength := RowOffsetTable[RIdx + 1] - RowOffsetTable[RIdx];
         end;
         RowdataBuffer := AllocMem(RowLength);

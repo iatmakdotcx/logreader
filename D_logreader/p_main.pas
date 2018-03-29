@@ -4,7 +4,7 @@ interface
 
 uses
   Windows, Messages, SysUtils, Variants, Classes, Graphics, Controls, Forms,
-  Dialogs, StdCtrls, LogSource, Vcl.ComCtrls;
+  Dialogs, StdCtrls, LogSource, Vcl.ComCtrls, System.ImageList, Vcl.ImgList;
 
 type
   TForm1 = class(TForm)
@@ -24,6 +24,9 @@ type
     ListView1: TListView;
     Button5: TButton;
     Memo1: TMemo;
+    ImageList1: TImageList;
+    Button4: TButton;
+    Button6: TButton;
     procedure FormCreate(Sender: TObject);
     procedure Button3Click(Sender: TObject);
     procedure FormDestroy(Sender: TObject);
@@ -35,6 +38,8 @@ type
     procedure Button10Click(Sender: TObject);
     procedure ReloadListClick(Sender: TObject);
     procedure Button5Click(Sender: TObject);
+    procedure Button4Click(Sender: TObject);
+    procedure Button6Click(Sender: TObject);
   private
     { Private declarations }
   public
@@ -77,23 +82,35 @@ begin
   try
     if frm_dbConnectionCfg.ShowModal = mrOk then
     begin
-      logsource := TLogSource.Create;
-      logsource.SetConnection(frm_dbConnectionCfg.databaseConnection);
-      logsource.Fdbc.refreshDict;
+      logsource := frm_dbConnectionCfg.logsource;
       savePath := ExtractFilePath(GetModuleName(0)) + Format('cfg\%d.lrd',[logsource.Fdbc.dbID]);
       if logsource.saveToFile(savePath) then
       begin
         //保存配置成功才继续，否则处理失败
         LogSourceList.Add(logsource);
+        Loger.Add('新增配置完成！！');
       end else begin
         logsource.Free;
         ShowMessage('配置保存失败，确认目录权限.');
       end;
     end
     else
-      frm_dbConnectionCfg.databaseConnection.Free;
+      frm_dbConnectionCfg.logsource.Free;
   finally
     frm_dbConnectionCfg.free;
+  end;
+end;
+
+procedure TForm1.Button4Click(Sender: TObject);
+var
+  ItemIdx:Integer;
+  tlsObj:TLogSource;
+begin
+  if ListView1.Selected <> nil then
+  begin
+    ItemIdx := StrToInt(ListView1.Selected.Caption) - 1;
+    tlsObj := LogSourceList.Get(ItemIdx);
+
   end;
 end;
 
@@ -106,6 +123,29 @@ procedure TForm1.Button5Click(Sender: TObject);
 begin
   loger.registerCallBack(msgOut);
   loger.Add('=================loger callback======================');
+end;
+
+procedure TForm1.Button6Click(Sender: TObject);
+var
+  ItemIdx:Integer;
+  tlsObj:TLogSource;
+  LSN: Tlog_LSN;
+  OutBuffer: TMemory_data;
+begin
+  if ListView1.Selected <> nil then
+  begin
+    ItemIdx := StrToInt(ListView1.Selected.Caption) - 1;
+    tlsObj := LogSourceList.Get(ItemIdx);
+    LSN.LSN_1 := $200;
+    LSN.LSN_2 := $478;
+    LSN.LSN_3 := 1;
+
+    if tlsObj.GetRawLogByLSN(LSN, OutBuffer) and (OutBuffer.dataSize > 0) then
+    begin
+      ShowMessage(bytestostr(OutBuffer.data,OutBuffer.dataSize));
+      FreeMem(OutBuffer.data);
+    end;
+  end;
 end;
 
 procedure TForm1.Button7Click(Sender: TObject);
@@ -123,22 +163,8 @@ begin
 end;
 
 procedure TForm1.Button8Click(Sender: TObject);
-var
-  lsn: Tlog_lsn;
 begin
-  lsn.LSN_1 := $2c;
-  lsn.LSN_2 := $200;
-  lsn.LSN_3 := 1;
-
-//  lsn.LSN_1 := $2b;
-//  lsn.LSN_2 := $300;
-//  lsn.LSN_3 := $0001;
-
-//  lsn.LSN_1 := $2b;
-//  lsn.LSN_2 := $258;
-//  lsn.LSN_3 := $52;
-
-  logsource.Create_picker(lsn);
+  logsource.Create_picker;
 end;
 
 procedure TForm1.Button9Click(Sender: TObject);
@@ -162,6 +188,7 @@ var
   lst:TStringList;
   I: Integer;
   Tmplogsource : TLogSource;
+  ItemIdx:Integer;
 begin
   savePath := ExtractFilePath(GetModuleName(0)) + 'cfg\*.lrd';
   lst := searchAllFileAdv(savePath);
@@ -169,14 +196,28 @@ begin
   begin
     Mom_ExistsCfg.Lines.Add(lst[I]);
     Tmplogsource := TLogSource.Create;
-    try
-      Tmplogsource.loadFromFile(lst[I]);
-      LogSourceList.Add(Tmplogsource)
-    except
+    if Tmplogsource.loadFromFile(lst[I]) then
+    begin
+      ItemIdx := LogSourceList.Add(Tmplogsource);
+      if ItemIdx = -1 then
+      begin
+        //已存在
+        Tmplogsource.Free;
+      end
+      else
+      begin
+        Tmplogsource.Fdbc.refreshConnection;
+        Tmplogsource.Fdbc.getDb_dbInfo(True);
+        Tmplogsource.CreateLogReader;
+      end;
+    end
+    else
+    begin
       Tmplogsource.Free;
     end;
   end;
   lst.Free;
+  ListView1.clear;
   for I := 0 to LogSourceList.Count - 1 do
   begin
     Tmplogsource := LogSourceList.Get(i);
@@ -185,6 +226,7 @@ begin
       Caption := IntToStr(i + 1);
       SubItems.Add(Tmplogsource.Fdbc.Host);
       SubItems.Add(Tmplogsource.Fdbc.dbName);
+      SubItems.Add(IntToStr(ord(Tmplogsource.status)));
     end;
   end;
 end;

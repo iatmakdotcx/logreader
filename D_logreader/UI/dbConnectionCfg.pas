@@ -4,7 +4,8 @@ interface
 
 uses
   Windows, Messages, SysUtils, Variants, Classes, Graphics, Controls, Forms,
-  Dialogs, StdCtrls, DB, ADODB, databaseConnection, Vcl.ExtCtrls, Vcl.Imaging.GIFImg;
+  Dialogs, StdCtrls, DB, ADODB, databaseConnection, Vcl.ExtCtrls,
+  Vcl.ComCtrls, LogSource;
 
 type
   Tfrm_dbConnectionCfg = class(TForm)
@@ -33,18 +34,32 @@ type
     Image4: TImage;
     Label9: TLabel;
     mon_EMsg: TMemo;
+    pnl_CapPoint: TPanel;
+    Label10: TLabel;
+    RadioButton1: TRadioButton;
+    DateTimePicker1: TDateTimePicker;
+    RadioButton2: TRadioButton;
+    Edit1: TEdit;
+    Button4: TButton;
+    Button5: TButton;
+    Button6: TButton;
+    mon_eMsg2: TMemo;
     procedure FormCreate(Sender: TObject);
     procedure edt_DatabaseNameDropDown(Sender: TObject);
     procedure btn_okClick(Sender: TObject);
-    procedure Button2Click(Sender: TObject);
     procedure Button3Click(Sender: TObject);
     procedure Button1Click(Sender: TObject);
+    procedure Button4Click(Sender: TObject);
+    procedure Button2Click(Sender: TObject);
+    procedure Button5Click(Sender: TObject);
+    procedure RadioButton2Click(Sender: TObject);
   private
     procedure checkIptCfg;
+    procedure CheckPointSet;
 
     { Private declarations }
   public
-    databaseConnection:TdatabaseConnection;
+    logsource :TLogSource;
     { Public declarations }
   end;
 
@@ -54,7 +69,8 @@ var
 implementation
 
 uses
-  dbHelper, ResHelper, sqlextendedprocHelper, MakCommonfuncs, winshellHelper;
+  dbHelper, ResHelper, sqlextendedprocHelper, MakCommonfuncs, winshellHelper,
+  p_structDefine, pluginlog;
 
 {$R *.dfm}
 
@@ -79,12 +95,13 @@ begin
     exit;
   end;
   
-  databaseConnection.Host := edt_svr.Text;
-  databaseConnection.user := edt_user.Text;
-  databaseConnection.PassWd := edt_passwd.Text;
-  databaseConnection.dbName := edt_DatabaseName.Text;
-  
-  if not databaseConnection.CheckIsLocalHost then
+  logsource.Fdbc.Host := edt_svr.Text;
+  logsource.Fdbc.user := edt_user.Text;
+  logsource.Fdbc.PassWd := edt_passwd.Text;
+  logsource.Fdbc.dbName := edt_DatabaseName.Text;
+  logsource.Fdbc.refreshConnection;
+
+  if not logsource.Fdbc.CheckIsLocalHost then
   begin
     Application.MessageBox(PChar('本程序必须数据库服务器上运行'), PChar(Caption), MB_OK + MB_ICONINFORMATION);
   end
@@ -98,17 +115,33 @@ end;
 procedure Tfrm_dbConnectionCfg.Button1Click(Sender: TObject);
 begin
   pnl_ipt.BringToFront;
-  pnl_checkipt.SendToBack;
 end;
 
 procedure Tfrm_dbConnectionCfg.Button2Click(Sender: TObject);
 begin
-  Self.ModalResult := mrOk;
+  pnl_CapPoint.BringToFront;
+
+  RadioButton1.Checked := True;
+  RadioButton2.Checked := False;
+  Edit1.Enabled := False;
+  Edit1.Clear;
+  DateTimePicker1.Time := Now;
+  mon_eMsg2.Hide;
 end;
 
 procedure Tfrm_dbConnectionCfg.Button3Click(Sender: TObject);
 begin
   Self.ModalResult := mrCancel;
+end;
+
+procedure Tfrm_dbConnectionCfg.Button4Click(Sender: TObject);
+begin
+  pnl_checkipt.BringToFront;
+end;
+
+procedure Tfrm_dbConnectionCfg.Button5Click(Sender: TObject);
+begin
+  CheckPointSet;
 end;
 
 procedure Tfrm_dbConnectionCfg.checkIptCfg;
@@ -118,14 +151,13 @@ begin
   mon_EMsg.Hide;
   Application.ProcessMessages;
   pnl_checkipt.BringToFront;
-
   SetImgData(Image1,'img_load','IMG');
   Image2.Picture.Assign(nil);
   Application.ProcessMessages;
   //检测与数据库的连接，检测用户是否有访问此数据库的权限
   try
-    databaseConnection.getDb_dbInfo;
-    if databaseConnection.dbID = 0 then
+    logsource.Fdbc.getDb_dbInfo(False);
+    if logsource.Fdbc.dbID = 0 then
     begin
       Abort;
     end;
@@ -139,7 +171,7 @@ begin
   SetImgData(Image2,'img_load','IMG');
   Application.ProcessMessages;
   //权限检测，检测是否能创建和执行扩展存储过程 (只有sysadmin组成员才能执行和创建扩展存储过程
-  if not databaseConnection.CheckIsSysadmin then
+  if not logsource.Fdbc.CheckIsSysadmin then
   begin
     //如果语句执行失败，或没有返回行,或返回值不等于1
     SetImgData(Image2,'img_err','IMG');
@@ -151,14 +183,14 @@ begin
   SetImgData(Image3,'img_load','IMG');
   Application.ProcessMessages;
   //查看数据库版本是否支持
-  if (databaseConnection.dbVer_Major < 8) or (databaseConnection.dbVer_Major > 12) then
+  if not logsource.CreateLogReader(True) then
   begin
     SetImgData(Image3,'img_err','IMG');
     mon_EMsg.Text := '当前数据库不在可支持的范围内。支持的数据库版本：2000-2014';
     mon_EMsg.Show;
     Exit;
   end;
-  if not checkCfgExists(databaseConnection) then
+  if not checkCfgExists(logsource.Fdbc) then
   begin
     SetImgData(Image3,'img_err','IMG');
     mon_EMsg.Text := '没有当前数据库版本的有效配置！请更新配置。';
@@ -169,7 +201,7 @@ begin
   SetImgData(Image4,'img_load','IMG');
   Application.ProcessMessages;
   //目录权限设置
-  if databaseConnection.CheckIsLocalHost then
+  if logsource.Fdbc.CheckIsLocalHost then
   begin
     if not IsRunningAsAdmin then
     begin
@@ -200,21 +232,91 @@ begin
   SetImgData(Image4,'img_ok','IMG');
   //SetImgData(Image5,'img_load','IMG');
   Application.ProcessMessages;
+
+  logsource.Fdbc.refreshDict;
+  logsource.FisLocal := True;
+
   Button2.Enabled := True;
 end;
 
+procedure Tfrm_dbConnectionCfg.CheckPointSet;
+var
+  tmpLsn: Tlog_LSN;
+  TmpLst:TStringList;
+  Tmpint:Integer;
+  OutBuffer: TMemory_data;
+begin
+
+  if RadioButton1.Checked then
+  begin
+    //TODO:根据时间来
+//    databaseConnection.
+    //logsource.GetRawLogByLSN()
+
+
+  end else begin
+    //效验lsn是否有效
+    TmpLst := TStringList.Create;
+    try
+      TmpLst.Text := StringReplace(Edit1.Text,':',WIN_EOL,[rfReplaceAll]);
+      if TmpLst.Count<>3 then
+      begin
+        mon_eMsg2.Text := 'LSN格式化无效！';
+        mon_eMsg2.Show;
+        Exit;
+      end;
+
+      if TryStrToInt('$' + TmpLst[0], Tmpint) then
+      begin
+        tmpLsn.LSN_1 := Tmpint;
+      end else begin
+        mon_eMsg2.Text := 'LSN格式化无效！1';
+        mon_eMsg2.Show;
+        Exit;
+      end;
+      if TryStrToInt('$' + TmpLst[1], Tmpint) then
+      begin
+        tmpLsn.LSN_2 := Tmpint;
+      end else begin
+        mon_eMsg2.Text := 'LSN格式化无效！2';
+        mon_eMsg2.Show;
+        Exit;
+      end;
+      if TryStrToInt('$' + TmpLst[2], Tmpint) then
+      begin
+        tmpLsn.LSN_3 := Tmpint;
+      end else begin
+        mon_eMsg2.Text := 'LSN格式化无效！3';
+        mon_eMsg2.Show;
+        Exit;
+      end;
+    finally
+      TmpLst.Free;
+    end;
+    if (not logsource.GetRawLogByLSN(tmpLsn, OutBuffer)) or (OutBuffer.dataSize = 0) then
+    begin
+      mon_eMsg2.Text := 'LSN无效！未找对应数据！';
+      mon_eMsg2.Show;
+      Exit;
+    end;
+    logsource.FProcCurLSN.LSN_1 := tmpLsn.LSN_1;
+    logsource.FProcCurLSN.LSN_2 := tmpLsn.LSN_2;
+    logsource.FProcCurLSN.LSN_3 := tmpLsn.LSN_3;
+    FreeMem(OutBuffer.data);
+  end;
+  Self.ModalResult := mrOk;
+end;
 
 procedure Tfrm_dbConnectionCfg.edt_DatabaseNameDropDown(Sender: TObject);
 var
   dbs:TStringList;
   I: Integer;
 begin
-  databaseConnection.Host := edt_svr.Text;
-  databaseConnection.user := edt_user.Text;
-  databaseConnection.PassWd := edt_passwd.Text;
-  databaseConnection.dbName := 'master';
-  databaseConnection.refreshConnection;
-  dbs := databaseConnection.getDb_AllDatabases;
+  logsource.Fdbc.Host := edt_svr.Text;
+  logsource.Fdbc.user := edt_user.Text;
+  logsource.Fdbc.PassWd := edt_passwd.Text;
+  logsource.Fdbc.refreshConnection;
+  dbs := logsource.Fdbc.getDb_AllDatabases;
   try
     for I := 0 to dbs.Count - 1 do
     begin
@@ -232,12 +334,19 @@ begin
   edt_user.Text := 'sa';
   edt_passwd.Text := 'aa1234569';
 {$ENDIF}
-
-  databaseConnection := TdatabaseConnection.create;
+  logsource := Tlogsource.Create;
+  logsource.Fdbc := TdatabaseConnection.create;
 
   Button2.Enabled := False;
   pnl_ipt.BringToFront;
   pnl_checkipt.SendToBack;
+
+end;
+
+procedure Tfrm_dbConnectionCfg.RadioButton2Click(Sender: TObject);
+begin
+  DateTimePicker1.Enabled := RadioButton1.Checked;
+  Edit1.Enabled := RadioButton2.Checked;
 end;
 
 end.

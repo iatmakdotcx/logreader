@@ -106,7 +106,7 @@ begin
   ///
   //////////////////////////////////////////////////////////////////////////
   tranId := TransPkg.data;
-  RecCount := PWord(Cardinal(TransPkg.data) + SizeOf(TTrans_Id))^;
+  RecCount := PWord(UIntPtr(TransPkg.data) + SizeOf(TTrans_Id))^;
   outputdebugString(PChar(Format('tranId:%s, len:%d', [TranId2Str(tranId^), RecCount])));
   Result := STATUS_SUCCESS;
 end;

@@ -8,6 +8,7 @@ uses
 type
   TdatabaseConnection = class(TObject)
   private
+    FdBConfigOK:Boolean;
     AdoQCs: TCriticalSection;
     AdoQ: TADOQuery;
     ADOConn: TADOConnection;
@@ -53,7 +54,7 @@ type
     function CheckIsLocalHost: Boolean;
     function getDb_ComputerNamePhysicalNetBIOS: string;
     function getDb_AllDatabases: TStringList;
-    procedure getDb_dbInfo(checkLoadedInfo:Boolean = False);
+    function getDb_dbInfo(checkLoadedInfo:Boolean):Boolean;
     procedure getDb_allLogFiles;
     procedure getDb_VLFs;
     function GetCodePageFromCollationName(cName: string): string;
@@ -75,6 +76,7 @@ type
     /// <returns>执行是否成功</returns>
     function ExecSql(aSql: string; out resDataset: TCustomADODataSet;withOpen:Boolean=True): Boolean;
     function CheckIsSysadmin:Boolean;
+    property dbok:Boolean read FdBConfigOK;
   end;
 
 implementation
@@ -135,6 +137,7 @@ begin
   AdoQMaster.Connection := ADOConnMaster;
 
   dict := TDbDict.Create;
+  FdBConfigOK := False;
 end;
 
 destructor TdatabaseConnection.Destroy;
@@ -158,7 +161,7 @@ var
 begin
   Result := TStringList.Create;
   aSql := 'select name from sys.databases order by 1';
-  if ExecSql(aSql, rDataset) then
+  if ExecSqlOnMaster(aSql, rDataset) then
   begin
     rDataset.First;
     while not rDataset.Eof do
@@ -178,6 +181,7 @@ var
 begin
   if dbVer_Major < 10 then
   begin
+    //2008之前的版本只能遍历句柄
     aSql := 'SELECT fileid,name,[filename] FROM sysfiles WHERE status & 0x40 = 0x40 ORDER BY fileid';
     if ExecSql(aSql, rDataset) then
     begin
@@ -189,7 +193,6 @@ begin
         FlogFileList[I].fileFullPath := rDataset.Fields[2].AsString;
       end;
       rDataset.Free;
-      //2008之前的版本只能遍历句柄
       GetldfHandle(SvrProcessID, FlogFileList);
     end;
   end
@@ -220,7 +223,7 @@ var
   aSql:string;
 begin
   aSql := 'SELECT CONVERT(nvarchar(256), SERVERPROPERTY(''ComputerNamePhysicalNetBIOS''))';
-  if ExecSql(aSql, rDataset) then
+  if ExecSqlOnMaster(aSql, rDataset) then
   begin
     Result := rDataset.Fields[0].AsString;
     rDataset.Free;
@@ -229,44 +232,52 @@ begin
   end;
 end;
 
-procedure TdatabaseConnection.getDb_dbInfo(checkLoadedInfo:Boolean);
+function TdatabaseConnection.getDb_dbInfo(checkLoadedInfo:Boolean):Boolean;
 var
   microsoftversion: Integer;
   rDataset:TCustomADODataSet;
   aSql:string;
 begin
+  Result := False;
   aSql := 'SELECT DB_ID(),recovery_model,@@microsoftversion,SERVERPROPERTY(''ProcessID'') FROM sys.databases WHERE database_id = DB_ID()';
   if ExecSql(aSql, rDataset) then
   begin
-    recovery_model := rDataset.Fields[1].AsInteger;
-    microsoftversion := rDataset.Fields[2].AsInteger;
-    SvrProcessID := rDataset.Fields[3].AsInteger;
-    if checkLoadedInfo then
-    begin
-      if dbID <> rDataset.Fields[0].AsInteger then
+    try
+      recovery_model := rDataset.Fields[1].AsInteger;
+      microsoftversion := rDataset.Fields[2].AsInteger;
+      SvrProcessID := rDataset.Fields[3].AsInteger;
+      if checkLoadedInfo then
       begin
-        Loger.Add('数据库id与配置不匹配！请重新配置。', LOG_ERROR);
-
+        if dbID <> rDataset.Fields[0].AsInteger then
+        begin
+          Loger.Add('数据库id与配置不匹配！请重新配置。', LOG_ERROR);
+          Exit;
+        end;
+        if dbVer_Major <> (microsoftversion shr 24) and $FF then
+        begin
+          Loger.Add('数据库版本与配置不匹配！请重新配置。', LOG_ERROR);
+          Exit;
+        end;
+        if dbVer_Minor <> (microsoftversion shr 16) and $FF then
+        begin
+          Loger.Add('数据库版本与配置不匹配！请重新配置。', LOG_ERROR);
+          Exit;
+        end;
+        if dbVer_BuildNumber <> microsoftversion and $FFFF then
+        begin
+          Loger.Add('数据库版本与配置不匹配！请重新配置。', LOG_ERROR);
+          Exit;
+        end;
+      end else begin
+        dbID := rDataset.Fields[0].AsInteger;
+        dbVer_Major := (microsoftversion shr 24) and $FF;
+        dbVer_Minor := (microsoftversion shr 16) and $FF;
+        dbVer_BuildNumber := microsoftversion and $FFFF;
       end;
-      if dbVer_Major <> (microsoftversion shr 24) and $FF then
-      begin
-
-      end;
-      if dbVer_Minor <> (microsoftversion shr 16) and $FF then
-      begin
-
-      end;
-      if dbVer_BuildNumber <> microsoftversion and $FFFF then
-      begin
-
-      end;
-    end else begin
-      dbID := rDataset.Fields[0].AsInteger;
-      dbVer_Major := (microsoftversion shr 24) and $FF;
-      dbVer_Minor := (microsoftversion shr 16) and $FF;
-      dbVer_BuildNumber := microsoftversion and $FFFF;
+      Result := True;
+    finally
+      rDataset.Free;
     end;
-    rDataset.Free;
   end;
 end;
 
@@ -312,6 +323,7 @@ begin
   finally
     AdoQCsMaster.Leave
   end;
+  FdBConfigOK := True;
 end;
 
 function TdatabaseConnection.ExecSqlOnMaster(aSql:string;out resDataset:TCustomADODataSet;withOpen:Boolean=True):Boolean;

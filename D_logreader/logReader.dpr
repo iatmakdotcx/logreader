@@ -49,8 +49,8 @@ begin
   if IsRunningAsAdmin then
   begin
     Application.CreateForm(TForm1, Form1);
-  Application.CreateForm(TForm2, Form2);
-  Application.Run;
+    Application.CreateForm(TForm2, Form2);
+    Application.Run;
   end else begin
     showmessage('必须“使用管理员身份”运行本程序');
   end;

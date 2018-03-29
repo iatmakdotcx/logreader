@@ -183,7 +183,7 @@ object frm_dbConnectionCfg: Tfrm_dbConnectionCfg
       Top = 275
       Width = 75
       Height = 25
-      Caption = #23436#25104
+      Caption = #19979#19968#27493
       TabOrder = 1
       OnClick = Button2Click
     end
@@ -208,6 +208,105 @@ object frm_dbConnectionCfg: Tfrm_dbConnectionCfg
         'mon_EMsg')
       ReadOnly = True
       TabOrder = 3
+    end
+  end
+  object pnl_CapPoint: TPanel
+    Left = 0
+    Top = 0
+    Width = 639
+    Height = 335
+    Align = alClient
+    BevelOuter = bvNone
+    TabOrder = 2
+    object Label10: TLabel
+      Left = 77
+      Top = 52
+      Width = 75
+      Height = 18
+      Caption = #25429#33719#28857#35774#32622
+      Font.Charset = DEFAULT_CHARSET
+      Font.Color = clWindowText
+      Font.Height = -15
+      Font.Name = 'Tahoma'
+      Font.Style = []
+      ParentFont = False
+    end
+    object RadioButton1: TRadioButton
+      Left = 141
+      Top = 101
+      Width = 65
+      Height = 17
+      Caption = #26102#38388
+      Checked = True
+      TabOrder = 0
+      TabStop = True
+      OnClick = RadioButton2Click
+    end
+    object DateTimePicker1: TDateTimePicker
+      Left = 212
+      Top = 99
+      Width = 186
+      Height = 21
+      Date = 43188.507921076380000000
+      Format = 'yyyy-MM-dd HH:mm:ss'
+      Time = 43188.507921076380000000
+      TabOrder = 1
+    end
+    object RadioButton2: TRadioButton
+      Left = 141
+      Top = 145
+      Width = 65
+      Height = 17
+      Caption = 'LSN'
+      TabOrder = 2
+      OnClick = RadioButton2Click
+    end
+    object Edit1: TEdit
+      Left = 212
+      Top = 143
+      Width = 184
+      Height = 21
+      TabOrder = 3
+    end
+    object Button4: TButton
+      Left = 331
+      Top = 283
+      Width = 75
+      Height = 25
+      Caption = #19978#19968#27493
+      TabOrder = 4
+      OnClick = Button4Click
+    end
+    object Button5: TButton
+      Left = 435
+      Top = 283
+      Width = 75
+      Height = 25
+      Caption = #23436#25104
+      TabOrder = 5
+      OnClick = Button5Click
+    end
+    object Button6: TButton
+      Left = 531
+      Top = 283
+      Width = 75
+      Height = 25
+      Caption = #20851#38381
+      TabOrder = 6
+      OnClick = Button3Click
+    end
+    object mon_eMsg2: TMemo
+      Left = 72
+      Top = 236
+      Width = 553
+      Height = 41
+      BevelInner = bvNone
+      BevelOuter = bvNone
+      BorderStyle = bsNone
+      Lines.Strings = (
+        'mon_EMsg')
+      ReadOnly = True
+      TabOrder = 7
     end
   end
 end

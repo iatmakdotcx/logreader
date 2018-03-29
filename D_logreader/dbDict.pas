@@ -121,6 +121,8 @@ var
   tti: TdbTableItem;
 begin
   //非线程安全，保证在事务线程启动之前运行
+  tables.Free;
+  tables := TdbTables.Create;
   while not Qry.Eof do
   begin
     tti := TdbTableItem.Create;

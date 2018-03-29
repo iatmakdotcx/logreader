@@ -172,7 +172,7 @@ begin
         end;
       end;
     end;
-    Move(Pointer(Cardinal(fBuffer) + (Fposition - fBufferStartOffsetOfFile))^, Buffer, Count);
+    Move(Pointer(UIntPtr(fBuffer) + (Fposition - fBufferStartOffsetOfFile))^, Buffer, Count);
     Fposition := Fposition + Count;
   end
   else if FfileHandle < 1 then

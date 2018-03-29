@@ -7,25 +7,25 @@ uses
   System.Classes;
 
 type
-  LS_STATUE = (tLS_unknown, tLS_NotConfig, tLs_notInit, tLS_running, tLS_stopped, tLS_suspension);
+  LS_STATUE = (tLS_unknown, tLS_NotConfig, tLS_NotConnectDB, tLs_noLogReader, tLS_running, tLS_stopped, tLS_suspension);
 
 type
   TLogSource = class(TObject)
   private
     Fstatus:LS_STATUE;
     procedure ClrLogSource;
-    function init: Boolean;
   public
+    FProcCurLSN: Tlog_LSN;  //当前处理的位置
     FLogReader: TlogReader;
     Fdbc: TdatabaseConnection;
     FLogPicker:TLogPicker;
+    FisLocal:Boolean;
     constructor Create;
     destructor Destroy; override;
-    function SetConnection(dbc: TdatabaseConnection): Boolean;
     function GetVlf_LSN(LSN: Tlog_LSN): PVLF_Info;
     function GetVlf_SeqNo(SeqNo:DWORD): PVLF_Info;
     function GetRawLogByLSN(LSN: Tlog_LSN;var OutBuffer: TMemory_data): Boolean;
-    function Create_picker(LSN: Tlog_LSN):Boolean;
+    function Create_picker:Boolean;
     procedure Stop_picker;
     function status:LS_STATUE;
     //test func
@@ -37,6 +37,13 @@ type
 
     function loadFromFile(aPath: string):Boolean;
     function saveToFile(aPath: string):Boolean;
+
+    /// <summary>
+    ///
+    /// </summary>
+    /// <param name="ExistsRenew">如果已存在，释放。重新创建</param>
+    /// <returns></returns>
+    function CreateLogReader(ExistsRenew:Boolean = False):Boolean;
   end;
 
   TLogSourceList = class(TObject)
@@ -49,6 +56,7 @@ type
     function Get(Index: Integer): TLogSource;
     function Count: Integer;
     procedure Delete(Index: Integer);
+    function Exists(Item: TLogSource):Boolean;
   end;
 
 
@@ -74,19 +82,58 @@ end;
 
 procedure TLogSource.cpyFile(fileid:Byte;var OutBuffer: TMemory_data);
 begin
-  FLogReader.custRead(fileid,0,-1,OutBuffer);
+  FLogReader.custRead(fileid, 0, -1, OutBuffer);
 end;
 
 constructor TLogSource.Create;
 begin
   inherited;
   Fstatus := tLS_NotConfig;
+  FProcCurLSN.LSN_1 := 0;
+  FProcCurLSN.LSN_2 := 0;
+  FProcCurLSN.LSN_3 := 0;
+  FisLocal := True;
+  FLogReader := nil;
+  Fdbc := nil;
+  FLogPicker := nil;
 end;
 
-function TLogSource.Create_picker(LSN: Tlog_LSN): Boolean;
+function TLogSource.CreateLogReader(ExistsRenew:Boolean = False):Boolean;
 begin
-  FLogPicker := TSql2014LogPicker.Create(Self, LSN);
-  Result := True;
+  Result := False;
+  if FLogReader<>nil then
+  begin
+    if ExistsRenew then
+    begin
+      FreeAndNil(FLogReader);
+      Fstatus := tLs_noLogReader;
+    end else begin
+      Exit;
+    end;
+  end;
+  Fdbc.getDb_allLogFiles;
+  if (Fdbc.dbVer_Major > 10) and (Fdbc.dbVer_Major <= 12) then
+  begin
+    //2008之后的版本都用这个读取方式
+    FLogReader := TSql2014LogReader.Create(Self);
+    Fstatus := tLS_stopped;
+    Result := True;
+  end;
+end;
+
+function TLogSource.Create_picker: Boolean;
+begin
+  if FProcCurLSN.LSN_1 = 0 then
+  begin
+    Loger.Add(' FProcCurLSN 为空启动logpicker失败');
+    Result := False;
+    Exit;
+  end
+  else
+  begin
+    FLogPicker := TSql2014LogPicker.Create(Self, FProcCurLSN);
+    Result := True;
+  end;
 end;
 
 destructor TLogSource.Destroy;
@@ -126,34 +173,12 @@ begin
   Result := FLogReader.GetRawLogByLSN(LSN, vlf, OutBuffer);
 end;
 
-function TLogSource.SetConnection(dbc: TdatabaseConnection): Boolean;
-begin
-  ClrLogSource;
-  Fdbc := dbc;
-  result := init;
-  Fdbc.refreshDict;
-end;
-
 function TLogSource.status: LS_STATUE;
 begin
-  Result := Fstatus;
-end;
-
-function TLogSource.init: Boolean;
-begin
-  Fdbc.refreshConnection;
-  Fdbc.getDb_dbInfo;
-  Fdbc.getDb_allLogFiles;
-
-  if Fdbc.dbVer_Major > 10 then
-  begin
-    FLogReader := TSql2014LogReader.Create(Self);
-    Fstatus := tLS_stopped;
-    Result := True;
-  end else begin
-    Loger.Add('不支持的数据库版本！');
-    Result := False;
-  end;
+  if (Fstatus = tLS_NotConnectDB) and fdbc.dbok then
+    Result := tLs_noLogReader
+  else
+    Result := Fstatus;
 end;
 
 function TLogSource.init_Process(Pid, hdl: Cardinal): Boolean;
@@ -229,22 +254,21 @@ begin
           if tmpStr = 'TDbDict v 1.0' then
           begin
             Fdbc := TdatabaseConnection.create;
-            try
-              Fdbc.Host := Rter.ReadString;
-              Fdbc.user := Rter.ReadString;
-              Fdbc.PassWd := Rter.ReadString;
-              Fdbc.dbName := Rter.ReadString;
-              Fdbc.dbID :=  Rter.ReadInteger;
-              Fdbc.dbVer_Major :=  Rter.ReadInteger;
-              Fdbc.dbVer_Minor :=  Rter.ReadInteger;
-              Fdbc.dbVer_BuildNumber :=  Rter.ReadInteger;
-              Fdbc.dict.Deserialize(mmo);
-              //init;
-              Fstatus := tLs_notInit;
-              Result := True;
-            except
-              Fdbc.Free
-            end;
+            Fdbc.Host := Rter.ReadString;
+            Fdbc.user := Rter.ReadString;
+            Fdbc.PassWd := Rter.ReadString;
+            Fdbc.dbName := Rter.ReadString;
+            Fdbc.dbID :=  Rter.ReadInteger;
+            Fdbc.dbVer_Major :=  Rter.ReadInteger;
+            Fdbc.dbVer_Minor :=  Rter.ReadInteger;
+            Fdbc.dbVer_BuildNumber :=  Rter.ReadInteger;
+            FProcCurLSN.LSN_1 := Rter.ReadInteger;
+            FProcCurLSN.LSN_2 := Rter.ReadInteger;
+            FProcCurLSN.LSN_3 := Rter.ReadInteger;
+            Fdbc.dict.Deserialize(mmo);
+            //init;
+            Fstatus := tLS_NotConnectDB;
+            Result := True;
           end;
         end;
       finally
@@ -253,8 +277,7 @@ begin
     except
       on EE:Exception do
       begin
-
-
+        Loger.Add('配置文件读取失败:'+aPath);
       end;
     end;
   finally
@@ -284,6 +307,9 @@ begin
     wter.WriteInteger(Fdbc.dbVer_Major);
     wter.WriteInteger(Fdbc.dbVer_Minor);
     wter.WriteInteger(Fdbc.dbVer_BuildNumber);
+    wter.WriteInteger(FProcCurLSN.LSN_1);
+    wter.WriteInteger(FProcCurLSN.LSN_2);
+    wter.WriteInteger(FProcCurLSN.LSN_3);
     //表结构
     dictBin := Fdbc.dict.Serialize;
     dictBin.seek(0, 0);
@@ -316,9 +342,29 @@ end;
 
 { TLogSourceList }
 
+function TLogSourceList.Exists(Item: TLogSource): Boolean;
+var
+  I:Integer;
+begin
+  for I := 0 to ObjList.Count - 1 do
+  begin
+    if (Get(I).Fdbc.Host = Item.Fdbc.Host) and
+       (Get(I).Fdbc.dbName = Item.Fdbc.dbName) then
+    begin
+      Result := True;
+      Exit;
+    end;
+  end;
+  Result := False;
+end;
+
 function TLogSourceList.Add(Item: TLogSource): Integer;
 begin
-  Result := ObjList.Add(Item);
+  if not Exists(Item) then
+  begin
+    Result := ObjList.Add(Item);
+  end else
+    Result := -1;
 end;
 
 function TLogSourceList.Count: Integer;
@@ -347,6 +393,7 @@ begin
   ObjList.Free;
   inherited;
 end;
+
 
 function TLogSourceList.Get(Index: Integer): TLogSource;
 begin
