@@ -11,6 +11,7 @@ type
       procedure listVlfs(fid:Byte);virtual;abstract;
       procedure listLogBlock(vlfs:PVLF_Info);virtual;abstract;
       procedure custRead(fileId:byte;posi,size:Int64;var OutBuffer:TMemory_data);virtual;abstract;
+      function SearchLsnByTime(adt:TDateTime; var LSN: Tlog_LSN): Boolean;virtual;abstract;
    end;
 
 

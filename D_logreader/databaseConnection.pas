@@ -61,6 +61,7 @@ type
     function GetCollationPropertyFromId(id: Integer): string;
     function GetSchemasName(schema_id: Integer): string;
     function GetObjectIdByPartitionid(partition_id: int64): integer;
+    function GetLastBackupInfo(var lsn: Tlog_LSN;  var backupTime: TDateTime): Boolean;
     /// <summary>
     /// 在Master表执行Sql ，并获取执行结果
     /// </summary>
@@ -449,8 +450,37 @@ begin
       Result := rDataset.Fields[0].AsString;
 
     rDataset.Free;
-  end else begin
-    Result := '';
+  end;
+end;
+
+function TdatabaseConnection.GetLastBackupInfo(var lsn:Tlog_LSN; var backupTime :TDateTime): boolean;
+var
+  rDataset:TCustomADODataSet;
+  aSql:string;
+  lsnStr:string;
+begin
+  Result := False;
+  //aSql := Format('SELECT differential_base_lsn,differential_base_time FROM sys.master_files WHERE database_id = %d AND [type]=0', [dbid]);
+  aSql := Format('select top 1 database_backup_lsn,backup_finish_date from msdb..backupset where database_name=''%s'' order by backup_finish_date desc', [dbName]);
+  if ExecSql(aSql, rDataset) then
+  begin
+    if not rDataset.Eof then
+    begin
+      lsnStr := rDataset.Fields[0].AsString;
+      if Length(lsnStr) >= 16 then
+      begin
+        lsnStr := lsnStr.PadLeft(25, '0');
+        try
+          lsn.LSN_1 := StrToInt(Copy(lsnStr, 1, 10));
+          lsn.LSN_2 := StrToInt(Copy(lsnStr, 11, 10));
+          lsn.LSN_3 := StrToInt(Copy(lsnStr, 22, 5));
+          backupTime := rDataset.Fields[1].AsDateTime;
+          Result := True;
+        except
+        end;
+      end;
+    end;
+    rDataset.Free;
   end;
 end;
 

@@ -5,7 +5,7 @@ interface
 uses
   Windows, Messages, SysUtils, Variants, Classes, Graphics, Controls, Forms,
   Dialogs, StdCtrls, DB, ADODB, databaseConnection, Vcl.ExtCtrls,
-  Vcl.ComCtrls, LogSource;
+  Vcl.ComCtrls, LogSource, p_structDefine;
 
 type
   Tfrm_dbConnectionCfg = class(TForm)
@@ -54,6 +54,7 @@ type
     procedure Button5Click(Sender: TObject);
     procedure RadioButton2Click(Sender: TObject);
   private
+    backlsn: Tlog_LSN;
     procedure checkIptCfg;
     procedure CheckPointSet;
 
@@ -69,8 +70,7 @@ var
 implementation
 
 uses
-  dbHelper, ResHelper, sqlextendedprocHelper, MakCommonfuncs, winshellHelper,
-  p_structDefine, pluginlog;
+  dbHelper, ResHelper, sqlextendedprocHelper, MakCommonfuncs, winshellHelper, pluginlog;
 
 {$R *.dfm}
 
@@ -118,15 +118,29 @@ begin
 end;
 
 procedure Tfrm_dbConnectionCfg.Button2Click(Sender: TObject);
+var
+  backupTime: TDateTime;
 begin
   pnl_CapPoint.BringToFront;
 
+  RadioButton1.Enabled := True;
   RadioButton1.Checked := True;
   RadioButton2.Checked := False;
   Edit1.Enabled := False;
   Edit1.Clear;
   DateTimePicker1.Time := Now;
+  DateTimePicker1.Enabled := False;
   mon_eMsg2.Hide;
+
+  if logsource.Fdbc.GetLastBackupInfo(backlsn, backupTime) then
+  begin
+    DateTimePicker1.Time := backupTime;
+    Edit1.Text := Format('%.8X:%.8X:%.4X', [backlsn.LSN_1, backlsn.LSN_2, backlsn.LSN_3]);
+  end else begin
+    ShowMessage('请对数据库进行一次备份！');
+    RadioButton1.Enabled := False;
+    RadioButton2.Checked := True;
+  end;
 end;
 
 procedure Tfrm_dbConnectionCfg.Button3Click(Sender: TObject);
@@ -249,11 +263,16 @@ begin
 
   if RadioButton1.Checked then
   begin
-    //TODO:根据时间来
-//    databaseConnection.
-    //logsource.GetRawLogByLSN()
-
-
+    //根据最后一次备份来
+    if backlsn.LSN_1=0 then
+    begin
+      mon_eMsg2.Text := '请对数据库进行一次备份后再使用此功能！';
+      mon_eMsg2.Show;
+      Exit;
+    end;
+    logsource.FProcCurLSN.LSN_1 := backlsn.LSN_1;
+    logsource.FProcCurLSN.LSN_2 := backlsn.LSN_2;
+    logsource.FProcCurLSN.LSN_3 := backlsn.LSN_3;
   end else begin
     //效验lsn是否有效
     TmpLst := TStringList.Create;
@@ -345,7 +364,7 @@ end;
 
 procedure Tfrm_dbConnectionCfg.RadioButton2Click(Sender: TObject);
 begin
-  DateTimePicker1.Enabled := RadioButton1.Checked;
+  //DateTimePicker1.Enabled := RadioButton1.Checked;
   Edit1.Enabled := RadioButton2.Checked;
 end;
 

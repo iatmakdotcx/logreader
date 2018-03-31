@@ -71,7 +71,7 @@ type
     Size_Def: Word;   //块默认大小
     BeginLSN: Tlog_LSN;
     UN_2: Word;
-    UN_3: DWORD;   //?? time?
+    UN_3: DWORD;   //?? time? 暂不符合所有数据库日期类型
   end;
 
   PMemory_data = ^TMemory_data;

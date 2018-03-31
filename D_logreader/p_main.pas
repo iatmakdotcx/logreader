@@ -27,6 +27,7 @@ type
     ImageList1: TImageList;
     Button4: TButton;
     Button6: TButton;
+    Button14: TButton;
     procedure FormCreate(Sender: TObject);
     procedure Button3Click(Sender: TObject);
     procedure FormDestroy(Sender: TObject);
@@ -40,6 +41,7 @@ type
     procedure Button5Click(Sender: TObject);
     procedure Button4Click(Sender: TObject);
     procedure Button6Click(Sender: TObject);
+    procedure Button14Click(Sender: TObject);
   private
     { Private declarations }
   public
@@ -71,6 +73,19 @@ end;
 procedure TForm1.Button13Click(Sender: TObject);
 begin
   logsource.loadFromFile('d:\1.bin');
+end;
+
+procedure TForm1.Button14Click(Sender: TObject);
+var
+  lsnStr:string;
+begin
+lsnStr := '534000000029600037';
+    lsnStr := lsnStr.PadLeft(25,'0');
+//  ShowMessage(lsnStr.PadLeft(25,'0'));
+       ShowMessage( Copy(lsnStr, 1, 10));
+    ShowMessage(  Copy(lsnStr, 11, 10));
+  ShowMessage( Copy(lsnStr, 21, 5));
+
 end;
 
 procedure TForm1.Button3Click(Sender: TObject);
@@ -110,7 +125,7 @@ begin
   begin
     ItemIdx := StrToInt(ListView1.Selected.Caption) - 1;
     tlsObj := LogSourceList.Get(ItemIdx);
-
+    tlsObj.Create_picker;
   end;
 end;
 
@@ -152,8 +167,11 @@ procedure TForm1.Button7Click(Sender: TObject);
 var
   oum: TMemory_data;
   mmp: TMemoryStream;
+  logsource :TLogSource;
 begin
-  logsource.cpyFile(2, oum);
+  logsource := LogSourceList.Get(StrToInt(ListView1.Selected.Caption) - 1);
+
+  logsource.cpyFile(4, oum);
   mmp := TMemoryStream.Create;
   mmp.WriteBuffer(oum.data^, oum.dataSize);
   mmp.Seek(0, 0);
@@ -223,6 +241,7 @@ begin
     Tmplogsource := LogSourceList.Get(i);
     with ListView1.Items.Add do
     begin
+      ImageIndex := ord(Tmplogsource.status);
       Caption := IntToStr(i + 1);
       SubItems.Add(Tmplogsource.Fdbc.Host);
       SubItems.Add(Tmplogsource.Fdbc.dbName);

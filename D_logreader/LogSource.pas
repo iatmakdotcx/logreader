@@ -25,6 +25,13 @@ type
     function GetVlf_LSN(LSN: Tlog_LSN): PVLF_Info;
     function GetVlf_SeqNo(SeqNo:DWORD): PVLF_Info;
     function GetRawLogByLSN(LSN: Tlog_LSN;var OutBuffer: TMemory_data): Boolean;
+    /// <summary>
+    /// 根据时间搜索Lsn。返回大于指定时间的第一个 LOP_COMMIT_XACT的Lsn
+    /// </summary>
+    /// <param name="adt"></param>
+    /// <param name="LSN"></param>
+    /// <returns></returns>
+    function SearchLsnByTime(adt:TDateTime; var LSN: Tlog_LSN): Boolean;
     function Create_picker:Boolean;
     procedure Stop_picker;
     function status:LS_STATUE;
@@ -132,6 +139,7 @@ begin
   else
   begin
     FLogPicker := TSql2014LogPicker.Create(Self, FProcCurLSN);
+    Fstatus := tLS_running;
     Result := True;
   end;
 end;
@@ -339,6 +347,16 @@ begin
   end;
 end;
 
+
+function TLogSource.SearchLsnByTime(adt: TDateTime; var LSN: Tlog_LSN): Boolean;
+begin
+  Result := false;
+  LSN.LSN_1 := 0;
+  LSN.LSN_2 := 0;
+  LSN.LSN_3 := 0;
+
+
+end;
 
 { TLogSourceList }
 

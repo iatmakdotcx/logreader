@@ -232,19 +232,19 @@ object frm_dbConnectionCfg: Tfrm_dbConnectionCfg
       ParentFont = False
     end
     object RadioButton1: TRadioButton
-      Left = 141
-      Top = 101
-      Width = 65
+      Left = 107
+      Top = 99
+      Width = 111
       Height = 17
-      Caption = #26102#38388
+      Caption = #26368#21518#19968#27425#22791#20221#26102#38388
       Checked = True
       TabOrder = 0
       TabStop = True
       OnClick = RadioButton2Click
     end
     object DateTimePicker1: TDateTimePicker
-      Left = 212
-      Top = 99
+      Left = 227
+      Top = 98
       Width = 186
       Height = 21
       Date = 43188.507921076380000000

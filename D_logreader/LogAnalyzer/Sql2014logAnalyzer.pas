@@ -123,6 +123,8 @@ begin
   DDL := TDDLMgr.Create;
   AllocUnitMgr := TAllocUnitMgr.Create;
   IDXs:=TDDL_Idxs_ColsMgr.Create;
+
+  Self.NameThreadForDebugging('TSql2014logAnalyzer', Self.ThreadID);
 end;
 
 destructor TSql2014logAnalyzer.Destroy;
@@ -214,7 +216,7 @@ begin
   begin
     fieldval := PdbFieldValue(aRowData.Fields[I]);
     fields := fields + ',' + fieldval.field.getSafeColName;
-    StrVal := StrVal + ',' + Hvu_GetFieldStrValue(fieldval.field, fieldval.value);
+    StrVal := StrVal + ',' + Hvu_GetFieldStrValueWithQuoteIfNeed(fieldval.field, fieldval.value);
   end;
   if aRowData.Fields.Count > 0 then
   begin
@@ -242,7 +244,7 @@ begin
         fieldval := PdbFieldValue(aRowData.Fields[J]);
         if fieldval.field.Col_id = field.Col_id then
         begin
-          whereStr := whereStr + Format('and %s=%s ', [fieldval.field.getSafeColName, Hvu_GetFieldStrValue(fieldval.field, fieldval.value)]);
+          whereStr := whereStr + Format('and %s=%s ', [fieldval.field.getSafeColName, Hvu_GetFieldStrValueWithQuoteIfNeed(fieldval.field, fieldval.value)]);
           Break;
         end;
       end;
@@ -253,7 +255,7 @@ begin
     for I := 0 to aRowData.Fields.Count - 1 do
     begin
       fieldval := PdbFieldValue(aRowData.Fields[I]);
-      whereStr := whereStr + Format('and %s=%s ', [fieldval.field.getSafeColName, Hvu_GetFieldStrValue(fieldval.field, fieldval.value)]);
+      whereStr := whereStr + Format('and %s=%s ', [fieldval.field.getSafeColName, Hvu_GetFieldStrValueWithQuoteIfNeed(fieldval.field, fieldval.value)]);
     end;
   end;
   if whereStr.Length > 0 then
@@ -1866,19 +1868,19 @@ begin
 
   Move(FTranspkg.Ftransid, mm.data^, SizeOf(Ttrans_ID));
   datatOffset := SizeOf(Ttrans_ID);
-  Move(FTranspkg.Items.Count, Pointer(Integer(mm.data) + datatOffset)^, 2);
+  Move(FTranspkg.Items.Count, Pointer(UIntPtr(mm.data) + datatOffset)^, 2);
   datatOffset := datatOffset + 2;
   for I := 0 to FTranspkg.Items.Count - 1 do
   begin
-    //65536个大小一般情况下是够了，如果是image类型可能会超过此大小 ，所以这个直接定义成Dword大小 ，如果文件超过4GB，这里就呵呵哒了
+    //65536个大小一般情况下是够了，每个块最多就8K，大于8k的数据会拆分成N个块
 
-    Move(TTransPkgItem(FTranspkg.Items[I]).Raw.dataSize, Pointer(Integer(mm.data) + datatOffset)^, 4);
+    Move(TTransPkgItem(FTranspkg.Items[I]).Raw.dataSize, Pointer(UIntPtr(mm.data) + datatOffset)^, 4);
     datatOffset := datatOffset + 4;
   end;
 
   for I := 0 to FTranspkg.Items.Count - 1 do
   begin
-    Move(TTransPkgItem(FTranspkg.Items[I]).Raw.data^, Pointer(Integer(mm.data) + datatOffset)^, TTransPkgItem(FTranspkg.Items[I]).Raw.dataSize);
+    Move(TTransPkgItem(FTranspkg.Items[I]).Raw.data^, Pointer(UIntPtr(mm.data) + datatOffset)^, TTransPkgItem(FTranspkg.Items[I]).Raw.dataSize);
     datatOffset := datatOffset + TTransPkgItem(FTranspkg.Items[I]).Raw.dataSize;
   end;
 end;

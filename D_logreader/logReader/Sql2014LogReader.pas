@@ -10,15 +10,18 @@ type
   TSql2014LogReader = class(TlogReader)
   private
     FLogSource: TLogSource;
-    FdataProvider: array[0..256] of TLogProvider;     //最多只能有256个物理日志文件
-
-    procedure listVlfs(fid: Byte); override;
-    procedure listLogBlock(vlfs: PVLF_Info); override;
-    function GetRawLogByLSN(LSN: Tlog_LSN; vlfs: PVLF_Info; var OutBuffer: TMemory_data): Boolean; override;
+    FdataProvider: array[0..256] of TLogProvider;   //最多只能有256个物理日志文件
+    function SearchLsnByTime_GetVLFTime(Fpxvlf: TVLF_Info): QWORD;
+    function SearchLsnByTime_SearchVlfBlock(Fpxvlf: TVLF_Info;adt: TDateTime; var LSN: Tlog_LSN): Boolean;
   public
     constructor Create(LogSource: TLogSource);
     destructor Destroy; override;
+    procedure listVlfs(fid: Byte); override;
+    procedure listLogBlock(vlfs: PVLF_Info); override;
+    function GetRawLogByLSN(LSN: Tlog_LSN; vlfs: PVLF_Info; var OutBuffer: TMemory_data): Boolean; override;
+    function SearchLsnByTime(adt:TDateTime; var LSN: Tlog_LSN): Boolean; override;
     procedure custRead(fileId: byte; posi, size: Int64; var OutBuffer: TMemory_data); override;
+    procedure RepairLogBlockAppendData(Pnt:Pointer;logBlock:PlogBlock);
   end;
 
   TSql2014LogPicker = class(TLogPicker)
@@ -31,7 +34,7 @@ type
     Fvlf:PVLF_Info;
     pkgMgr: TTransPkgMgr;
     FAnalyzer:TSql2014logAnalyzer;
-    procedure RepairLogBlockAppendData(Pnt: Pointer);
+    procedure RepairLogBlockAppendData(Pnt: Pointer; logBlock:PlogBlock);
   public
     constructor Create(LogSource: TLogSource; BeginLsn: Tlog_LSN);
     destructor Destroy; override;
@@ -43,7 +46,7 @@ implementation
 
 uses
   Windows, SysUtils, Memory_Common, pluginlog, LocalDbLogProvider, OpCode,
-  plugins;
+  plugins, hexValUtils;
 
 { TSql2014LogReader }
 
@@ -99,7 +102,7 @@ function TSql2014LogReader.GetRawLogByLSN(LSN: Tlog_LSN; vlfs: PVLF_Info; var Ou
 var
   pbb: PVLFHeader;
   abuf: PlogBlock;
-  LogBlockPosi, RowPosi, RowLength: Integer;
+  LogBlockPosi, RowPosi, RowLength: UIntPtr;
   RowOffset, RowOffset2: Word;
 begin
   Result := False;
@@ -194,13 +197,13 @@ begin
           Loger.Add('invalid lsn [6] get RowOffset Fail!%s', [LSN2Str(LSN)]);
           Exit;
         end;
-        if not FdataProvider[vlfs.fileId].Read_Word(RowOffset2, LogBlockPosi + 1) then
+        if not FdataProvider[vlfs.fileId].Read_Word(RowOffset2, LogBlockPosi - 2) then
         begin
           Loger.Add('invalid lsn [7] get RowOffset Fail!%s', [LSN2Str(LSN)]);
           Exit;
         end;
         RowPosi := RowPosi + RowOffset;
-        RowLength := RowOffset - RowOffset2;
+        RowLength := RowOffset2 - RowOffset;
       end;
 
       OutBuffer.data := AllocMem(RowLength);
@@ -280,6 +283,313 @@ begin
   Dispose(pbb);
 end;
 
+procedure TSql2014LogReader.RepairLogBlockAppendData(Pnt: Pointer;logBlock:PlogBlock);
+var
+  bBlockPosi:UIntPtr;
+  eBlockPosi:UIntPtr;
+begin
+  bBlockPosi := 0;
+  eBlockPosi := UIntPtr(Pnt) + logBlock.Size - 1;
+  while bBlockPosi < logBlock.Size do
+  begin
+    PByte(UIntPtr(Pnt) + bBlockPosi)^ := Pbyte(eBlockPosi)^;
+    bBlockPosi := bBlockPosi + $200;
+    eBlockPosi := eBlockPosi - 1;
+  end;
+end;
+
+
+function TSql2014LogReader.SearchLsnByTime_GetVLFTime(Fpxvlf: TVLF_Info):QWORD;
+var
+  vlfHeader: PVLFHeader;
+  LogBlockPosi: UIntPtr;
+  logBlock: PlogBlock;
+  TmpOffset:UIntPtr;
+  logBlockBuf:Pointer; //因为对整块的读取会很多，这里直接先放到缓冲区
+  rowStartOffset:Word;
+
+  log_Normal:PRawLog;
+  LogTime:QWORD;
+begin
+  Result := 0;
+  new(vlfHeader);
+  new(logBlock);
+  try
+    if (FdataProvider[Fpxvlf.fileId].Read_Bytes(vlfHeader^, Fpxvlf.VLFOffset, SizeOf(TVLFHeader)) <> SizeOf(TVLFHeader)) then
+    begin
+      Loger.Add('SearchLsnByTime.GetVLFTime:vlfHeader Read fail! no more data !%s');
+      Exit;
+    end;
+    if (vlfHeader.VLFHeadFlag <> $AB) or (vlfHeader.SeqNo <> Fpxvlf.SeqNo) then
+    begin
+      Loger.Add('SearchLsnByTime.GetVLFTime:vlfHeader check Error !%s');
+      Exit;
+    end;
+    LogBlockPosi := Fpxvlf.VLFOffset + $2000;
+    //这个循环，获取vlf中出现的第一个时间
+    while LogBlockPosi < Fpxvlf.VLFOffset + Fpxvlf.VLFSize do
+    begin
+      if (FdataProvider[Fpxvlf.fileId].Read_Bytes(logBlock^, LogBlockPosi, SizeOf(TlogBlock)) <> SizeOf(TlogBlock)) then
+      begin
+        Loger.Add('SearchLsnByTime.GetVLFTime:logBlock Read fail! no more data !%s');
+        Exit;
+      end;
+      if logBlock.flag <> 0 then
+      begin
+        if logBlock.BeginLSN.LSN_1 <> Fpxvlf.SeqNo then
+        begin
+          //走到这里，说明当前vlf中前半部分被新日志覆盖，后面是老数据（正在使用的vlf）
+          Exit;
+        end
+        else
+        begin
+          //这里在循环读取每一个虚拟文件块
+          //虚拟文件块是按时间存放的（一个虚拟文件块中，可能不存在LOP_BEGIN_XACT 和 LOP_COMMIT_XACT
+          logBlockBuf := AllocMem(logBlock.endOfBlock);  //最大一个块$FFFF
+          if (FdataProvider[Fpxvlf.fileId].Read_Bytes(logBlockBuf^, LogBlockPosi, logBlock.endOfBlock) <> logBlock.endOfBlock) then
+          begin
+            Loger.Add('SearchLsnByTime.GetVLFTime:logBlock Read fail! no more data !%s');
+            Exit;
+          end;
+          TmpOffset := logBlock.endOfBlock - logBlock.OperationCount * 2;
+          LogTime := 0;
+          while TmpOffset < logBlock.endOfBlock do
+          begin
+            rowStartOffset := PWord(UIntPtr(logBlockBuf)+ TmpOffset)^;
+            if rowStartOffset < logBlock.endOfBlock then
+            begin
+              log_Normal := Pointer(UIntPtr(logBlockBuf) + rowStartOffset);
+              if log_Normal.OpCode = LOP_BEGIN_XACT then
+              begin
+                LogTime := PRawLog_BEGIN_XACT(log_Normal).Time;
+                Break;
+              end
+              else if log_Normal.OpCode = LOP_COMMIT_XACT then
+              begin
+                LogTime := PRawLog_COMMIT_XACT(log_Normal).Time;
+                Break;
+              end;
+              rowStartOffset := rowStartOffset + 2;
+            end;
+          end;
+          FreeMem(logBlockBuf);
+          if LogTime > 0 then
+          begin
+            //这个块有包含时间的日志
+            Result := LogTime;
+            Break;
+          end;
+          LogBlockPosi := LogBlockPosi + logBlock.Size;
+        end;
+      end
+      else
+      begin
+        LogBlockPosi := LogBlockPosi + $200;
+      end;
+    end;
+  finally
+    Dispose(vlfHeader);
+    Dispose(logBlock);
+  end;
+end;
+
+
+function TSql2014LogReader.SearchLsnByTime_SearchVlfBlock(Fpxvlf: TVLF_Info;adt: TDateTime; var LSN: Tlog_LSN):Boolean;
+var
+  vlfHeader: PVLFHeader;
+  LogBlockPosi: UIntPtr;
+  logBlock: PlogBlock;
+  TmpOffset:UIntPtr;
+  logBlockBuf:Pointer; //因为对整块的读取会很多，这里直接先放到缓冲区
+  rowStartOffset:Word;
+
+  log_Normal:PRawLog;
+  LogTime:QWORD;
+begin
+  Result := False;
+  new(vlfHeader);
+  new(logBlock);
+  try
+    if (FdataProvider[Fpxvlf.fileId].Read_Bytes(vlfHeader^, Fpxvlf.VLFOffset, SizeOf(TVLFHeader)) <> SizeOf(TVLFHeader)) then
+    begin
+      Loger.Add('SearchLsnByTime.SearchVlfBlock:vlfHeader Read fail! no more data !%s');
+      Exit;
+    end;
+    if (vlfHeader.VLFHeadFlag <> $AB) or (vlfHeader.SeqNo <> Fpxvlf.SeqNo) then
+    begin
+      Loger.Add('SearchLsnByTime.SearchVlfBlock:vlfHeader check Error !%s');
+      Exit;
+    end;
+
+    LogBlockPosi := Fpxvlf.VLFOffset + $2000;
+    while LogBlockPosi < Fpxvlf.VLFOffset + Fpxvlf.VLFSize do
+    begin
+      if (FdataProvider[Fpxvlf.fileId].Read_Bytes(logBlock^, LogBlockPosi, SizeOf(TlogBlock)) <> SizeOf(TlogBlock)) then
+      begin
+        Loger.Add('SearchLsnByTime.SearchVlfBlock:logBlock Read fail! no more data !%s');
+        Exit;
+      end;
+      if logBlock.flag <> 0 then
+      begin
+        if logBlock.BeginLSN.LSN_1 <> Fpxvlf.SeqNo then
+        begin
+          //走到这里，说明当前vlf中前半部分被新日志覆盖，后面是老数据（正在使用的vlf）
+          Exit;
+        end
+        else
+        begin
+          //这里在循环读取每一个虚拟文件块
+          //虚拟文件块是按时间存放的（一个虚拟文件块中，可能不存在LOP_BEGIN_XACT 和 LOP_COMMIT_XACT
+          logBlockBuf := AllocMem(logBlock.endOfBlock);  //最大一个块$2000
+          if (FdataProvider[Fpxvlf.fileId].Read_Bytes(logBlockBuf^, LogBlockPosi, logBlock.endOfBlock) <> logBlock.endOfBlock) then
+          begin
+            Loger.Add('SearchLsnByTime.GetVLFTime:logBlock Read fail! no more data !%s');
+            Exit;
+          end;
+          RepairLogBlockAppendData(logBlockBuf, LogBlock);
+          TmpOffset := logBlock.endOfBlock - logBlock.OperationCount * 2;
+          LogTime := 0;
+          while TmpOffset < logBlock.endOfBlock do
+          begin
+            rowStartOffset := PWord(UIntPtr(logBlockBuf)+ TmpOffset)^;
+            if rowStartOffset < logBlock.endOfBlock then
+            begin
+              log_Normal := Pointer(UIntPtr(logBlockBuf) + rowStartOffset);
+              if log_Normal.OpCode = LOP_BEGIN_XACT then
+              begin
+                LogTime := PRawLog_BEGIN_XACT(log_Normal).Time;
+                Break;
+              end
+              else if log_Normal.OpCode = LOP_COMMIT_XACT then
+              begin
+                LogTime := PRawLog_COMMIT_XACT(log_Normal).Time;
+                Break;
+              end;
+              if True then
+
+
+
+
+              rowStartOffset := rowStartOffset + 2;
+            end;
+          end;
+          FreeMem(logBlockBuf);
+          if LogTime > 0 then
+          begin
+            //这个块有包含时间的日志
+//            Result := LogTime;
+
+
+
+
+
+
+
+
+
+            Break;
+          end;
+
+
+
+
+
+
+          LogBlockPosi := LogBlockPosi + logBlock.Size;
+        end;
+      end
+      else
+      begin
+        LogBlockPosi := LogBlockPosi + $200;
+      end;
+    end;
+  finally
+    Dispose(vlfHeader);
+    Dispose(logBlock);
+  end;
+
+end;
+
+function TSql2014LogReader.SearchLsnByTime(adt: TDateTime; var LSN: Tlog_LSN): Boolean;
+var
+  Ssvlf: PVLF_Info;
+  I: Integer;
+  vlfQWTime:QWORD;
+  vlfTime:TDateTime;
+begin
+  //根据最后一次备份时间来，这里就不处理了
+  raise Exception.Create('Error 未完成');
+
+  Result := False;
+  if Length(FLogSource.Fdbc.FVLF_List)=0 then
+    FLogSource.Fdbc.getDb_VLFs;
+  //查找最大的FSeqNo
+  Ssvlf := nil;
+  for I := 0 to length(FLogSource.Fdbc.FVLF_List) - 1 do
+  begin
+    if (Ssvlf = nil) or (FLogSource.Fdbc.FVLF_List[I].SeqNo > Ssvlf.SeqNo) then
+    begin
+      Ssvlf := @FLogSource.Fdbc.FVLF_List[I];
+    end;
+  end;
+  if Ssvlf = nil then
+  begin
+    Loger.Add(' SearchLsnByTime:VLF_List 加载失败！ 无法继续搜索！');
+    Exit;
+  end;
+  //倒叙查找每一个VLF
+  while Ssvlf = nil do
+  begin
+    vlfQWTime := SearchLsnByTime_GetVLFTime(Ssvlf^);
+    if vlfQWTime = 0 then
+    begin
+      //获取时间失败(原因可能是vlf定义过小，一次写入了过大的文件，
+      Ssvlf := FLogSource.GetVlf_SeqNo(Ssvlf.SeqNo - 1);
+      if Ssvlf = nil then
+      begin
+        //前面没有块了。
+        Loger.Add(' SearchLsnByTime:指定的时间过早！！！！小于最小日志时间！');
+        Exit;
+      end;
+    end else begin
+      vlfTime := Hvu_Hex2Datetime(vlfQWTime);
+      if vlfTime < adt then
+      begin
+        //当前块的开始时间小于指定时间：（目标肯定在当前块，因为是倒叙依次搜索过来的
+        break;
+      end else begin
+        //当前块大于指定时间，继续向前查找
+        Ssvlf := FLogSource.GetVlf_SeqNo(Ssvlf.SeqNo - 1);
+        if Ssvlf = nil then
+        begin
+          //前面没有块了。
+          Loger.Add(' SearchLsnByTime:指定的时间过早！！！！小于最小日志时间！');
+          Exit;
+        end;
+      end;
+    end;
+  end;
+
+  if Ssvlf<>nil then
+  begin
+    //在整个vlf中 搜索
+    if SearchLsnByTime_SearchVlfBlock(Ssvlf^, adt, LSN) then
+    begin
+
+
+    end;
+
+   
+
+
+
+  end;
+
+
+
+
+end;
+
 { TSql2014LogPicker }
 
 constructor TSql2014LogPicker.Create(LogSource: TLogSource; BeginLsn: Tlog_LSN);
@@ -295,6 +605,7 @@ begin
   New(Fvlf);
 
   FAnalyzer := TSql2014logAnalyzer.Create(pkgMgr, LogSource);
+  Self.NameThreadForDebugging('TSql2014LogPicker', Self.ThreadID);
 end;
 
 destructor TSql2014LogPicker.Destroy;
@@ -312,14 +623,14 @@ begin
   inherited;
 end;
 
-procedure TSql2014LogPicker.RepairLogBlockAppendData(Pnt:Pointer);
+procedure TSql2014LogPicker.RepairLogBlockAppendData(Pnt:Pointer; logBlock:PlogBlock);
 var
-  bBlockPosi:DWORD;
-  eBlockPosi:DWORD;
+  bBlockPosi:UIntPtr;
+  eBlockPosi:UIntPtr;
 begin
   bBlockPosi := 0;
-  eBlockPosi := UIntPtr(Pnt) + FlogBlock.Size - 1;
-  while bBlockPosi < FlogBlock.Size do
+  eBlockPosi := UIntPtr(Pnt) + logBlock.Size - 1;
+  while bBlockPosi < logBlock.Size do
   begin
     PByte(UIntPtr(Pnt) + bBlockPosi)^ := Pbyte(eBlockPosi)^;
     bBlockPosi := bBlockPosi + $200;
@@ -334,14 +645,14 @@ var
   vlf: PVLF_Info;
   LogBlockPosi: Int64;
   RowLength: Integer;
-  RowOffset:DWORD;
+  RowOffset:UIntPtr;
   RowdataBuffer: Pointer;
   RowOffsetTable: array of Word;
   RIdx: Integer; //要获取的第N行
   I: Integer;
   NowLsn: Tlog_LSN;
   RawData: TMemory_data;
-  LogBlock:Pointer;
+  LogBlockBuf:Pointer;
 //  TmPPosition:Integer;
 begin
   if (FBeginLsn.LSN_1 = 0) or (FBeginLsn.LSN_2 = 0) or (FBeginLsn.LSN_3 = 0) then
@@ -409,26 +720,25 @@ begin
     Loger.Add('LogPicker.Execute:LSN RowId no found !%s', [LSN2Str(FBeginLsn)], LOG_ERROR);
     Exit;
   end;
-
+  RIdx := FBeginLsn.LSN_3 - 1;
   while not Terminated do
   begin
     while True do  //循环块
     begin
       //先读出整个块，然后处理末尾的修复数据
-      LogBlock := AllocMem(FlogBlock.Size);
-      if FLogReader.FdataProvider[Fvlf.fileId].Read_Bytes(LogBlock^, LogBlockPosi, FlogBlock.Size)<>FlogBlock.Size then
+      LogBlockBuf := AllocMem(FlogBlock.Size);
+      if FLogReader.FdataProvider[Fvlf.fileId].Read_Bytes(LogBlockBuf^, LogBlockPosi, FlogBlock.Size)<>FlogBlock.Size then
       begin
         Loger.Add('LogPicker.Execute:get LogBlock  fail!%s', [LSN2Str(FBeginLsn)], LOG_ERROR);
-        FreeMem(LogBlock);
+        FreeMem(LogBlockBuf);
         Exit;
       end;
-      RepairLogBlockAppendData(LogBlock);
+      RepairLogBlockAppendData(LogBlockBuf, FlogBlock);
       SetLength(RowOffsetTable, FlogBlock.OperationCount);
       for I := 0 to FlogBlock.OperationCount - 1 do
       begin
-        RowOffsetTable[I] := PWORD(UIntPtr(LogBlock) + UIntPtr(FlogBlock.endOfBlock - I * 2 - 2))^;
+        RowOffsetTable[I] := PWORD(UIntPtr(LogBlockBuf) + UIntPtr(FlogBlock.endOfBlock - I * 2 - 2))^;
       end;
-      RIdx := 0;
       if FlogBlock.BeginLSN.LSN_3 <> 1 then
       begin
         Loger.Add('LogPicker.Execute:FlogBlock is not begin from 1!%s', [LSN2Str(FBeginLsn)], LOG_ERROR);
@@ -439,12 +749,12 @@ begin
         if RIdx = FlogBlock.OperationCount - 1 then
         begin
           //最后一个
-          RowOffset := UIntPtr(LogBlock) + RowOffsetTable[RIdx];
-          RowLength := UIntPtr(LogBlock) + UIntPtr(FlogBlock.endOfBlock - FlogBlock.OperationCount * 2) - RowOffset;
+          RowOffset := UIntPtr(LogBlockBuf) + RowOffsetTable[RIdx];
+          RowLength := UIntPtr(LogBlockBuf) + UIntPtr(FlogBlock.endOfBlock - FlogBlock.OperationCount * 2) - RowOffset;
         end
         else
         begin
-          RowOffset := UIntPtr(LogBlock) + RowOffsetTable[RIdx];
+          RowOffset := UIntPtr(LogBlockBuf) + RowOffsetTable[RIdx];
           RowLength := RowOffsetTable[RIdx + 1] - RowOffsetTable[RIdx];
         end;
         RowdataBuffer := AllocMem(RowLength);
@@ -484,7 +794,8 @@ begin
           goto ExitLabel;
         end;
       end;
-      FreeMem(LogBlock);
+      FreeMem(LogBlockBuf);
+      RIdx := 0;
       //一个块儿处理完 继续下一个块
       LogBlockPosi := LogBlockPosi + FlogBlock.Size;
       if (LogBlockPosi + SizeOf(TlogBlock)) > (Fvlf.VLFOffset + Fvlf.VLFSize) then
@@ -500,9 +811,9 @@ begin
           Loger.Add('LogPicker.Execute:Next logBlock Read fail! no more data !%s', [LSN2Str(FBeginLsn)], LOG_ERROR);
           Exit;
         end;
-        if (FlogBlock.flag <> 0) and (FlogBlock.Size <> 0) then
+        if (FlogBlock.flag <> 0) and (FlogBlock.Size <> 0) and (FBeginLsn.LSN_1 = FlogBlock.BeginLSN.LSN_1) then
         begin
-          Break
+          Break;
         end;
         //如果这个块还没有被初始化，就等10s在读取一次. <<<必须每秒响应一次 Terminated>>>
         for I := 0 to 10 - 1 do
@@ -570,8 +881,8 @@ label
 var
   vlf: PVLF_Info;
   Fpxvlf: TVLF_Info;
-  LogBlockPosi: Int64;
-  RowLength, RowOffset: Integer;
+  LogBlockPosi: UIntPtr;
+  RowLength, RowOffset: UIntPtr;
   RowdataBuffer: Pointer;
   RowOffsetTable: array of Word;
   RIdx: Integer; //要获取的第N行
@@ -582,6 +893,7 @@ var
   logBlock: PlogBlock;
   prl:PRawLog;
   OpCode:Integer;
+  LogBlockBuf:Pointer;
 begin
   New(vlfHeader);
   New(logBlock);
@@ -656,48 +968,40 @@ begin
     Loger.Add('LogPicker.getTransBlock:LSN RowId no found !%s', [LSN2Str(rawlog.BeginLsn)], LOG_ERROR);
     Exit;
   end;
-
-  while True do // 循环Vlfs 直到 LOP_COMMIT_XACT
+  RIdx := rawlog.BeginLsn.LSN_3 - 1;
+  while True do // 循环Vlfs
   begin
     while True do  //循环块
     begin
+      //先读出整个块，然后处理末尾的修复数据
+      LogBlockBuf := AllocMem(logBlock.Size);
+      if FLogReader.FdataProvider[Fpxvlf.fileId].Read_Bytes(LogBlockBuf^, LogBlockPosi, logBlock.Size)<>logBlock.Size then
+      begin
+        Loger.Add('LogPicker.Execute:get LogBlock  fail!%s', [LSN2Str(rawlog.BeginLsn)], LOG_ERROR);
+        FreeMem(LogBlockBuf);
+        Exit;
+      end;
+      RepairLogBlockAppendData(LogBlockBuf, logBlock);
       SetLength(RowOffsetTable, logBlock.OperationCount);
       for I := 0 to logBlock.OperationCount - 1 do
       begin
-        if not FLogReader.FdataProvider[Fpxvlf.fileId].Read_word(RowOffsetTable[I], LogBlockPosi + logBlock.endOfBlock - I * 2 - 2) then
-        begin
-          Loger.Add('LogPicker.getTransBlock:get RowOffsetTable fail!%s', [LSN2Str(rawlog.BeginLsn)], LOG_ERROR);
-          SetLength(RowOffsetTable, 0);
-          Exit;
-        end;
+        RowOffsetTable[I] := PWORD(UIntPtr(LogBlockBuf) + UIntPtr(logBlock.endOfBlock - I * 2 - 2))^;
       end;
-      RIdx := rawlog.BeginLsn.LSN_3;
-      while RIdx <= logBlock.OperationCount do  //循环行
+      while RIdx < logBlock.OperationCount do  //循环行
       begin
-        if logBlock.BeginLSN.LSN_3 <> 1 then
-        begin
-          //TODO 1: 这里存在隐患，RIdx（行id）如果不是从1开始的就挂惨了
-          Loger.AddException('LogPicker.getTransBlock:FlogBlock is not begin from 1!%s', [LSN2Str(rawlog.BeginLsn)], LOG_ERROR);
-        end;
-
-        if RIdx = logBlock.OperationCount then
+        if RIdx = logBlock.OperationCount - 1 then
         begin
           //最后一个
-          RowOffset := LogBlockPosi + RowOffsetTable[RIdx - 1];
-          RowLength := LogBlockPosi + (logBlock.endOfBlock - logBlock.OperationCount * 2) - RowOffset;
+          RowOffset := UIntPtr(LogBlockBuf) + RowOffsetTable[RIdx];
+          RowLength := UIntPtr(LogBlockBuf) + (logBlock.endOfBlock - logBlock.OperationCount * 2) - RowOffset;
         end
         else
         begin
-          RowOffset := LogBlockPosi + RowOffsetTable[RIdx - 1];
-          RowLength := RowOffsetTable[RIdx] - RowOffsetTable[RIdx - 1];
+          RowOffset := UIntPtr(LogBlockBuf) + RowOffsetTable[RIdx];
+          RowLength := RowOffsetTable[RIdx+1] - RowOffsetTable[RIdx];
         end;
         RowdataBuffer := AllocMem(RowLength);
-        if FLogReader.FdataProvider[Fpxvlf.fileId].Read_bytes(RowdataBuffer^, RowOffset, RowLength) <> RowLength then
-        begin
-          Loger.Add('LogPicker.getTransBlock:get Row log fail!%s', [LSN2Str(rawlog.BeginLsn)], LOG_ERROR);
-          FreeMem(RowdataBuffer);
-          Exit;
-        end;
+        MoveMemory(RowdataBuffer, Pointer(RowOffset), RowLength);
         //如果成功。。
         prl := RowdataBuffer;
         if (prl.TransID.Id1=rawlog.normalData.TransID.Id1) and (prl.TransID.Id2=rawlog.normalData.TransID.Id2) then
@@ -705,7 +1009,7 @@ begin
           //只找这个事务的数据
           NowLsn.LSN_1 := logBlock.BeginLSN.LSN_1;
           NowLsn.LSN_2 := logBlock.BeginLSN.LSN_2;
-          NowLsn.LSN_3 := RIdx;
+          NowLsn.LSN_3 := logBlock.BeginLSN.LSN_3 + RIdx;
           RawData.data := RowdataBuffer;
           RawData.dataSize := RowLength;
           OpCode := prl.OpCode;
@@ -721,14 +1025,14 @@ begin
         end;
         //下一行
         RIdx := RIdx + 1;
-        rawlog.BeginLsn.LSN_3 := RIdx;
-
         if Terminated then
         begin
           //响应 Terminated
           goto ExitLabel;
         end;
       end;
+      RIdx := 0;
+      FreeMem(LogBlockBuf);
       //一个块儿处理完 继续下一个块
       LogBlockPosi := LogBlockPosi + logBlock.Size;
       if (LogBlockPosi + SizeOf(TlogBlock)) > (Fpxvlf.VLFOffset + Fpxvlf.VLFSize) then
