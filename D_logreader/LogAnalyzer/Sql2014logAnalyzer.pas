@@ -82,6 +82,9 @@ type
     function GenSql_CreateColumn(ddlitem: TDDL_Create_Column): string;
     function getColsTypeStr(col: TdbFieldItem): string;
     function GenSql_DropColumn(ddlitem: TDDL_Delete_Column): string;
+    function DML_BuilderSql_Update(aRowData: Tsql2014RowData): string;
+    procedure PriseRowLog_MODIFY_ROW(tPkg: TTransPkgItem);
+    procedure PriseRowLog_MODIFY_COLUMNS(tPkg: TTransPkgItem);
   public
     /// <summary>
     ///
@@ -195,12 +198,18 @@ begin
     Opt_Insert:
       Result := DML_BuilderSql_Insert(aRowData);
     Opt_Update:
-      ;
+      Result := DML_BuilderSql_Update(aRowData);
     Opt_Delete:
       Result := DML_BuilderSql_Delete(aRowData);
   else
     Loger.Add('尚未定義的SQLBuilder');
   end;
+end;
+
+function TSql2014logAnalyzer.DML_BuilderSql_Update(aRowData: Tsql2014RowData): string;
+begin
+  Loger.Add(' ========================update============ ');
+
 end;
 
 function TSql2014logAnalyzer.DML_BuilderSql_Insert(aRowData: Tsql2014RowData): string;
@@ -1799,6 +1808,20 @@ begin
   end;
 end;
 
+procedure TSql2014logAnalyzer.PriseRowLog_MODIFY_ROW(tPkg: TTransPkgItem);
+begin
+  Loger.Add('===========================PriseRowLog_MODIFY_ROW============================');
+
+
+end;
+
+procedure TSql2014logAnalyzer.PriseRowLog_MODIFY_COLUMNS(tPkg: TTransPkgItem);
+begin
+  Loger.Add('===========================PriseRowLog_MODIFY_COLUMNS============================');
+
+
+end;
+
 procedure TSql2014logAnalyzer.PriseRowLog(tPkg: TTransPkgItem);
 var
   Rl: PRawLog;
@@ -1817,17 +1840,16 @@ begin
     end
     else if Rl.OpCode = LOP_MODIFY_ROW then  //修改单个块
     begin
-
+      PriseRowLog_MODIFY_ROW(tPkg);
     end
     else if Rl.OpCode = LOP_MODIFY_COLUMNS then  //修改多个块
     begin
-
+      PriseRowLog_MODIFY_COLUMNS(tPkg);
     end
     else if Rl.OpCode = LOP_BEGIN_XACT then
     begin
       Rlbx := tPkg.Raw.data;
       TransBeginTime := Hvu_Hex2Datetime(Rlbx.Time);
-
     end
     else if Rl.OpCode = LOP_COMMIT_XACT then
     begin

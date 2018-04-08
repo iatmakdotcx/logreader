@@ -70,6 +70,8 @@ type
       f_path: string;
       SaveCs: TCriticalSection;
       dbids: TDbidCustomBucketList;
+    procedure dbidsObjAction(AItem, AData: Pointer; out AContinue: Boolean);
+    procedure VlfMgrObjAction(AItem, AData: Pointer; out AContinue: Boolean);
   public
     constructor Create;
     destructor Destroy; override;
@@ -84,7 +86,7 @@ type
   end;
 
 
-//function savePageLog2: Boolean;
+function savePageLog2: Boolean;
 
 var
   PagelogFileMgr: TPagelogFileMgr;
@@ -204,9 +206,22 @@ end;
 
 destructor TPagelogFileMgr.Destroy;
 begin
+  dbids.ForEach(dbidsObjAction);
+  dbids.Clear;
   dbids.Free;
   SaveCs.Free;
   inherited;
+end;
+
+procedure TPagelogFileMgr.VlfMgrObjAction(AItem, AData: Pointer; out AContinue: Boolean);
+begin
+  TVlfMgr(AData).free;
+end;
+
+procedure TPagelogFileMgr.dbidsObjAction(AItem, AData: Pointer; out AContinue: Boolean);
+begin
+  TDbidCustomBucketList(AData).ForEach(VlfMgrObjAction);
+  TDbidCustomBucketList(AData).Free;
 end;
 
 function TPagelogFileMgr.LogDataSaveToFile(dbid: Word; lsn1: DWORD; lsn2: WORD; logs: TList; data: TMemoryStream): Boolean;

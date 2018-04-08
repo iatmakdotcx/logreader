@@ -1018,7 +1018,10 @@ begin
             FreeMem(RowdataBuffer);
           end;
           if OpCode = LOP_COMMIT_XACT then
+          begin
+            FreeMem(LogBlockBuf);
             goto ExitLabel;
+          end;
         end else begin
           //不是当前事务的数据，这里直接释放掉
           FreeMem(RowdataBuffer);
@@ -1028,6 +1031,7 @@ begin
         if Terminated then
         begin
           //响应 Terminated
+          FreeMem(LogBlockBuf);
           goto ExitLabel;
         end;
       end;

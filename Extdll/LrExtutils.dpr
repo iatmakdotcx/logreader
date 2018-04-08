@@ -282,12 +282,12 @@ begin
 
   if Assigned(_Lc_doHook) and (SVR_hookPnt > 0) then
   begin
+    if loopSaveMgr = nil then
+      loopSaveMgr := TloopSaveMgr.Create;
     hookPnt := _Lc_doHook(SVR_hookPnt);
     if hookPnt = 99 then
     begin
       _Lc_Set_Databases(cfg.DBids);
-      if loopSaveMgr<>nil then
-        loopSaveMgr := TloopSaveMgr.Create;
       SqlSvr_SendMsg(pSrvProc, '³É¹¦');
     end else begin
       //hook fail
@@ -671,6 +671,7 @@ exports
   {$IFDEF DEBUG}
 
   {$ENDIF}
+  savePageLog2,
   Lr_doo,
   Lr_roo,
   Lr_roo2;

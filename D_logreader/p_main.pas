@@ -28,6 +28,7 @@ type
     Button4: TButton;
     Button6: TButton;
     Button14: TButton;
+    Button11: TButton;
     procedure FormCreate(Sender: TObject);
     procedure Button3Click(Sender: TObject);
     procedure FormDestroy(Sender: TObject);
@@ -41,6 +42,7 @@ type
     procedure Button5Click(Sender: TObject);
     procedure Button4Click(Sender: TObject);
     procedure Button6Click(Sender: TObject);
+    procedure Button11Click(Sender: TObject);
   private
     { Private declarations }
   public
@@ -62,6 +64,19 @@ uses
 procedure TForm1.Button10Click(Sender: TObject);
 begin
   logsource.Fdbc.refreshDict;
+end;
+
+procedure TForm1.Button11Click(Sender: TObject);
+var
+  ItemIdx:Integer;
+  tlsObj:TLogSource;
+begin
+  if ListView1.Selected <> nil then
+  begin
+    ItemIdx := StrToInt(ListView1.Selected.Caption) - 1;
+    tlsObj := LogSourceList.Get(ItemIdx);
+    tlsObj.Stop_picker;
+  end;
 end;
 
 procedure TForm1.Button12Click(Sender: TObject);

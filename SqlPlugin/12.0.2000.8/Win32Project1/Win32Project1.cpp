@@ -74,7 +74,9 @@ void domyWork(UINT_PTR eCount, UINT_PTR r14, UINT_PTR logHeader, UINT_PTR oldPag
 						//variants fields
 						WORD varColCnt = *(WORD*)(Endoffset);
 						Endoffset += varColCnt * 2;
-						Endoffset = RowDataOffset + *(WORD*)(Endoffset);					
+						//TODO:bug
+
+						Endoffset = RowDataOffset + (*(WORD*)(Endoffset) & 0x7FFF);
 					}
 					if (RowFlag & 0x40)
 					{
