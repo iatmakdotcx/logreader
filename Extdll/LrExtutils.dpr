@@ -17,8 +17,8 @@ library LrExtutils;
 
 uses
   {$IFDEF DEBUG}
-  FastMM4 in 'H:\Delphi\FastMMnew\FastMM4.pas',
   FastMM4Messages in 'H:\Delphi\FastMMnew\FastMM4Messages.pas',
+  FastMM4 in 'H:\Delphi\FastMMnew\FastMM4.pas',
   {$ENDIF }
   SysUtils,
   Classes,
@@ -32,9 +32,16 @@ uses
   pluginlog in 'H:\Delphi\通用的自定义单元\pluginlog.pas',
   logRecdItemSave in 'logRecdItemSave.pas',
   MakCommonfuncs in 'H:\Delphi\通用的自定义单元\MakCommonfuncs.pas',
-  logRecdItemReader in 'logRecdItemReader.pas';
+  logRecdItemReader in 'logRecdItemReader.pas',
+  cfg in 'cfg.pas';
 
 {$R *.res}
+
+const
+  ModuleVersion = $00000001;
+
+var
+  SVR_hookPnt:Integer = 0;
 
 /// <summary>
 /// 是否有当前文件夹的写入权限
@@ -204,7 +211,7 @@ begin
 
 end;
 
-function d_hook(pSrvProc: SRV_PROC): Integer;
+function d_hook_init(pSrvProc: SRV_PROC): Integer;
 var
   hdl: tHandle;
   Pathbuf: array[0..MAX_PATH + 2] of Char;
@@ -245,15 +252,9 @@ begin
         SqlSvr_SendMsg(pSrvProc, '准备加载已知方案');
         if DBH.cfg(sqlminMD5, hookPnt, dllPath) then
         begin
+          SVR_hookPnt := hookPnt;
           pageCapture_init(dllPath);
-          hookPnt := _Lc_doHook(hookPnt);
-          //hook fail
-          if hookPnt=0 then
-          begin
-            SqlSvr_SendMsg(pSrvProc, '成功');
-          end else begin
-            SqlSvr_SendMsg(pSrvProc, 'ERROR:' + HookFailMsg(hookPnt));
-          end;
+          SqlSvr_SendMsg(pSrvProc, '成功');
         end;
       end
       else
@@ -270,6 +271,31 @@ begin
   end;
 end;
 
+function d_hook(pSrvProc: SRV_PROC): Integer;
+var
+  hookPnt:UInt64;
+begin
+  Result := SUCCEED;
+
+  if not Assigned(_Lc_doHook) then
+    d_hook_init(pSrvProc);
+
+  if Assigned(_Lc_doHook) and (SVR_hookPnt > 0) then
+  begin
+    hookPnt := _Lc_doHook(SVR_hookPnt);
+    if hookPnt = 99 then
+    begin
+      _Lc_Set_Databases(cfg.DBids);
+      if loopSaveMgr<>nil then
+        loopSaveMgr := TloopSaveMgr.Create;
+      SqlSvr_SendMsg(pSrvProc, '成功');
+    end else begin
+      //hook fail
+      SqlSvr_SendMsg(pSrvProc, 'ERROR:' + HookFailMsg(hookPnt));
+    end;
+  end;
+end;
+
 procedure d_unhook(pSrvProc: SRV_PROC);
 begin
   if not Assigned(_Lc_unHook) then
@@ -279,18 +305,15 @@ begin
   else
   begin
     _Lc_unHook;
+    loopSaveMgr.Free;
+    loopSaveMgr := nil;
   end;
 end;
 
-procedure d_Set_Databases(pSrvProc: SRV_PROC);
+procedure d_Set_Databases_0(pSrvProc: SRV_PROC);
 type
   PUInt64 = ^UInt64;
 var
-  bNull: BOOL;
-  bType: BYTE;
-  uLen: ULONG;
-  uMaxLen: ULONG;
-  DataBuf: array of Byte;
   DBids: UInt64;
 begin
   if srv_rpcparams(pSrvProc) <> 2 then
@@ -299,28 +322,15 @@ begin
   end
   else
   begin
-    srv_paraminfo(pSrvProc, 2, @bType, @uMaxLen, @uLen, nil, @bNull);
-    SetLength(DataBuf, uLen + 2);
-    ZeroMemory(@DataBuf[0], uLen + 2);
-    srv_paraminfo(pSrvProc, 2, @bType, @uMaxLen, @uLen, @DataBuf[0], @bNull);
-
-    if uLen = 1 then
+    DBids := getParam_int(pSrvProc, 2);
+    if DBids > 63 then
     begin
-      DBids := PByte(@DataBuf[0])^;
-    end
-    else if uLen = 2 then
-    begin
-      DBids := PWORD(@DataBuf[0])^;
-    end
-    else if (uLen = 3) or (uLen = 4) then
-    begin
-      DBids := PDWORD(@DataBuf[0])^;
-    end
-    else
-    begin
-      DBids := PUInt64(@DataBuf[3])^;
+      SqlSvr_SendMsg(pSrvProc, '数据库id必须是1..63之间的值' + UIntToStr(DBids));
+      Exit;
     end;
 
+    cfg.DBids := cfg.DBids and ((Uint64(1) shl (DBids-1)) xor $FFFFFFFFFFFFFFFF);
+    cfg.saveCfg;
     SqlSvr_SendMsg(pSrvProc, 'DBids:' + UIntToStr(DBids));
     if not Assigned(_Lc_Set_Databases) then
     begin
@@ -328,7 +338,38 @@ begin
     end
     else
     begin
-      _Lc_Set_Databases(DBids);
+      _Lc_Set_Databases(cfg.DBids);
+      SqlSvr_SendMsg(pSrvProc, '完成');
+    end;
+  end;
+end;
+
+procedure d_Set_Databases_1(pSrvProc: SRV_PROC);
+type
+  PUInt64 = ^UInt64;
+var
+  DBids: UInt64;
+begin
+  if srv_rpcparams(pSrvProc) <> 2 then
+  begin
+    srv_sendmsg(pSrvProc, SRV_MSG_INFO, 0, 0, 0, nil, 0, 0, 'Error:此方法需要【2】个参数！', SRV_NULLTERM);
+  end
+  else
+  begin
+    DBids := getParam_int(pSrvProc, 2);
+    if DBids > 63 then
+    begin
+      SqlSvr_SendMsg(pSrvProc, '数据库id必须是1..63之间的值' + UIntToStr(DBids));
+      Exit;
+    end;
+    SqlSvr_SendMsg(pSrvProc, 'ipt:' + UIntToStr(DBids));
+
+    cfg.DBids := cfg.DBids or (Uint64(1) shl (DBids-1));
+    cfg.saveCfg;
+    SqlSvr_SendMsg(pSrvProc, 'DBids:' + UIntToStr(cfg.DBids));
+    if Assigned(_Lc_Set_Databases) then
+    begin
+      _Lc_Set_Databases(cfg.DBids);
       SqlSvr_SendMsg(pSrvProc, '完成');
     end;
   end;
@@ -364,19 +405,6 @@ begin
   end;
 end;
 
-procedure d_do_SavePagelog(pSrvProc: SRV_PROC);
-begin
-  if not Assigned(_Lc_HasBeenHooked) then
-  begin
-    SqlSvr_SendMsg(pSrvProc, 'ERROR:未初始化数据采集进程');
-  end
-  else
-  begin
-    savePageLog2;
-    SqlSvr_SendMsg(pSrvProc, 'ok');
-  end;
-end;
-
 /// <summary>
 /// 打印当前系统状态
 /// </summary>
@@ -406,7 +434,7 @@ begin
   SqlSvr_SendMsg(pSrvProc, 'checking.....');
   if Assigned(_Lc_HasBeenHooked) then
   begin
-    SqlSvr_SendMsg(pSrvProc, 'HookState:1(启用)');
+    SqlSvr_SendMsg(pSrvProc, 'HookState:' + inttostr(_Lc_HasBeenHooked));
     if Assigned(_Lc_Get_Databases) then
     begin
       dbids := _Lc_Get_Databases;
@@ -426,6 +454,12 @@ begin
       SqlSvr_SendMsg(pSrvProc, 'PaddingDataCnt:' + inttostr(_Lc_Get_PaddingDataCnt));
     end;
 
+    if loopSaveMgr = nil then
+    begin
+      SqlSvr_SendMsg(pSrvProc, 'loopSaveMgr:0');
+    end else begin
+      SqlSvr_SendMsg(pSrvProc, 'loopSaveMgr:1');
+    end;
   end
   else
   begin
@@ -476,21 +510,25 @@ begin
         begin
           d_hook(pSrvProc);
         end
-        else if action = 'B' then
+        else if action = 'B+' then
         begin
-          d_Set_Databases(pSrvProc);
+          d_Set_Databases_1(pSrvProc);
         end
-        else if action = 'C' then
+        else if action = 'B-' then
         begin
-          d_Get_PaddingDataCnt(pSrvProc);
+          d_Set_Databases_0(pSrvProc);
         end
+//        else if action = 'C' then
+//        begin
+//
+//        end
         else if action = 'D' then
         begin
           d_Get_HasBeenHooked(pSrvProc);
         end
         else if action = 'E' then
         begin
-          d_do_SavePagelog(pSrvProc);
+          SqlSvr_SendMsg(pSrvProc, 'ERROR:' + inttostr(cfg.DBids));
         end
         else if action = 'F' then
         begin
@@ -500,6 +538,13 @@ begin
         begin
           srv_describe(pSrvProc, 1, 'status', SRV_NULLTERM, SRVINT4, sizeof(DBSMALLINT), SRVINT2, sizeof(DBSMALLINT), nil);
           tmpint := d_checkSqlSvr(pSrvProc);
+          srv_setcoldata(pSrvProc, 1, @tmpint);
+          srv_sendrow(pSrvProc);
+        end
+        else if action = 'V' then
+        begin
+          srv_describe(pSrvProc, 1, 'version', SRV_NULLTERM, SRVINT4, sizeof(DBSMALLINT), SRVINT2, sizeof(DBSMALLINT), nil);
+          tmpint := ModuleVersion;
           srv_setcoldata(pSrvProc, 1, @tmpint);
           srv_sendrow(pSrvProc);
         end
@@ -607,12 +652,6 @@ begin
   srv_senddone(pSrvProc, SRV_DONE_FINAL or SRV_DONE_COUNT, 0, 0);
 end;
 
-function Lr_clearCache(pSrvProc: SRV_PROC): Integer;
-begin
-  ClearSaveCache;
-  Result := 0;
-end;
-
 procedure DLLMainHandler(Reason: Integer);
 begin
   case Reason of
@@ -622,18 +661,16 @@ begin
       end;
     DLL_PROCESS_DETACH:
       begin
-        ClearSaveCache;
+        if loopSaveMgr <> nil then
+          loopSaveMgr.Free;
       end;
   end;
 end;
 
 exports
-  Lr_clearCache,
   {$IFDEF DEBUG}
-  d_do_SavePagelog,
-  Read_log_One,
+
   {$ENDIF}
-  d_example,
   Lr_doo,
   Lr_roo,
   Lr_roo2;

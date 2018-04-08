@@ -41,7 +41,6 @@ type
     procedure Button5Click(Sender: TObject);
     procedure Button4Click(Sender: TObject);
     procedure Button6Click(Sender: TObject);
-    procedure Button14Click(Sender: TObject);
   private
     { Private declarations }
   public
@@ -56,7 +55,7 @@ implementation
 
 uses
   dbConnectionCfg, databaseConnection, p_structDefine, Memory_Common, plugins,
-  MakCommonfuncs, pluginlog;
+  MakCommonfuncs, pluginlog, sqlextendedprocHelper;
 
 {$R *.dfm}
 
@@ -75,19 +74,6 @@ begin
   logsource.loadFromFile('d:\1.bin');
 end;
 
-procedure TForm1.Button14Click(Sender: TObject);
-var
-  lsnStr:string;
-begin
-lsnStr := '534000000029600037';
-    lsnStr := lsnStr.PadLeft(25,'0');
-//  ShowMessage(lsnStr.PadLeft(25,'0'));
-       ShowMessage( Copy(lsnStr, 1, 10));
-    ShowMessage(  Copy(lsnStr, 11, 10));
-  ShowMessage( Copy(lsnStr, 21, 5));
-
-end;
-
 procedure TForm1.Button3Click(Sender: TObject);
 var
   savePath:string;
@@ -103,6 +89,7 @@ begin
       begin
         //保存配置成功才继续，否则处理失败
         LogSourceList.Add(logsource);
+        setDbOn(logsource.Fdbc);
         Loger.Add('新增配置完成！！');
       end else begin
         logsource.Free;

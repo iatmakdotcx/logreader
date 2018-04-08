@@ -2,18 +2,25 @@ unit sqlextendedprocHelper;
 
 interface
 uses
-  databaseConnection;
+  databaseConnection, p_structDefine, System.SysUtils;
 
 function checkCfgExists(databaseConnection:TdatabaseConnection):Boolean;
+function getUpdateSoltData(databaseConnection:TdatabaseConnection;LSN: Tlog_LSN):TBytes;
+function setDbOn(databaseConnection:TdatabaseConnection):Boolean;
+function setDbOff(databaseConnection:TdatabaseConnection):Boolean;
 
+function setCapLogStart(databaseConnection:TdatabaseConnection):Boolean;
+function setCapLogStop(databaseConnection:TdatabaseConnection):Boolean;
 
 implementation
 
 uses
-  Data.Win.ADODB, System.SysUtils, MakCommonfuncs, Winapi.Windows;
+  Data.Win.ADODB, MakCommonfuncs, Winapi.Windows;
 
 const
   OPTSQLPROCNAME = 'Lr_doo';
+  OPTSQLPROCNAME_readLog = 'Lr_roo';
+  OPTSQLPROCNAME_readLogAsXml = 'Lr_roo2';
 
 
 function CheckExtendedProcExists(databaseConnection:TdatabaseConnection; ProcName:string):Boolean;
@@ -73,6 +80,106 @@ begin
         Result := True;
       end;
       rDataset.Free;
+    end;
+  end;
+end;
+
+function getUpdateSoltData(databaseConnection:TdatabaseConnection;LSN: Tlog_LSN):TBytes;
+var
+  rDataset:TCustomADODataSet;
+  aSql:string;
+begin
+  Result := nil;
+  if CreateExtendedProc(databaseConnection, OPTSQLPROCNAME) then
+  begin
+    aSql := Format('exec %s %d,%d,%d,%d', [OPTSQLPROCNAME_readLog, databaseConnection.dbID, LSN.LSN_1, LSN.LSN_2, LSN.LSN_3]);
+    if databaseConnection.ExecSqlOnMaster(aSql, rDataset) then
+    begin
+      if not rDataset.Eof then
+      begin
+        Result := rDataset.Fields[1].AsBytes;
+      end;
+      rDataset.Free;
+    end;
+  end;
+end;
+
+function getUpdateSoltDataXML(databaseConnection:TdatabaseConnection;LSN: Tlog_LSN):string;
+var
+  rDataset:TCustomADODataSet;
+  aSql:string;
+begin
+  Result := '';
+  if CreateExtendedProc(databaseConnection, OPTSQLPROCNAME) then
+  begin
+    aSql := Format('exec %s %d,%d,%d,%d', [OPTSQLPROCNAME_readLogAsXml, databaseConnection.dbID, LSN.LSN_1, LSN.LSN_2, LSN.LSN_3]);
+    if databaseConnection.ExecSqlOnMaster(aSql, rDataset) then
+    begin
+      if not rDataset.Eof then
+      begin
+        Result := rDataset.Fields[1].AsString;
+      end;
+      rDataset.Free;
+    end;
+  end;
+end;
+
+function setDbOn(databaseConnection:TdatabaseConnection):Boolean;
+var
+  rDataset:TCustomADODataSet;
+  aSql:string;
+begin
+  Result := false;
+  if CreateExtendedProc(databaseConnection, OPTSQLPROCNAME) then
+  begin
+    aSql := 'exec ' + OPTSQLPROCNAME + ' ''B+'','+IntToStr(databaseConnection.dbID);
+    if databaseConnection.ExecSqlOnMaster(aSql, rDataset, False) then
+    begin
+    end;
+  end;
+end;
+
+function setDbOff(databaseConnection:TdatabaseConnection):Boolean;
+var
+  rDataset:TCustomADODataSet;
+  aSql:string;
+begin
+  Result := false;
+  if CreateExtendedProc(databaseConnection, OPTSQLPROCNAME) then
+  begin
+    aSql := 'exec ' + OPTSQLPROCNAME + ' ''B-'','+IntToStr(databaseConnection.dbID);
+    if databaseConnection.ExecSqlOnMaster(aSql, rDataset, False) then
+    begin
+    end;
+  end;
+end;
+
+function setCapLogStart(databaseConnection:TdatabaseConnection):Boolean;
+var
+  rDataset:TCustomADODataSet;
+  aSql:string;
+begin
+  Result := false;
+  if CreateExtendedProc(databaseConnection, OPTSQLPROCNAME) then
+  begin
+    aSql := 'exec ' + OPTSQLPROCNAME + ' ''A''';
+    if databaseConnection.ExecSqlOnMaster(aSql, rDataset, False) then
+    begin
+    end;
+  end;
+end;
+
+function setCapLogStop(databaseConnection:TdatabaseConnection):Boolean;
+var
+  rDataset:TCustomADODataSet;
+  aSql:string;
+begin
+  Result := false;
+  if CreateExtendedProc(databaseConnection, OPTSQLPROCNAME) then
+  begin
+    aSql := 'exec ' + OPTSQLPROCNAME + ' ''F''';
+    if databaseConnection.ExecSqlOnMaster(aSql, rDataset, False) then
+    begin
     end;
   end;
 end;

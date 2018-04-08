@@ -81,7 +81,6 @@ var
   buffPath: array[0..MAX_PATH + 2] of Char;
   dbPath: string;
 begin
-  pageCapture_finit();
   GetModuleFileName(HInstance, buffPath, MAX_PATH);
   dbPath := ExtractFilePath(string(buffPath)) + LcDll;
   dllHandle := loadLibrary(PChar(dbPath));

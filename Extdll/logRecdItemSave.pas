@@ -52,22 +52,16 @@ type
   private
     Fdbid: Word;
     ReqNo: DWORD;
-
-    cachelst: TList;
     IdxFile:THandle;
     IdxFileCS:TCriticalSection;
     DataFile:THandle;
     DataFileCS:TCriticalSection;
-    procedure WriteIdxExists(tmpxx: PIdxData);
-    procedure WriteIdx(tmp: PIdxData);
   public
     constructor Create(dbid: Word; lsn1: DWORD; slogPath: string);
     destructor Destroy; override;
     function Save(lsn2: WORD; logs: TList; data: TMemoryStream): Boolean;
-    procedure SaveCache;
   end;
 
-type
   TPagelogFileMgr = class(TObject)
   private
     const
@@ -76,30 +70,31 @@ type
       f_path: string;
       SaveCs: TCriticalSection;
       dbids: TDbidCustomBucketList;
-    procedure dbidsObjAction(AItem, AData: Pointer; out AContinue: Boolean);
-    procedure VlfMgrObjAction(AItem, AData: Pointer; out AContinue: Boolean);
   public
     constructor Create;
     destructor Destroy; override;
     function LogDataSaveToFile(dbid: Word; lsn1: DWORD; lsn2: WORD; logs: TList; data: TMemoryStream): Boolean;
-    procedure ClearSaveCache;
   end;
 
-function savePageLog2: Boolean;
-procedure ClearSaveCache;
+  TloopSaveMgr = class(TThread)
+  public
+    procedure Execute; override;
+    constructor Create;
+    destructor Destroy; override;
+  end;
+
+
+//function savePageLog2: Boolean;
 
 var
   PagelogFileMgr: TPagelogFileMgr;
+  loopSaveMgr: TloopSaveMgr;
 
 implementation
 
 uses
   pageCaptureDllHandler, System.SysUtils, pluginlog,Memory_Common;
 
-procedure ClearSaveCache;
-begin
-  PagelogFileMgr.ClearSaveCache;
-end;
 
 function savePageLog2: Boolean;
 const
@@ -121,12 +116,13 @@ begin
     mmData := TMemoryStream.Create;
     try
       try
-        DataPnt := _Lc_Get_PaddingData;
+        DataPnt := _Lc_Get_PaddingData;  //这里过来的值是顺序的
         lri := PlogRecdItem(DataPnt);
         prevDBid := 0;
         prevLsn.lsn_1 := 0;
         while lri <> nil do
         begin
+          //分组。一次更新多行的优化
           if (prevDBid <> lri.dbId) or (prevLsn.lsn_1 <> lri.lsn.lsn_1) or (prevLsn.lsn_2 <> lri.lsn.lsn_2) then
           begin
             //不同组
@@ -145,12 +141,10 @@ begin
           else
           begin
             //同一组
-
             new(tmpLsn);
             tmpLsn.lsn_3 := lri.lsn.lsn_3;
             tmpLsn.Offset := mmData.Size;
             logs.Add(tmpLsn);
-
             mmData.Write(lri.length, 4);
             mmData.Write(lri.val, lri.length)
           end;
@@ -180,7 +174,11 @@ begin
         end;
         Result := True;
       except
-        Result := False;
+        on EEx:Exception do
+        begin
+          Loger.Add('savePageLog2 fail ' + EEx.Message, LOG_ERROR or LOG_IMPORTANT);
+          Result := False;
+        end;
       end;
     finally
       mmData.Free;
@@ -190,29 +188,6 @@ begin
 end;
 
 { TPagelogFileMgr }
-
-procedure TPagelogFileMgr.VlfMgrObjAction(AItem, AData: Pointer; out AContinue: Boolean);
-begin
-  TVlfMgr(AData).SaveCache;
-  TVlfMgr(AData).free;
-end;
-
-procedure TPagelogFileMgr.dbidsObjAction(AItem, AData: Pointer; out AContinue: Boolean);
-begin
-  TDbidCustomBucketList(AData).ForEach(VlfMgrObjAction);
-  TDbidCustomBucketList(AData).Free;
-end;
-
-procedure TPagelogFileMgr.ClearSaveCache;
-begin
-  SaveCs.Enter;
-  try
-    dbids.ForEach(dbidsObjAction);
-    dbids.Clear;
-  finally
-    SaveCs.Leave;
-  end;
-end;
 
 constructor TPagelogFileMgr.Create;
 var
@@ -229,8 +204,6 @@ end;
 
 destructor TPagelogFileMgr.Destroy;
 begin
-
-
   dbids.Free;
   SaveCs.Free;
   inherited;
@@ -257,7 +230,7 @@ begin
         ReqNo := TVlfMgr.Create(dbid, lsn1, f_path);
         DB.Add(lsn1, ReqNo)
       end;
-      Result := ReqNo.save(lsn2, logs, data);
+      Result := ReqNo.Save(lsn2, logs, data);
     end else begin
       Result := false;
     end;
@@ -296,14 +269,13 @@ constructor TVlfMgr.Create(dbid: Word; lsn1: DWORD; slogPath: string);
 var
   tmpFilePath:string;
 begin
-  cachelst := TList.Create;
   Fdbid := dbid;
   ReqNo := lsn1;
   IdxFile := 0;
   DataFile := 0;
 
-  IdxFileCS:=TCriticalSection.Create;
-  DataFileCS:=TCriticalSection.Create;
+  IdxFileCS := TCriticalSection.Create;
+  DataFileCS := TCriticalSection.Create;
 
   tmpFilePath := slogPath + IntToStr(dbid) + '\' + IntToStr(lsn1) + '\';
 
@@ -331,219 +303,20 @@ begin
   CloseHandle(IdxFile);
   CloseHandle(DataFile);
 
-  cachelst.Free;
   IdxFileCS.Free;
   DataFileCS.Free;
   inherited;
 end;
 
-
-procedure TVlfMgr.WriteIdxExists(tmpxx: PIdxData);
-  procedure IdxMovebackData(xoffset, paddingCount:Cardinal;moveCount :Cardinal = 0);
-  var
-    rSize:Cardinal;
-    pp:Pointer;
-  begin
-    if moveCount=0 then
-    begin
-      moveCount := GetFileSize(IdxFile ,nil);
-      moveCount := moveCount - xoffset;
-    end;
-    SetFilePointer(IdxFile, xoffset, nil, soFromBeginning);
-    pp := AllocMem(moveCount);
-    if ReadFile(IdxFile, pp^, moveCount, rSize, nil) and (rSize = moveCount) then
-    begin
-      SetFilePointer(IdxFile, xoffset+paddingCount, nil, soFromBeginning);
-      WriteFile(IdxFile, pp^, moveCount, rSize, nil);
-    end;
-    FreeMem(pp);
-  end;
-  /// <summary>
-  /// 向idx文件中写入一个新的索引记录
-  /// </summary>
-  /// <param name="itemIdx">写入开始位置</param>
-  procedure writeNewObj(itemIdx:DWORD);
-  var
-    tmpSize:DWORD;
-    tmpBuf:Pointer;
-    TmpPosi:Cardinal;
-    wSize:Cardinal;
-  begin
-    //项目块大小
-    tmpSize := 4 + 2 + tmpxx.Size * (2 + 4);
-    //后移目录
-    IdxMovebackData(itemIdx, tmpSize);
-    tmpBuf := AllocMem(tmpSize);
-
-    TmpPosi := 0;
-    //TIdxData.lsn2
-    PDWORD(UINT_PTR(tmpBuf)+TmpPosi)^ := tmpxx.lsn2;
-    TmpPosi := TmpPosi + 4;
-    //TIdxData.Size
-    PWORD(UINT_PTR(tmpBuf)+TmpPosi)^ := tmpxx.Size;
-    TmpPosi := TmpPosi + 2;
-    //后面跟新的lsn3
-    Move(tmpxx.lsn3[0], PByte(UINT_PTR(tmpBuf)+TmpPosi)^, tmpxx.Size*2);
-    TmpPosi := TmpPosi + tmpxx.Size*2;
-    //后面跟新的offset
-    Move(tmpxx.offse[0], PByte(UINT_PTR(tmpBuf)+TmpPosi)^, tmpxx.Size*4);
-    //TmpPosi := TmpPosi + tmpxx.Size*4;
-
-    //重写当前条目
-    SetFilePointer(IdxFile, itemIdx, nil, soFromBeginning);
-    WriteFile(IdxFile, tmpBuf^, tmpSize, wSize, nil);
-    FreeMem(tmpBuf);
-  end;
-var
-  aBuf:Pointer;
-  rSize,wSize:Cardinal;
-  Glo_idx:Cardinal;   //读取文件全局索引
-  position:Cardinal;
-
-  b_lsn2:DWORD;
-  wcnt:Word;
-  blankSize:Word;
-  itemIdx:DWORD;//目录项的真实地址
-  tmpSize:DWORD;
-  tmpOffset:DWORD;
-  tmpBuf:Pointer;
-  TmpPosi:Cardinal;
-begin
-  aBuf := AllocMem($2000);
-  try
-    Glo_idx := 0;
-    wSize := GetFileSize(IdxFile, nil);
-    if wSize=0 then
-    begin
-      writeNewObj(0);
-    end else begin
-      SetFilePointer(IdxFile, 0, nil, soFromBeginning);
-      //TODO:文件可能为0大小（从未写入过数据），计算下个读取段方式有问题（ 用id2可能导致计算位置偏差，换成全局position
-      while ReadFile(IdxFile, aBuf^, $2000, rSize, nil) and (rSize > 0) do
-      begin
-        position := 0;
-  //          TIdxData = packed record
-  //            lsn2: DWORD;
-  //            Size: Word;
-  //            lsn3: array[0..0] of WORD;
-  //            offse: array[0..0] of DWORD;
-  //          end;
-        //+12一个项目最小有12字节
-        while (position + 12) <= rSize do
-        begin
-          //判断当前项目是否完整
-          wcnt := PWORD(UINT_PTR(aBuf) + position + 4)^;
-          if position + 6 + (wcnt * 6) > rSize then
-          begin
-            //不完整
-            Break;
-          end;
-
-          b_lsn2 := PDWORD(UINT_PTR(aBuf)+position)^;
-          if b_lsn2 = tmpxx.lsn2 then
-          begin
-            //存在
-            itemIdx := Glo_idx + position;
-            //计算目录末尾位置
-            tmpOffset := itemIdx + 4 + 2 + wcnt * (2 + 4);
-            position := position + 4;
-            wcnt := PWORD(UINT_PTR(aBuf)+position)^;
-            position := position + 2;
-            //写入内容大小
-            blankSize := tmpxx.Size * (2 + 4);
-            //后移目录
-            IdxMovebackData(tmpOffset, blankSize);
-            //新的项目大小 (不包含lsn2)
-            tmpSize := 2 + (wcnt + tmpxx.Size) * (2 + 4);
-
-            tmpBuf := AllocMem(tmpSize);
-            TmpPosi := 0;
-            //TIdxData.Size
-            PWORD(UINT_PTR(tmpBuf)+TmpPosi)^ := wcnt + tmpxx.Size;
-            TmpPosi := TmpPosi + 2;
-            //老的lsn3
-            Move(Pbyte(UINT_PTR(aBuf)+position)^, PByte(UINT_PTR(tmpBuf)+TmpPosi)^, wcnt*2);
-            TmpPosi := TmpPosi + wcnt*2;
-            //后面跟新的lsn3
-            Move(tmpxx.lsn3[0], PByte(UINT_PTR(tmpBuf)+TmpPosi)^, tmpxx.Size*2);
-            TmpPosi := TmpPosi + tmpxx.Size*2;
-
-
-            position := position + wcnt * 2;
-            //老的offse
-            Move(Pbyte(UINT_PTR(aBuf)+position)^, PByte(UINT_PTR(tmpBuf)+TmpPosi)^, wcnt*4);
-            TmpPosi := TmpPosi + wcnt*4;
-            //后面跟新的offset
-            Move(tmpxx.offse[0], PByte(UINT_PTR(tmpBuf)+TmpPosi)^, tmpxx.Size*4);
-            TmpPosi := TmpPosi + tmpxx.Size*4;
-
-            //重写当前条目(不包含lsn2)
-            SetFilePointer(IdxFile, itemIdx + 4, nil, soFromBeginning);
-            WriteFile(IdxFile, tmpBuf^, tmpSize, wSize, nil);
-            FreeMem(tmpBuf);
-            Exit;
-          end else if b_lsn2 > tmpxx.lsn2 then
-          begin
-            //不存在
-            itemIdx := Glo_idx + position;
-            writeNewObj(itemIdx);
-            Exit;
-          end else begin
-            //焦点下一个项目
-            position := position + 6 + (wcnt * 6);
-          end;
-        end;
-        if (position = 0) then
-        begin
-          break;
-        end;
-        Glo_idx := Glo_idx + position;
-        SetFilePointer(IdxFile, Glo_idx , nil, soFromBeginning);
-      end;
-    end;
-  finally
-    FreeMem(aBuf);
-  end;
-end;
-
-procedure TVlfMgr.WriteIdx(tmp: PIdxData);
-var
-  Wsize, Rsize: DWORD;
-  buf:Pointer;
-  I:Integer;
-begin
-//          TIdxData = packed record
-//            lsn2: DWORD;
-//            Size: Word;
-//            lsn3: array[0..0] of WORD;
-//            offse: array[0..0] of DWORD;
-//          end;
-  Wsize := SizeOf(DWORD) + SizeOf(WORD) + tmp.Size * SizeOf(WORD) + tmp.Size * SizeOf(DWORD);
-  buf := AllocMem(Wsize + 10);
-  PDWORD(buf)^ := tmp.lsn2;
-  PWORD(UINT_PTR(buf) + 4)^ := tmp.Size;
-  for I := 0 to tmp.Size - 1 do
-  begin
-    PWORD(UINT_PTR(buf) + 6 + UINT_PTR(i * 2))^ := tmp.lsn3[i];
-    PDWORD(UINT_PTR(buf) + 6 + tmp.Size * 2 + UINT_PTR(i * 4))^ := tmp.offse[i];
-  end;
-
-  SetFilePointer(IdxFile, 0, nil, soFromEnd);
-  WriteFile(IdxFile, buf^, Wsize, Rsize, nil);
-  FreeMem(buf);
-end;
-
 function TVlfMgr.Save(lsn2: WORD; logs: TList; data: TMemoryStream): Boolean;
 var
-  I, J: Integer;
-  tmp: PIdxData;
+  J: Integer;
   tmpLsn: ^TLSNBuffer;
   lsize:DWORD;
-  Wsize:DWORD;
-  hasFound:Boolean;
-  min_id:Integer;
+  Wsize, Rsize:DWORD;
   OutPutStr:string;
   TmpDataStr:string;
+  buf:Pointer;
 begin
   if logs.Count > 0 then
   begin
@@ -584,94 +357,20 @@ begin
 
     IdxFileCS.Enter;
     try
-      //先在cache里面找，如果没有找到，
-      //小于cache里最小的，就到已保存的文件中找，
-      //大于cache里最小的，新增cache内容，并保存最小的到文件
-      hasFound := False;
-      for I := 0 to cachelst.Count - 1 do
+      Wsize := SizeOf(DWORD) + SizeOf(WORD) + logs.Count * SizeOf(WORD) + logs.Count * SizeOf(DWORD);
+      buf := AllocMem(Wsize + 10);
+      PDWORD(buf)^ := lsn2;
+      PWORD(UINT_PTR(buf) + 4)^ := logs.Count;
+      for J := 0 to logs.Count - 1 do
       begin
-        tmp := cachelst[I];
-        if tmp.lsn2 = lsn2 then
-        begin
-          Wsize := tmp.Size;
-          tmp.Size := tmp.Size + logs.Count;
-          SetLength(tmp.lsn3, tmp.Size);
-          SetLength(tmp.offse, tmp.Size);
-          for J := 0 to logs.Count - 1 do
-          begin
-  //          TIdxData = packed record
-  //            lsn2: DWORD;
-  //            Size: Word;
-  //            lsn3: array[0..0] of WORD;
-  //            offse: array[0..0] of DWORD;
-  //          end;
-            tmpLsn := logs[J];
-            tmp.lsn3[Wsize + DWORD(J)] := tmpLsn.lsn_3;
-            tmp.offse[Wsize + DWORD(J)] := lsize + tmpLsn.Offset;
-          end;
-          hasFound := True;
-          Break;
-        end;
+        tmpLsn := logs[J];
+        PWORD(UINT_PTR(buf) + 6 + UINT_PTR(J * 2))^ := tmpLsn.lsn_3;
+        PDWORD(UINT_PTR(buf) + 6 + logs.Count * 2 + UINT_PTR(J * 4))^ := lsize + tmpLsn.Offset;
       end;
 
-      if not hasFound then
-      begin
-        //cache中不存在
-        //循环找最小的
-        Wsize := $FFFFFFFF;
-        min_id := -1;
-        for I := 0 to cachelst.Count - 1 do
-        begin
-          tmp := cachelst[I];
-          if tmp.lsn2 < Wsize then
-          begin
-            Wsize := tmp.lsn2;
-            min_id := I;
-          end;
-        end;
-
-        //cachelst为空，或 lsn2大于cachelst中最小的
-        if (min_id = -1) or (Wsize < lsn2) then
-        begin
-          //写入缓存
-          new(tmp);
-          tmp.lsn2 := lsn2;
-          tmp.Size := logs.Count;
-          SetLength(tmp.lsn3, tmp.Size);
-          SetLength(tmp.offse, tmp.Size);
-          for J := 0 to logs.Count - 1 do
-          begin
-            tmpLsn := logs[J];
-            tmp.lsn3[J] := tmpLsn.lsn_3;
-            tmp.offse[J] := lsize + tmpLsn.Offset;
-          end;
-          cachelst.Add(tmp);
-          if (cachelst.Count > 5) and (min_id > -1)  then
-          begin
-            //把5个之前的index写到文件
-            tmp := cachelst[min_id];
-            WriteIdx(tmp);
-            cachelst.Delete(min_id);
-            Dispose(tmp);
-          end;
-
-        end else begin
-          //直接搞文件
-          new(tmp);
-          tmp.lsn2 := lsn2;
-          tmp.Size := logs.Count;
-          SetLength(tmp.lsn3, tmp.Size);
-          SetLength(tmp.offse, tmp.Size);
-          for J := 0 to logs.Count - 1 do
-          begin
-            tmpLsn := logs[J];
-            tmp.lsn3[J] := tmpLsn.lsn_3;
-            tmp.offse[J] := lsize + tmpLsn.Offset;
-          end;
-          WriteIdxExists(tmp);
-          Dispose(tmp);
-        end;
-      end;
+      SetFilePointer(IdxFile, 0, nil, soFromEnd);
+      WriteFile(IdxFile, buf^, Wsize, Rsize, nil);
+      FreeMem(buf);
     finally
       IdxFileCS.Leave;
     end;
@@ -679,50 +378,54 @@ begin
   Result := True;
 end;
 
-procedure TVlfMgr.SaveCache;
-var
-  I ,j:Integer;
-  tmp: PIdxData;
+{ TloopSaveMgr }
+
+constructor TloopSaveMgr.Create;
 begin
-  IdxFileCS.Enter;
-  try
-  //排序
-    for I := 0 to cachelst.Count - 1 do
-    begin
-      for j := I + 1 to cachelst.Count - 1 do
+  inherited Create(False);
+  //FreeOnTerminate := True;        //TODO:这里如果设置自动释放，停止时会引发错误： Thread Error: 句柄无效。 (6)
+  Self.NameThreadForDebugging('TloopSaveMgr', Self.ThreadID);
+end;
+
+destructor TloopSaveMgr.Destroy;
+begin
+
+  inherited;
+end;
+
+procedure TloopSaveMgr.Execute;
+var
+  I:Integer;
+begin
+  while not Terminated do
+  begin
+    try
+      savePageLog2;
+    except
+      on eee:Exception do
       begin
-        if PIdxData(cachelst[I]).lsn2 > PIdxData(cachelst[j]).lsn2 then
-        begin
-          tmp := cachelst[I];
-          cachelst[I] := cachelst[j];
-          cachelst[j] := tmp;
-        end;
+        Loger.Add('TloopSaveMgr.Execute fail ' + eee.Message, LOG_ERROR or LOG_IMPORTANT);
       end;
     end;
-
-  //保存
-    for I := 0 to cachelst.Count - 1 do
+    //10S
+    for I := 0 to 100 - 1 do
     begin
-      tmp := cachelst[I];
-      WriteIdx(tmp);
+      Sleep(100);
+      if Terminated then
+      begin
+        Break;
+      end;
     end;
-  //清空
-    for I := cachelst.Count - 1 downto 0 do
-    begin
-      tmp := cachelst[I];
-      cachelst.Delete(I);
-      Dispose(tmp);
-    end;
-  finally
-    IdxFileCS.Leave;
   end;
+  loopSaveMgr := nil;
 end;
 
 initialization
   PagelogFileMgr := TPagelogFileMgr.Create;
-
+  loopSaveMgr := nil;
 finalization
   PagelogFileMgr.Free;
+
 
 end.
 

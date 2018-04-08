@@ -132,80 +132,75 @@ PVOID _Lc_Get_PaddingData(void) {
 
 void _Lc_unHook(void) {
 	EnterCriticalSection(&_critical);
-	__try
+	if (sQlHookPnt)
 	{
-		if (sQlHookPnt)
-		{
-			//还原hook
-			*(ULONGLONG*)sQlHookPnt = sQlHookPntData;
-			//清空变量
-			sQlHookPnt = 0;
-			sQlHookPntData = 0; 
-			hooked = false;
-			CdbId = 0;
-		}
+		//还原hook
+		*(ULONGLONG*)sQlHookPnt = sQlHookPntData;
+		//清空变量
+		sQlHookPnt = 0;
+		sQlHookPntData = 0; 
+		hooked = false;
+		CdbId = 0;
 	}
-	__finally {
-		LeaveCriticalSection(&_critical);
-	}
+	LeaveCriticalSection(&_critical);
 }
 
 int _Lc_doHook(UINT_PTR HookPnt) {
 	EnterCriticalSection(&_critical);
-	__try
+	if (sQlHookPnt)
 	{
-		if (sQlHookPnt)
-		{
-			return 1;
-		}	
-		//TODO:效验sqlmin.dll版本
-		void* sqlminBase = GetModuleHandle(L"sqlmin.dll");
-		if (!sqlminBase)
-		{
-			return 2;
-		}
-		//检测前后几个字节是否有效
-		UINT_PTR testHookPnt = (UINT_PTR)sqlminBase + HookPnt - 3;
-		if (IsBadReadPtr((void*)testHookPnt, 0x10)) {
-			return 3;
-		}
-		//检测代码是否正确
-		if (*(INT64*)testHookPnt != 0x0001a090ffce8b49L || 
-			*(INT64*)(testHookPnt+8) != 0x786d8b44185d8b00L) {
-			return 4;
-		}
-		//UINT_PTR hookPnt = (UINT_PTR)sqlminBase + 0x5FD30 + 0x5C1;
-		UINT_PTR hookfuncPnt = (UINT_PTR)&hookfunc;
-		UINT_PTR dwAdr = (UINT_PTR)&hookfuncEnd;
-		if (((testHookPnt >> 32) & 0xFFFFFFFF) != ((dwAdr >> 32) & 0xFFFFFFFF))
-		{
-			//不在同一区域，hook失败！
-			return 5;
-		}
-
-		sQlHookPnt = (UINT_PTR)sqlminBase + HookPnt;
-
-		ULONG backPnt = (sQlHookPnt & 0xFFFFFFFF) + 0x6;
-		ULONG backPntData = backPnt - (dwAdr & 0xFFFFFFFF) - 5; // jmp code Length
-		ULONG hookPntData = (hookfuncPnt & 0xFFFFFFFF) - (sQlHookPnt & 0xFFFFFFFF) - 5; // jmp code Length
-		DWORD dwOldP;
-		VirtualProtect((LPVOID)dwAdr, 0x10, PAGE_EXECUTE_READWRITE, &dwOldP);
-		*(BYTE*)dwAdr = 0xE9;
-		dwAdr += 1;
-		*(DWORD*)dwAdr = backPntData;
-
-		VirtualProtect((LPVOID)sQlHookPnt, 5, PAGE_EXECUTE_READWRITE, &dwOldP);
-		UINT_PTR interLockData = 0x5D8B9000000000E9L;
-		interLockData |= ((UINT_PTR)hookPntData << 8);
-		sQlHookPntData = *(UINT_PTR*)sQlHookPnt;
-		*(UINT_PTR*)sQlHookPnt = interLockData;
-
-		hooked = true;
-		return 0;
-	}
-	__finally {
 		LeaveCriticalSection(&_critical);
+		return 1;
+	}	
+	//TODO:效验sqlmin.dll版本
+	void* sqlminBase = GetModuleHandle(L"sqlmin.dll");
+	if (!sqlminBase)
+	{
+		LeaveCriticalSection(&_critical);
+		return 2;
 	}
+	//检测前后几个字节是否有效
+	UINT_PTR testHookPnt = (UINT_PTR)sqlminBase + HookPnt - 3;
+	if (IsBadReadPtr((void*)testHookPnt, 0x10)) {
+		LeaveCriticalSection(&_critical);
+		return 3;
+	}
+	//检测代码是否正确
+	if (*(INT64*)testHookPnt != 0x0001a090ffce8b49L || 
+		*(INT64*)(testHookPnt+8) != 0x786d8b44185d8b00L) {
+		LeaveCriticalSection(&_critical);
+		return 4;
+	}
+	//UINT_PTR hookPnt = (UINT_PTR)sqlminBase + 0x5FD30 + 0x5C1;
+	UINT_PTR hookfuncPnt = (UINT_PTR)&hookfunc;
+	UINT_PTR dwAdr = (UINT_PTR)&hookfuncEnd;
+	if (((testHookPnt >> 32) & 0xFFFFFFFF) != ((dwAdr >> 32) & 0xFFFFFFFF))
+	{
+		//不在同一区域，hook失败！
+		LeaveCriticalSection(&_critical);
+		return 5;
+	}
+
+	sQlHookPnt = (UINT_PTR)sqlminBase + HookPnt;
+
+	ULONG backPnt = (sQlHookPnt & 0xFFFFFFFF) + 0x6;
+	ULONG backPntData = backPnt - (dwAdr & 0xFFFFFFFF) - 5; // jmp code Length
+	ULONG hookPntData = (hookfuncPnt & 0xFFFFFFFF) - (sQlHookPnt & 0xFFFFFFFF) - 5; // jmp code Length
+	DWORD dwOldP;
+	VirtualProtect((LPVOID)dwAdr, 0x10, PAGE_EXECUTE_READWRITE, &dwOldP);
+	*(BYTE*)dwAdr = 0xE9;
+	dwAdr += 1;
+	*(DWORD*)dwAdr = backPntData;
+
+	VirtualProtect((LPVOID)sQlHookPnt, 5, PAGE_EXECUTE_READWRITE, &dwOldP);
+	UINT_PTR interLockData = 0x5D8B9000000000E9L;
+	interLockData |= ((UINT_PTR)hookPntData << 8);
+	sQlHookPntData = *(UINT_PTR*)sQlHookPnt;
+	*(UINT_PTR*)sQlHookPnt = interLockData;
+
+	hooked = true;
+	LeaveCriticalSection(&_critical);
+	return 99;
 }
 
 INT64 _Lc_HasBeenHooked(void) {
