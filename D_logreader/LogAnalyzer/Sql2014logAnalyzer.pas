@@ -12,8 +12,11 @@ type
     Fields: TList;
     Table: TdbTableItem;
     lsn: Tlog_LSN;
+    afterUpdate:Tsql2014RowData;
   public
     function getFieldStrValue(FieldName: string): string;
+    function getField(FieldName: string):PdbFieldValue;overload;
+    function getField(col_id: Integer):PdbFieldValue;overload;
     constructor Create;
     destructor Destroy; override;
   end;
@@ -206,9 +209,74 @@ begin
 end;
 
 function TSql2014logAnalyzer.DML_BuilderSql_Update(aRowData: Tsql2014RowData): string;
+function binEquals(v1, v2: TBytes): Boolean;
 begin
-  Loger.Add(' ========================update============ ');
+  if v1 = v2 then
+  begin
+    Result := True;
+  end else if Length(v1) <> Length(v2) then begin
+    Result := False;
+  end else begin
+    Result := CompareMem(@v1[0], @v2[0], Length(v1));
+  end;
+end;
 
+var
+  whereStr: string;
+  updateStr:string;
+  I, J: Integer;
+  fieldval: PdbFieldValue;
+  field: TdbFieldItem;
+  DataRow_aft: Tsql2014RowData;
+  raw_old,raw_new: PdbFieldValue;
+begin
+  whereStr := '';
+  if aRowData.Table.UniqueKeys.Count > 0 then
+  begin
+    for I := 0 to aRowData.Table.UniqueKeys.Count - 1 do
+    begin
+      field := aRowData.Table.UniqueKeys[I];
+      for J := 0 to aRowData.Fields.Count - 1 do
+      begin
+        fieldval := PdbFieldValue(aRowData.Fields[J]);
+        if fieldval.field.Col_id = field.Col_id then
+        begin
+          whereStr := whereStr + Format('and %s=%s ', [fieldval.field.getSafeColName, Hvu_GetFieldStrValueWithQuoteIfNeed(fieldval.field, fieldval.value)]);
+          Break;
+        end;
+      end;
+    end;
+  end
+  else
+  begin
+    for I := 0 to aRowData.Fields.Count - 1 do
+    begin
+      fieldval := PdbFieldValue(aRowData.Fields[I]);
+      whereStr := whereStr + Format('and %s=%s ', [fieldval.field.getSafeColName, Hvu_GetFieldStrValueWithQuoteIfNeed(fieldval.field, fieldval.value)]);
+    end;
+  end;
+  if whereStr.Length > 0 then
+  begin
+    Delete(whereStr, 1, 4);  //"and "
+  end;
+
+  updateStr := '';
+  DataRow_aft := aRowData.afterUpdate;
+  for I := 0 to aRowData.Table.Fields.Count - 1 do
+  begin
+    raw_old := aRowData.getField(aRowData.Table.Fields[i].Col_id);
+    raw_new := DataRow_aft.getField(aRowData.Table.Fields[i].Col_id);
+    if raw_new = nil then
+    begin
+      //var 值 ————>  null
+      updateStr := updateStr + Format(', %s=NULL',[raw_old.field.getSafeColName]);
+    end else if (raw_old = nil) or (not binEquals(raw_new.value, raw_old.value)) then begin
+      updateStr := updateStr + Format(', %s=%s',[raw_new.field.getSafeColName, Hvu_GetFieldStrValueWithQuoteIfNeed(raw_new.field, raw_new.value)]);
+    end
+  end;
+  if updateStr.Length > 0 then
+    Delete(updateStr, 1, 2);  //", "
+  Result := Format('UPDATE %s SET %s WHERE %s;', [aRowData.Table.getFullName, updateStr, whereStr]);
 end;
 
 function TSql2014logAnalyzer.DML_BuilderSql_Insert(aRowData: Tsql2014RowData): string;
@@ -1828,12 +1896,10 @@ var
 begin
   Loger.Add('===========================PriseRowLog_MODIFY_ROW============================');
   BinReader := nil;
+  DataRow_bef := nil;
   Rldo := tPkg.Raw.data;
   try
     try
-      //先获取原始数据
-
-
       case Rldo.normalData.ContextCode of
         LCX_HEAP, //堆表写入
         LCX_CLUSTERED: //聚合写入
@@ -1885,7 +1951,7 @@ begin
               //before update
               TmpBinReader := TbinDataReader.Create(tmpdata, DbTable.Fields.Get_RowMaxLength);
               try
-                DataRow_bef := PriseRowLog_InsertDeleteRowData(DbTable, BinReader);
+                DataRow_bef := PriseRowLog_InsertDeleteRowData(DbTable, TmpBinReader);
               finally
                 TmpBinReader.Free;
               end;
@@ -1895,17 +1961,24 @@ begin
               //after update
               TmpBinReader:=TbinDataReader.Create(tmpdata, DbTable.Fields.Get_RowMaxLength);
               try
-                DataRow_aft := PriseRowLog_InsertDeleteRowData(DbTable, BinReader);
+                DataRow_aft := PriseRowLog_InsertDeleteRowData(DbTable, TmpBinReader);
               finally
                 TmpBinReader.Free;
               end;
-            except
+
+              DataRow_bef.afterUpdate := DataRow_aft;
+            finally
               FreeMem(tmpdata);
             end;
           end;
       else
-
-
+        Loger.Add('PriseRowLog_Insert 遇到尚未处理的 ContextCode :' + contextCodeToStr(Rldo.normalData.ContextCode));
+      end;
+      if DataRow_bef <> nil then
+      begin
+        DataRow_bef.OperaType := Opt_Update;
+        DataRow_bef.lsn := tPkg.LSN;
+        FRows.Add(DataRow_bef);
       end;
     except
       on eexx: Exception do
@@ -2015,6 +2088,7 @@ end;
 constructor Tsql2014RowData.Create;
 begin
   fields := TList.Create;
+  afterUpdate := nil;
 end;
 
 destructor Tsql2014RowData.Destroy;
@@ -2022,6 +2096,11 @@ var
   I: Integer;
   pdd: PdbFieldValue;
 begin
+  if afterUpdate<>nil then
+  begin
+    afterUpdate.Free;
+  end;
+
   for I := 0 to fields.Count - 1 do
   begin
     pdd := PdbFieldValue(fields[I]);
@@ -2032,11 +2111,48 @@ begin
   inherited;
 end;
 
+function Tsql2014RowData.getField(FieldName: string): PdbFieldValue;
+var
+  I: Integer;
+  pdd: PdbFieldValue;
+begin
+  Result := nil;
+  FieldName := LowerCase(FieldName);
+  for I := 0 to fields.Count - 1 do
+  begin
+    pdd := PdbFieldValue(fields[I]);
+    if LowerCase(pdd.field.ColName) = FieldName then
+    begin
+      Result := pdd;
+      Exit;
+    end;
+  end;
+end;
+
+function Tsql2014RowData.getField(col_id: Integer): PdbFieldValue;
+var
+  I: Integer;
+  pdd: PdbFieldValue;
+begin
+  Result := nil;
+  for I := 0 to fields.Count - 1 do
+  begin
+    pdd := PdbFieldValue(fields[I]);
+    if pdd.field.Col_id = col_id then
+    begin
+      Result := pdd;
+      Exit;
+    end;
+  end;
+end;
+
 function Tsql2014RowData.getFieldStrValue(FieldName: string): string;
 var
   I: Integer;
   pdd: PdbFieldValue;
 begin
+  //没有的字段默认null
+  Result := 'NULL';
   //DONE:此方式效率低，（写成代码中if效率也很低
   FieldName := LowerCase(FieldName);
   for I := 0 to fields.Count - 1 do
