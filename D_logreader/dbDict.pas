@@ -29,6 +29,7 @@ type
     FItems_s_Id: array of TdbFieldItem; //根据id排序的内容
     FItems_s_Name: TStringHash;          //根据名称排序的
     fSorted: Boolean;
+    fRowMaxLength:Integer;
     function GetItemsCount: Integer;
     function GetItem(idx: Integer): TdbFieldItem;
     procedure Sort;
@@ -41,6 +42,7 @@ type
     property Items[idx: Integer]: TdbFieldItem read GetItem; default;
     function GetItemById(ColId: Integer): TdbFieldItem;
     function GetItemByName(ColName: string): TdbFieldItem;
+    function Get_RowMaxLength:Integer;
   end;
 
   TdbTableItem = class(TObject)
@@ -251,6 +253,7 @@ var
 begin
   idx := FItems.Add(item);
   FItems_s_Name.Add(item.ColName, idx);
+  fSorted := False;
 end;
 
 constructor TdbFields.Create;
@@ -258,6 +261,7 @@ begin
   fSorted := False;
   FItems := TObjectList.Create;
   FItems_s_Name := TStringHash.Create;
+  fRowMaxLength := -1;
 end;
 
 destructor TdbFields.Destroy;
@@ -319,6 +323,26 @@ end;
 function TdbFields.GetItemsCount: Integer;
 begin
   Result := FItems.Count;
+end;
+
+function TdbFields.Get_RowMaxLength: Integer;
+var
+  I: Integer;
+  sss: TdbFieldItem;
+begin
+  if fRowMaxLength < 1 then
+  begin
+    fRowMaxLength := 0;
+    for I := 0 to Count - 1 do
+    begin
+      sss := Items[I];
+      if sss.Max_length > 0 then
+      begin
+        fRowMaxLength := fRowMaxLength + sss.Max_length;
+      end;
+    end;
+  end;
+  Result := fRowMaxLength;
 end;
 
 procedure TdbFields.RemoveField(ColName: string);
@@ -401,7 +425,8 @@ begin
   table := GetItemById(objId);
   FItems_s_Name.Remove(table.getFullName);
   fitems.Remove(table);
-  fSorted := False;
+  //删除列不影响排序
+  //fSorted := False;
 end;
 
 constructor TdbTables.Create;

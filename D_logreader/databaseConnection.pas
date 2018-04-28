@@ -32,6 +32,10 @@ type
     dbVer_Major: Integer;
     dbVer_Minor: Integer;
     dbVer_BuildNumber: Integer;
+
+    //数据库是否是64位版本
+    dbIs64bit:Boolean;
+
      /// <summary>
      /// 数据库恢复模式
      /// </summary>
@@ -240,13 +244,14 @@ var
   aSql:string;
 begin
   Result := False;
-  aSql := 'SELECT DB_ID(),recovery_model,@@microsoftversion,SERVERPROPERTY(''ProcessID'') FROM sys.databases WHERE database_id = DB_ID()';
+  aSql := 'SELECT DB_ID(),recovery_model,@@microsoftversion,SERVERPROPERTY(''ProcessID''),charindex(''64'',cast(SERVERPROPERTY(''Edition'')as varchar(100))) FROM sys.databases WHERE database_id = DB_ID()';
   if ExecSql(aSql, rDataset) then
   begin
     try
       recovery_model := rDataset.Fields[1].AsInteger;
       microsoftversion := rDataset.Fields[2].AsInteger;
       SvrProcessID := rDataset.Fields[3].AsInteger;
+      dbIs64bit := rDataset.Fields[4].AsInteger>1;
       if checkLoadedInfo then
       begin
         if dbID <> rDataset.Fields[0].AsInteger then

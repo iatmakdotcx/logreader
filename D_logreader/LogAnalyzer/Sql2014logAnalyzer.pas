@@ -38,7 +38,6 @@ type
   private
     FPkgMgr:TTransPkgMgr; //事务队列
 
-
     TransBeginTime: TDateTime;
     TransCommitTime: TDateTime;
     FLogSource: TLogSource;
@@ -104,7 +103,7 @@ implementation
 
 uses
   pluginlog, plugins, OpCode, hexValUtils, contextCode, dbFieldTypes,
-  Memory_Common;
+  Memory_Common, sqlextendedprocHelper;
 
 type
   TRawElement = packed record
@@ -1809,10 +1808,115 @@ begin
 end;
 
 procedure TSql2014logAnalyzer.PriseRowLog_MODIFY_ROW(tPkg: TTransPkgItem);
+procedure applyChange(srcData,pdata:Pointer;offset,size:Integer);
+begin
+  Move(pdata^, Pointer(uintptr(srcData) + offset)^, size);
+end;
+
+var
+  Rldo: PRawLog_DataOpt;
+  R_: array of TBytes;
+  R_Info: array of TRawElement;
+  BinReader: TbinDataReader;
+  I:Integer;
+  OriginRowData:TBytes;
+  TableId: Integer;
+  DbTable: TdbTableItem;
+  TmpBinReader: TbinDataReader;
+  tmpdata:Pointer;
+  DataRow_bef,DataRow_aft: Tsql2014RowData;
 begin
   Loger.Add('===========================PriseRowLog_MODIFY_ROW============================');
+  BinReader := nil;
+  Rldo := tPkg.Raw.data;
+  try
+    try
+      //先获取原始数据
 
 
+      case Rldo.normalData.ContextCode of
+        LCX_HEAP, //堆表写入
+        LCX_CLUSTERED: //聚合写入
+          begin
+            SetLength(R_, Rldo.NumElements);
+            SetLength(R_Info, Rldo.NumElements);
+            BinReader := TbinDataReader.Create(tPkg.Raw);
+            BinReader.seek(SizeOf(TRawLog_DataOpt), soBeginning);
+            for I := 0 to Rldo.NumElements - 1 do
+            begin
+              R_Info[I].Length := BinReader.readWord;
+            end;
+            BinReader.alignTo4;
+            for I := 0 to Rldo.NumElements - 1 do
+            begin
+              if R_Info[I].Length > 0 then
+              begin
+                R_Info[I].Offset := BinReader.Position;
+                R_[I] := BinReader.readBytes(R_Info[I].Length);
+                BinReader.alignTo4;
+              end;
+            end;
+            OriginRowData := getUpdateSoltData(FLogSource.Fdbc,tPkg.LSN);
+            if OriginRowData = nil then
+            begin
+              //备用方案，从dbcc page获取原始行数据（数据可能不准确
+              OriginRowData := getUpdateSoltFromDbccPage(FLogSource.Fdbc,Rldo.pageId);
+              if OriginRowData = nil then
+              begin
+                Loger.Add('获取行原始数据失败！',LOG_ERROR or LOG_IMPORTANT);
+                Exit;
+              end;
+            end;
+            BinReader.SetRange(R_Info[3].Offset, R_Info[3].Length);
+            BinReader.skip(6);
+            TableId := BinReader.readInt;
+            DbTable := FLogSource.Fdbc.dict.tables.GetItemById(TableId);
+            if DbTable = nil then
+            begin
+              //忽略的表
+              Exit;
+            end;
+
+
+            tmpdata := AllocMem(DbTable.Fields.Get_RowMaxLength);
+            try
+              Move(OriginRowData[0], tmpdata^, Length(OriginRowData));
+              applyChange(tmpdata, R_[0], Rldo.OffsetInRow, Rldo.ModifySize);
+              //before update
+              TmpBinReader := TbinDataReader.Create(tmpdata, DbTable.Fields.Get_RowMaxLength);
+              try
+                DataRow_bef := PriseRowLog_InsertDeleteRowData(DbTable, BinReader);
+              finally
+                TmpBinReader.Free;
+              end;
+
+              Move(OriginRowData[0], tmpdata^, Length(OriginRowData));
+              applyChange(tmpdata, R_[1], Rldo.OffsetInRow, Rldo.ModifySize);
+              //after update
+              TmpBinReader:=TbinDataReader.Create(tmpdata, DbTable.Fields.Get_RowMaxLength);
+              try
+                DataRow_aft := PriseRowLog_InsertDeleteRowData(DbTable, BinReader);
+              finally
+                TmpBinReader.Free;
+              end;
+            except
+              FreeMem(tmpdata);
+            end;
+          end;
+      else
+
+
+      end;
+    except
+      on eexx: Exception do
+      begin
+        raise eexx;
+      end;
+    end;
+  finally
+    if BinReader <> nil then
+      BinReader.Free;
+  end;
 end;
 
 procedure TSql2014logAnalyzer.PriseRowLog_MODIFY_COLUMNS(tPkg: TTransPkgItem);

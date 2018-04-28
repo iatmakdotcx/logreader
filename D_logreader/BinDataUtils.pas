@@ -19,7 +19,8 @@ type
     FPosition: Cardinal;
     function GetPosition: Cardinal;
   public
-    constructor Create(mm: TMemory_data);
+    constructor Create(mm: TMemory_data);overload;
+    constructor Create(pp:Pointer; pdsize:Int64);overload;
     destructor Destroy; override;
     procedure alignTo4;
     function seek(Offset: Integer; so: SeekOrigin): Cardinal;
@@ -46,6 +47,15 @@ constructor TbinDataReader.Create(mm: TMemory_data);
 begin
   FBufBase := mm.data;
   FBufSize := mm.dataSize;
+  //Ä¬ÈÏ¶ÁÈ¡·¶Î§ÊÇÄ©Î²
+  FRangeL := 0;
+  FRangeH := FBufSize;
+end;
+
+constructor TbinDataReader.Create(pp:Pointer; pdsize:Int64);
+begin
+  FBufBase := pp;
+  FBufSize := pdsize;
   //Ä¬ÈÏ¶ÁÈ¡·¶Î§ÊÇÄ©Î²
   FRangeL := 0;
   FRangeH := FBufSize;
