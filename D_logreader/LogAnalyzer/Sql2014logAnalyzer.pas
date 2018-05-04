@@ -1530,13 +1530,17 @@ begin
   ColCnt := BinReader.readWord;
   if ColCnt <> DbTable.Fields.Count then
   begin
-    raise Exception.Create('实际列数与日志不匹配！这可能是修改表后造成的！放弃解析！');
+    //UNIQUIFIER
+    if (ColCnt <> DbTable.Fields.Count + 1) then
+    begin
+      raise Exception.Create('实际列数与日志不匹配！这可能是修改表后造成的！放弃解析！');
+    end;
   end;
   DataRow := Tsql2014RowData.Create;
   DataRow.Table := DbTable;
   if (InsertRowFlag and $10) > 0 then
   begin
-    nullMap := BinReader.readBytes((ColCnt + 7) shr 3);
+    nullMap := BinReader.readBytes((DbTable.Fields.Count + 7) shr 3);
   end
   else
   begin
@@ -1894,7 +1898,6 @@ var
   tmpdata:Pointer;
   DataRow_bef,DataRow_aft: Tsql2014RowData;
 begin
-  Loger.Add('===========================PriseRowLog_MODIFY_ROW============================');
   BinReader := nil;
   DataRow_bef := nil;
   Rldo := tPkg.Raw.data;
@@ -1929,7 +1932,7 @@ begin
               OriginRowData := getUpdateSoltFromDbccPage(FLogSource.Fdbc,Rldo.pageId);
               if OriginRowData = nil then
               begin
-                Loger.Add('获取行原始数据失败！',LOG_ERROR or LOG_IMPORTANT);
+                Loger.Add('获取行原始数据失败！'+lsn2str(tPkg.LSN),LOG_ERROR or LOG_IMPORTANT);
                 Exit;
               end;
             end;
@@ -1944,12 +1947,12 @@ begin
             end;
 
 
-            tmpdata := AllocMem(DbTable.Fields.Get_RowMaxLength);
+            tmpdata := AllocMem($2000);
             try
               Move(OriginRowData[0], tmpdata^, Length(OriginRowData));
               applyChange(tmpdata, R_[0], Rldo.OffsetInRow, Rldo.ModifySize);
               //before update
-              TmpBinReader := TbinDataReader.Create(tmpdata, DbTable.Fields.Get_RowMaxLength);
+              TmpBinReader := TbinDataReader.Create(tmpdata, $2000);
               try
                 DataRow_bef := PriseRowLog_InsertDeleteRowData(DbTable, TmpBinReader);
               finally
@@ -1959,7 +1962,7 @@ begin
               Move(OriginRowData[0], tmpdata^, Length(OriginRowData));
               applyChange(tmpdata, R_[1], Rldo.OffsetInRow, Rldo.ModifySize);
               //after update
-              TmpBinReader:=TbinDataReader.Create(tmpdata, DbTable.Fields.Get_RowMaxLength);
+              TmpBinReader := TbinDataReader.Create(tmpdata, $2000);
               try
                 DataRow_aft := PriseRowLog_InsertDeleteRowData(DbTable, TmpBinReader);
               finally
@@ -1972,7 +1975,7 @@ begin
             end;
           end;
       else
-        Loger.Add('PriseRowLog_Insert 遇到尚未处理的 ContextCode :' + contextCodeToStr(Rldo.normalData.ContextCode));
+        Loger.Add('PriseRowLog_MODIFY_ROW 遇到尚未处理的 ContextCode :' + contextCodeToStr(Rldo.normalData.ContextCode));
       end;
       if DataRow_bef <> nil then
       begin
@@ -1993,10 +1996,157 @@ begin
 end;
 
 procedure TSql2014logAnalyzer.PriseRowLog_MODIFY_COLUMNS(tPkg: TTransPkgItem);
+procedure applyChange(srcData, pdata: Pointer; offset, size_old, size_new, datarowCnt: Integer);
+var
+  tmpdata:Pointer;
+  tmpLen:Integer;
+begin
+  //回滚一个修改
+  if size_old = size_new then
+  begin
+    Move(pdata^, Pointer(uintptr(srcData) + offset)^, size_old);
+  end
+  else if size_old > size_new then
+  begin
+    //数据后移
+    tmpLen := datarowCnt - offset;
+    tmpdata := AllocMem(tmpLen);
+    Move(Pointer(uintptr(srcData) + offset)^, tmpdata^, tmpLen);
+    Move(tmpdata^, Pointer(uintptr(srcData) + offset + (size_old - size_new))^, tmpLen);
+    Move(pdata^, Pointer(uintptr(srcData) + offset)^, size_old);
+    FreeMem(tmpdata);
+  end else begin
+    //前移
+    tmpLen := datarowCnt - offset;
+    tmpdata := AllocMem(tmpLen);
+    Move(Pointer(uintptr(srcData) + offset)^, tmpdata^, tmpLen);
+    Move(Pointer(uintptr(tmpdata) + (size_new - size_old))^, Pointer(uintptr(srcData) + offset)^, tmpLen);
+    Move(pdata^, Pointer(uintptr(srcData) + offset)^, size_old);
+    FreeMem(tmpdata);
+  end;
+end;
+
+var
+  Rldo: PRawLog_DataOpt;
+  R_: array of TBytes;
+  R_Info: array of TRawElement;
+  BinReader: TbinDataReader;
+  I:Integer;
+  OriginRowData:TBytes;
+  OffsetInRow:Word;
+  TableId: Integer;
+  DbTable: TdbTableItem;
+  TmpBinReader: TbinDataReader;
+  tmpdata_bef:Pointer;
+  DataRow_bef,DataRow_aft: Tsql2014RowData;
 begin
   Loger.Add('===========================PriseRowLog_MODIFY_COLUMNS============================');
+  BinReader := nil;
+  DataRow_bef := nil;
+  Rldo := tPkg.Raw.data;
+  try
+    try
+      case Rldo.normalData.ContextCode of
+        LCX_HEAP, //堆表写入
+        LCX_CLUSTERED: //聚合写入
+          begin
+            SetLength(R_, Rldo.NumElements);
+            SetLength(R_Info, Rldo.NumElements);
+            BinReader := TbinDataReader.Create(tPkg.Raw);
+            BinReader.seek(SizeOf(TRawLog_DataOpt), soBeginning);
+            for I := 0 to Rldo.NumElements - 1 do
+            begin
+              R_Info[I].Length := BinReader.readWord;
+            end;
+            BinReader.alignTo4;
+            for I := 0 to Rldo.NumElements - 1 do
+            begin
+              if R_Info[I].Length > 0 then
+              begin
+                R_Info[I].Offset := BinReader.Position;
+                R_[I] := BinReader.readBytes(R_Info[I].Length);
+                BinReader.alignTo4;
+              end;
+            end;
+            (*
+            0:更新的Offset
+            1:更新的大小
+            2:聚集索引信息
+            3:锁信息，object_id和 lock_key
+            --之后是修改的内容，类似Log_MODIFY_ROW的r0和r1
+            每2个为一组，至少有2组
+            *)
+            OriginRowData := getUpdateSoltData(FLogSource.Fdbc,tPkg.LSN);
+            if OriginRowData = nil then
+            begin
+              //备用方案，从dbcc page获取原始行数据（数据可能不准确
+              OriginRowData := getUpdateSoltFromDbccPage(FLogSource.Fdbc,Rldo.pageId);
+              if OriginRowData = nil then
+              begin
+                Loger.Add('获取行原始数据失败！'+lsn2str(tPkg.LSN),LOG_ERROR or LOG_IMPORTANT);
+                Exit;
+              end;
+            end;
+            BinReader.SetRange(R_Info[3].Offset, R_Info[3].Length);
+            BinReader.skip(6);
+            TableId := BinReader.readInt;
+            DbTable := FLogSource.Fdbc.dict.tables.GetItemById(TableId);
+            if DbTable = nil then
+            begin
+              //忽略的表
+              Exit;
+            end;
 
+            //OriginRowData 是修改后的行数据
+            tmpdata_bef := AllocMem($2000);
+            try
+              Move(OriginRowData[0], tmpdata_bef^, Length(OriginRowData));
 
+              for I := 0 to ((Rldo.NumElements - 4) div 2) - 1 do
+              begin
+                OffsetInRow := Pword(UIntPtr(R_[0]) + i*4)^;
+                applyChange(tmpdata_bef, R_[4 + I * 2], OffsetInRow, R_Info[4 + I * 2].Length, R_Info[4 + I * 2 + 1].Length, Length(OriginRowData));
+              end;
+
+              //before update
+              TmpBinReader := TbinDataReader.Create(tmpdata_bef, $2000);
+              try
+                DataRow_bef := PriseRowLog_InsertDeleteRowData(DbTable, TmpBinReader);
+              finally
+                TmpBinReader.Free;
+              end;
+              //after update
+              TmpBinReader := TbinDataReader.Create(@OriginRowData[0], $2000);
+              try
+                DataRow_aft := PriseRowLog_InsertDeleteRowData(DbTable, TmpBinReader);
+              finally
+                TmpBinReader.Free;
+              end;
+
+              DataRow_bef.afterUpdate := DataRow_aft;
+            finally
+              FreeMem(tmpdata_bef);
+            end;
+          end;
+      else
+        Loger.Add('PriseRowLog_MODIFY_COLUMNS 遇到尚未处理的 ContextCode :' + contextCodeToStr(Rldo.normalData.ContextCode));
+      end;
+      if DataRow_bef <> nil then
+      begin
+        DataRow_bef.OperaType := Opt_Update;
+        DataRow_bef.lsn := tPkg.LSN;
+        FRows.Add(DataRow_bef);
+      end;
+    except
+      on eexx: Exception do
+      begin
+        raise eexx;
+      end;
+    end;
+  finally
+    if BinReader <> nil then
+      BinReader.Free;
+  end;
 end;
 
 procedure TSql2014logAnalyzer.PriseRowLog(tPkg: TTransPkgItem);

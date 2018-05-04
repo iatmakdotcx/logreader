@@ -173,7 +173,7 @@ var
 begin
   logsource := LogSourceList.Get(StrToInt(ListView1.Selected.Caption) - 1);
 
-  logsource.cpyFile(4, oum);
+  logsource.cpyFile(2, oum);
   mmp := TMemoryStream.Create;
   mmp.WriteBuffer(oum.data^, oum.dataSize);
   mmp.Seek(0, 0);
