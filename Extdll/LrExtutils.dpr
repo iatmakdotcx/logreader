@@ -41,7 +41,8 @@ const
   ModuleVersion = $00000001;
 
 var
-  SVR_hookPnt:Integer = 0;
+  SVR_hookPnt_Row:Integer = 0;
+  SVR_hookPnt_Columns:Integer = 0;
 
 /// <summary>
 /// 是否有当前文件夹的写入权限
@@ -170,6 +171,8 @@ var
   hdl: tHandle;
   Pathbuf: array[0..MAX_PATH + 2] of Char;
   sqlminMD5: string;
+  hookPnt,hookPnt_2: Integer;
+  dllPath: string;
 begin
   Result := 0;
   hdl := GetModuleHandle('sqlmin.dll');
@@ -195,7 +198,14 @@ begin
 
       if DBH.checkMd5(sqlminMD5) then
       begin
-        Result := 1;
+        if DBH.cfg(sqlminMD5, hookPnt, hookPnt_2, dllPath) then
+        begin
+          SVR_hookPnt_Row := hookPnt;
+          SVR_hookPnt_Columns := hookPnt_2;
+          pageCapture_init(dllPath);
+          SqlSvr_SendMsg(pSrvProc, 'init:成功');
+          Result := 1;
+        end;
       end
       else
       begin
@@ -216,7 +226,7 @@ var
   hdl: tHandle;
   Pathbuf: array[0..MAX_PATH + 2] of Char;
   sqlminMD5: string;
-  hookPnt: Integer;
+  hookPnt,hookPnt_2: Integer;
   dllPath: string;
 begin
   Result := SUCCEED;
@@ -250,9 +260,10 @@ begin
       if DBH.checkMd5(sqlminMD5) then
       begin
         SqlSvr_SendMsg(pSrvProc, '准备加载已知方案');
-        if DBH.cfg(sqlminMD5, hookPnt, dllPath) then
+        if DBH.cfg(sqlminMD5, hookPnt, hookPnt_2, dllPath) then
         begin
-          SVR_hookPnt := hookPnt;
+          SVR_hookPnt_Row := hookPnt;
+          SVR_hookPnt_Columns := hookPnt_2;
           pageCapture_init(dllPath);
           SqlSvr_SendMsg(pSrvProc, '成功');
         end;
@@ -280,11 +291,11 @@ begin
   if not Assigned(_Lc_doHook) then
     d_hook_init(pSrvProc);
 
-  if Assigned(_Lc_doHook) and (SVR_hookPnt > 0) then
+  if Assigned(_Lc_doHook) and (SVR_hookPnt_Row > 0) and (SVR_hookPnt_Columns > 0) then
   begin
-    if loopSaveMgr = nil then
-      loopSaveMgr := TloopSaveMgr.Create;
-    hookPnt := _Lc_doHook(SVR_hookPnt);
+//    if loopSaveMgr = nil then
+//      loopSaveMgr := TloopSaveMgr.Create;
+    hookPnt := _Lc_doHook(SVR_hookPnt_Row, SVR_hookPnt_Columns);
     if hookPnt = 99 then
     begin
       _Lc_Set_Databases(cfg.DBids);
@@ -305,6 +316,10 @@ begin
   else
   begin
     _Lc_unHook;
+  end;
+
+  if loopSaveMgr <> nil then
+  begin
     loopSaveMgr.Free;
     loopSaveMgr := nil;
   end;
@@ -547,6 +562,9 @@ begin
           tmpint := ModuleVersion;
           srv_setcoldata(pSrvProc, 1, @tmpint);
           srv_sendrow(pSrvProc);
+        end else if action = 'TEST' then
+        begin
+          
         end
         else
         begin

@@ -12,9 +12,10 @@
 #endif
 
 
+_API_STDCALL void domyWork_2(UINT_PTR XdesRMReadWrite, UINT_PTR rawData);
 _API_STDCALL void domyWork(UINT_PTR eCount, UINT_PTR r14, UINT_PTR logHeader, UINT_PTR oldPageData);
 
-_API_STDCALL int _Lc_doHook(UINT_PTR HookPnt);
+_API_STDCALL int _Lc_doHook(UINT_PTR mRowPtr, UINT_PTR mColumnsPtr);
 _API_STDCALL void _Lc_unHook(void);
 _API_STDCALL INT64 _Lc_HasBeenHooked(void);
 _API_STDCALL PVOID _Lc_Get_PaddingData(void);

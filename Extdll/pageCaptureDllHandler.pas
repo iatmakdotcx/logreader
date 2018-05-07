@@ -7,7 +7,7 @@ uses
   Winapi.Windows;
 
 type
-  T_Lc_doHook = function(HookPnt: UINT_PTR): Integer; stdcall;
+  T_Lc_doHook = function(mRowPtr: UINT_PTR; mColumnsPtr: UINT_PTR): Integer; stdcall;
 
   T_Lc_unHook = procedure(); stdcall;
 
