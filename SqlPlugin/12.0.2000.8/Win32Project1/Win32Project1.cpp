@@ -5,9 +5,6 @@
 #include "Win32Project1.h"
 #include "aax64.h"
 #include <exception>  
-#include <time.h> 
-#include <process.h>
-#include <strsafe.h> 
 
 using namespace std;
 
@@ -39,70 +36,63 @@ void f_finalization() {
 	DeleteCriticalSection(&_critical);
 }
 
-void domyWork_2(UINT_PTR XdesRMReadWrite, UINT_PTR rawData) {
-	__try
+void domyWork_2(UINT_PTR XdesRMReadWrite, UINT_PTR rawData) {	
+	if (PaddingDataCnt < 100000)
 	{
-		//10w数据未处理，就不记录后面的东西了，估计都挂了
-		if (PaddingDataCnt < 100000)
+		WORD dbid = *(WORD*)(XdesRMReadWrite + 0x460);
+		if (dbid > 0 && dbid < 64 && (((INT64)1 << (dbid - 1)) & CdbId))
 		{
-			WORD dbid = *(WORD*)(XdesRMReadWrite + 0x460);
-			if (dbid > 0 && dbid < 64 && (((INT64)1 << (dbid - 1)) & CdbId))
+			WORD RowFlag = *(WORD*)rawData;
+			UINT_PTR Endoffset = rawData + (*(WORD*)(rawData + 2) & 0x7FFF);
+			if (RowFlag & 0x10)
 			{
-				PLSN lsn = (PLSN)(XdesRMReadWrite + 0x32c);
-
-				WORD RowFlag = *(WORD*)rawData;
-				UINT_PTR Endoffset = rawData + (*(WORD*)(rawData + 2) & 0x7FFF);
-				if (RowFlag & 0x10)
-				{
-					//null map
-					WORD colCnt = *(WORD*)(Endoffset);
-					Endoffset += (colCnt + 7) >> 3;
-				}
-				Endoffset += 2;
-				if (RowFlag & 0x20)
-				{
-					//variants fields
-					WORD varColCnt = *(WORD*)(Endoffset);
-					Endoffset += varColCnt * 2;
-					Endoffset = rawData + (*(WORD*)(Endoffset) & 0x7FFF);
-				}
-				if (RowFlag & 0x40)
-				{
-					//versioning tag
-					Endoffset += 0xE;
-				}
-
-				DWORD RowDatalength = (DWORD)(Endoffset - rawData);
-
-				BYTE* slotData = new BYTE[RowDatalength];
-				memcpy(slotData, (PVOID)rawData, RowDatalength);
-
-				PlogRecdItem LR = new logRecdItem;
-				LR->TranID_1 = 0;
-				LR->TranID_2 = 0;
-				LR->lsn.LSN_1 = lsn->LSN_1;
-				LR->lsn.LSN_2 = lsn->LSN_2;
-				LR->lsn.LSN_3 = lsn->LSN_3;
-				LR->dbId = dbid;
-
-				LR->length = RowDatalength;
-				LR->val = slotData;
-				LR->n = NULL;
-
-				PlogRecdItem oldLR = (PlogRecdItem)InterlockedExchangePointer((PVOID*)&logRecd_last, LR);
-				if (oldLR)
-				{
-					oldLR->n = LR;
-				}
-				else {
-					logRecd_first = LR;
-				}
-				InterlockedAdd(&PaddingDataCnt, 1);
+				//null map
+				WORD colCnt = *(WORD*)(Endoffset);
+				Endoffset += (colCnt + 7) >> 3;
 			}
+			Endoffset += 2;
+			if (RowFlag & 0x20)
+			{
+				//variants fields
+				WORD varColCnt = *(WORD*)(Endoffset);
+				Endoffset += varColCnt * 2;
+				Endoffset = rawData + (*(WORD*)(Endoffset) & 0x7FFF);
+			}
+			if (RowFlag & 0x40)
+			{
+				//versioning tag
+				Endoffset += 0xE;
+			}
+
+			DWORD RowDatalength = (DWORD)(Endoffset - rawData);
+
+			PVOID slotData = malloc(RowDatalength);
+			memcpy(slotData, (PVOID)rawData, RowDatalength);
+
+			PLSN lsn = (PLSN)(XdesRMReadWrite + 0x32c);
+			PlogRecdItem LR = new logRecdItem;
+			LR->TranID_1 = 0;
+			LR->TranID_2 = 0;
+			LR->lsn.LSN_1 = lsn->LSN_1;
+			LR->lsn.LSN_2 = lsn->LSN_2;
+			LR->lsn.LSN_3 = lsn->LSN_3;
+			LR->dbId = dbid;
+
+			LR->length = RowDatalength;
+			LR->val = slotData;
+			LR->n = NULL;
+
+			PlogRecdItem oldLR = (PlogRecdItem)InterlockedExchangePointer((PVOID*)&logRecd_last, LR);
+			if (oldLR)
+			{
+				oldLR->n = LR;
+			}
+			else {
+				logRecd_first = LR;
+			}
+			InterlockedAdd(&PaddingDataCnt, 1);
 		}
 	}
-	__except (EXCEPTION_EXECUTE_HANDLER)
-	{}
 }
 
 void domyWork(UINT_PTR eCount, UINT_PTR r14, UINT_PTR logHeader, UINT_PTR oldPageData) {
@@ -202,7 +192,7 @@ PVOID _Lc_Get_PaddingData(void) {
 }
 
 bool hook_sqlmin_Page_ModifyColumns_x64_hasHooked(UINT_PTR hook_Ptr) {
-	UINT_PTR origindata = 0x564155415441f5ffL;
+	UINT_PTR origindata = 0x564155415441F5FFL;
 	//sqlmin!Page::ModifyColumns:
 	// fff5  push rbp
 	// 4154  push r12
@@ -244,7 +234,7 @@ void hook_sqlmin_Page_ModifyColumns_x64_unhook() {
 }
 
 bool hook_sqlmin_Page_ModifyRow_x64_hasHooked(UINT_PTR hook_Ptr) {
-	UINT_PTR origindata = 0x44894420244c8944L;
+	UINT_PTR origindata = 0x44894420244C8944L;						  
 	//sqlmin!Page::ModifyRow:
 	//44894c2420      mov     dword ptr[rsp + 20h], r9d
 	//4489442418      mov     dword ptr[rsp + 18h], r8d
@@ -287,6 +277,7 @@ void _Lc_unHook(void) {
 	EnterCriticalSection(&_critical);
 	hook_sqlmin_Page_ModifyRow_x64_unhook();
 	hook_sqlmin_Page_ModifyColumns_x64_unhook();
+	hooked = false;
 	LeaveCriticalSection(&_critical);
 }
 
@@ -348,5 +339,7 @@ INT64 _Lc_Get_Databases(void) {
 }
 
 void _Lc_Free_PaddingData(PlogRecdItem logRecd_first) {
+	free(logRecd_first->val);
+	logRecd_first->val = NULL;
 	delete logRecd_first;
 }

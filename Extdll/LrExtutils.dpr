@@ -539,11 +539,12 @@ begin
 //        end
         else if action = 'D' then
         begin
-          d_Get_HasBeenHooked(pSrvProc);
+          savePageLog2;
+          //d_Get_HasBeenHooked(pSrvProc);
         end
         else if action = 'E' then
         begin
-          SqlSvr_SendMsg(pSrvProc, 'ERROR:' + inttostr(cfg.DBids));
+          SqlSvr_SendMsg(pSrvProc, 'dbid:' + inttostr(cfg.DBids));
         end
         else if action = 'F' then
         begin

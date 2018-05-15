@@ -23,6 +23,7 @@ _API_STDCALL UINT_PTR _Lc_Get_PaddingDataCnt(void);
 _API_STDCALL void _Lc_Set_Databases(INT64 dbId);
 _API_STDCALL INT64 _Lc_Get_Databases(void);
 
+
 void f_initialization();
 void f_finalization();
 
@@ -72,6 +73,5 @@ typedef struct TransPkg
 
 	PLSNItem item;
 } *PTransPkg;
-
 
 _API_STDCALL void _Lc_Free_PaddingData(PlogRecdItem logRecd_first);
