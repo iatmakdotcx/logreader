@@ -36,8 +36,46 @@ void f_finalization() {
 	DeleteCriticalSection(&_critical);
 }
 
+bool checkRawPtr(UINT_PTR rawData) {
+	if (IsBadReadPtr((void*)rawData, 6)) {
+		return false;
+	}
+	BYTE flag1 = *(BYTE*)rawData;
+	if ((flag1 & 0x0F) != 0)
+	{
+		//not primary record.
+		return false;
+	}
+	BYTE flag2 = *(BYTE*)(rawData+1);
+	if (flag2 != 0)
+	{
+		//ghost forwarded record
+		return false;
+	}
+	if ((*(WORD*)(rawData + 2) & 0x7FFF) > 0x2000)
+	{
+		//colCntoffset out of range
+		return false;
+	}
+	return true;
+}
+
+
+bool checkXdesRMRWPtr(UINT_PTR XdesRMRW) {
+	if (IsBadReadPtr((void*)XdesRMRW, 0x464)) {
+		return false;
+	}
+	WORD dbid = *(WORD*)(XdesRMRW + 0x460);
+	if (dbid & 0xff00)
+	{
+		//biger than 255
+		return false;
+	}	
+	return true;
+}
+
 void domyWork_2(UINT_PTR XdesRMReadWrite, UINT_PTR rawData) {	
-	if (PaddingDataCnt < 100000)
+	if (PaddingDataCnt < 100000 && checkRawPtr(rawData) && checkXdesRMRWPtr(XdesRMReadWrite))
 	{
 		WORD dbid = *(WORD*)(XdesRMReadWrite + 0x460);
 		if (dbid > 0 && dbid < 64 && (((INT64)1 << (dbid - 1)) & CdbId))
@@ -65,6 +103,10 @@ void domyWork_2(UINT_PTR XdesRMReadWrite, UINT_PTR rawData) {
 			}
 
 			DWORD RowDatalength = (DWORD)(Endoffset - rawData);
+			if (RowDatalength > 0x2000)
+			{
+				return;
+			}
 
 			PVOID slotData = malloc(RowDatalength);
 			memcpy(slotData, (PVOID)rawData, RowDatalength);
