@@ -19,7 +19,7 @@ type
     constructor Create;
     destructor Destroy; override;
     function checkMd5(md5Str: string): Boolean;
-    function cfg(md5Str: string; var pnt,pnt2: Integer; var dll: string): Boolean;
+    function cfg(md5Str: string; var pnt: Integer; var dll: string): Boolean;
   end;
 
 var
@@ -39,7 +39,7 @@ end;
 
 { TDBH }
 
-function TDBH.cfg(md5Str: string; var pnt,pnt2: Integer; var dll: string): Boolean;
+function TDBH.cfg(md5Str: string; var pnt: Integer; var dll: string): Boolean;
 var
   sSQL: string;
 begin
@@ -49,7 +49,6 @@ begin
   if Qry.RecordCount > 0 then
   begin
     pnt := Qry.FieldByName('pnt').AsInteger;
-    pnt2 := Qry.FieldByName('pnt2').AsInteger;
     dll := Qry.FieldByName('dllpath').AsString;
     Result := True;
   end

@@ -42,7 +42,6 @@ const
 
 var
   SVR_hookPnt_Row:Integer = 0;
-  SVR_hookPnt_Columns:Integer = 0;
 
 /// <summary>
 /// 是否有当前文件夹的写入权限
@@ -171,7 +170,7 @@ var
   hdl: tHandle;
   Pathbuf: array[0..MAX_PATH + 2] of Char;
   sqlminMD5: string;
-  hookPnt,hookPnt_2: Integer;
+  hookPnt: Integer;
   dllPath: string;
 begin
   Result := 0;
@@ -198,10 +197,9 @@ begin
 
       if DBH.checkMd5(sqlminMD5) then
       begin
-        if DBH.cfg(sqlminMD5, hookPnt, hookPnt_2, dllPath) then
+        if DBH.cfg(sqlminMD5, hookPnt, dllPath) then
         begin
           SVR_hookPnt_Row := hookPnt;
-          SVR_hookPnt_Columns := hookPnt_2;
           pageCapture_init(dllPath);
           SqlSvr_SendMsg(pSrvProc, 'init:成功');
           Result := 1;
@@ -226,7 +224,7 @@ var
   hdl: tHandle;
   Pathbuf: array[0..MAX_PATH + 2] of Char;
   sqlminMD5: string;
-  hookPnt,hookPnt_2: Integer;
+  hookPnt: Integer;
   dllPath: string;
 begin
   Result := SUCCEED;
@@ -260,10 +258,9 @@ begin
       if DBH.checkMd5(sqlminMD5) then
       begin
         SqlSvr_SendMsg(pSrvProc, '准备加载已知方案');
-        if DBH.cfg(sqlminMD5, hookPnt, hookPnt_2, dllPath) then
+        if DBH.cfg(sqlminMD5, hookPnt, dllPath) then
         begin
           SVR_hookPnt_Row := hookPnt;
-          SVR_hookPnt_Columns := hookPnt_2;
           pageCapture_init(dllPath);
           SqlSvr_SendMsg(pSrvProc, '成功');
         end;
@@ -291,11 +288,11 @@ begin
   if not Assigned(_Lc_doHook) then
     d_hook_init(pSrvProc);
 
-  if Assigned(_Lc_doHook) and (SVR_hookPnt_Row > 0) and (SVR_hookPnt_Columns > 0) then
+  if Assigned(_Lc_doHook) and (SVR_hookPnt_Row > 0) then
   begin
-//    if loopSaveMgr = nil then
-//      loopSaveMgr := TloopSaveMgr.Create;
-    hookPnt := _Lc_doHook(SVR_hookPnt_Row, SVR_hookPnt_Columns);
+    if loopSaveMgr = nil then
+      loopSaveMgr := TloopSaveMgr.Create;
+    hookPnt := _Lc_doHook(SVR_hookPnt_Row);
     if hookPnt = 99 then
     begin
       _Lc_Set_Databases(cfg.DBids);

@@ -23,6 +23,11 @@ extern domyWork_2 : proc
 
 hookfunc PROC
 	; jmp过来的，堆栈完好，先直接调用
+	;pagedata = [[rcx]]
+	;XdesRMFull = p9 = [rsp+48]
+	;raw=[[[rbp+30]]+8]
+	;raw=[[[rsp+70]]+8]
+	push rbp
 	push rax
 	push rbx
 	push rcx 
@@ -37,26 +42,26 @@ hookfunc PROC
 	push r15
 	push rdi
 	push rsi
-	push rbp
+	
 	sub rsp,20h  ; shadow space
 
 	;仅记录data页数据
+	mov rcx,[rcx]
+	mov rcx,[rcx]
 	mov al,[rcx+1]
 	cmp al,1
 	jz @doow
 	cmp al,3
 	jz @doow
 	jmp @tugi
-	@doow:
-	;[rbp+58h] ;XdesRMReadWrite object 
+	@doow:	
 
-	mov rcx, [rbp+58h]		;XdesRMReadWrite object 
-	mov rdx, [rbp+0FB0h]		;new raw data
+	mov rcx, [rsp+0E0h]		    ;p9: <&XdesRMFull::`vftable'>
+	mov rdx, [rsp+108h]			;p14: new raw data
 	call domyWork_2
 
 	@tugi:
 	add rsp,20h	
-	pop rbp
 	pop rsi
 	pop rdi
 	pop r15
@@ -71,8 +76,12 @@ hookfunc PROC
 	pop rcx
 	pop rbx
 	pop rax
-	mov dword ptr [rsp+20h],r9d
+	pop rbp
 
+	push rbp
+	push rbx
+	push rsi
+    push rdi
 hookfunc ENDP
 
 hookfuncEnd PROC
@@ -87,82 +96,6 @@ hookfuncEnd PROC
 	ret
 hookfuncEnd ENDP
 
-
-hookfunc_2 PROC
-	; jmp过来的，堆栈完好，先直接调用
-
-	push rax
-	push rbx
-	push rcx 
-	push rdx
-	push r8
-	push r9
-	push r10
-	push r11
-	push r12
-	push r13
-	push r14
-	push r15
-	push rdi
-	push rsi
-	push rbp
-	sub rsp,20h  ; shadow space
-
-	;仅记录data页数据
-	mov al,[rcx+1]
-	cmp al,1
-	jz @doow
-	cmp al,3
-	jz @doow
-	jmp @tugi
-	@doow:
-
-	;[rbp+6C0]   ;XdesRMReadWrite object 
-	;[rbp+550] 新的内容
-	mov rcx, [rbp+6C0h]		;XdesRMReadWrite object 
-	mov rdx, [rbp+550h]		;new raw data
-	call domyWork_2
-
-	@tugi:
-	add rsp,20h
-	pop rbp
-	pop rsi
-	pop rdi
-	pop r15
-	pop r14
-	pop r13
-	pop r12
-	pop r11
-	pop r10
-	pop r9
-	pop r8
-	pop rdx
-	pop rcx
-	pop rbx
-	pop rax
-		
-	push rbp
-	push r12
-	push r13
-hookfunc_2 ENDP
-
-hookfuncEnd_2 PROC
-	;空间留够，用于返回原函数
-
-	nop
-	nop
-	nop
-	nop
-	nop
-	nop
-	nop
-	nop
-	nop
-	nop
-	nop
-	nop
-	ret
-hookfuncEnd_2 ENDP
 
 
 END

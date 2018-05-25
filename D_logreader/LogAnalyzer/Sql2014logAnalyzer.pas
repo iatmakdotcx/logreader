@@ -1540,7 +1540,8 @@ begin
   DataRow.Table := DbTable;
   if (InsertRowFlag and $10) > 0 then
   begin
-    nullMap := BinReader.readBytes((DbTable.Fields.Count + 7) shr 3);
+    //nullMap := BinReader.readBytes((DbTable.Fields.Count + 7) shr 3);
+    nullMap := BinReader.readBytes((ColCnt + 7) shr 3);
   end
   else
   begin
@@ -1880,11 +1881,35 @@ begin
 end;
 
 procedure TSql2014logAnalyzer.PriseRowLog_MODIFY_ROW(tPkg: TTransPkgItem);
-procedure applyChange(srcData,pdata:Pointer;offset,size:Integer);
+procedure applyChange(srcData, pdata: Pointer; offset, size_old, size_new, datarowCnt: Integer);
+var
+  tmpdata:Pointer;
+  tmpLen:Integer;
 begin
-  Move(pdata^, Pointer(uintptr(srcData) + offset)^, size);
+  //回滚一个修改
+  if size_old = size_new then
+  begin
+    Move(pdata^, Pointer(uintptr(srcData) + offset)^, size_old);
+  end
+  else if size_old > size_new then
+  begin
+    //数据后移
+    tmpLen := datarowCnt - offset;
+    tmpdata := AllocMem(tmpLen);
+    Move(Pointer(uintptr(srcData) + offset)^, tmpdata^, tmpLen);
+    Move(tmpdata^, Pointer(uintptr(srcData) + offset + (size_old - size_new))^, tmpLen);
+    Move(pdata^, Pointer(uintptr(srcData) + offset)^, size_old);
+    FreeMem(tmpdata);
+  end else begin
+    //前移
+    tmpLen := datarowCnt - offset;
+    tmpdata := AllocMem(tmpLen);
+    Move(Pointer(uintptr(srcData) + offset)^, tmpdata^, tmpLen);
+    Move(Pointer(uintptr(tmpdata) + (size_new - size_old))^, Pointer(uintptr(srcData) + offset)^, tmpLen);
+    Move(pdata^, Pointer(uintptr(srcData) + offset)^, size_old);
+    FreeMem(tmpdata);
+  end;
 end;
-
 var
   Rldo: PRawLog_DataOpt;
   R_: array of TBytes;
@@ -1950,7 +1975,7 @@ begin
             tmpdata := AllocMem($2000);
             try
               Move(OriginRowData[0], tmpdata^, Length(OriginRowData));
-              applyChange(tmpdata, R_[0], Rldo.OffsetInRow, Rldo.ModifySize);
+              applyChange(tmpdata, R_[0], Rldo.OffsetInRow, R_Info[0].Length, R_Info[1].Length, Length(OriginRowData));
               //before update
               TmpBinReader := TbinDataReader.Create(tmpdata, $2000);
               try
@@ -1959,10 +1984,10 @@ begin
                 TmpBinReader.Free;
               end;
 
-              Move(OriginRowData[0], tmpdata^, Length(OriginRowData));
-              applyChange(tmpdata, R_[1], Rldo.OffsetInRow, Rldo.ModifySize);
+//              Move(OriginRowData[0], tmpdata^, Length(OriginRowData));
+//              applyChange(tmpdata, R_[1], Rldo.OffsetInRow, Rldo.ModifySize);
               //after update
-              TmpBinReader := TbinDataReader.Create(tmpdata, $2000);
+              TmpBinReader := TbinDataReader.Create(@OriginRowData[0], $2000);
               try
                 DataRow_aft := PriseRowLog_InsertDeleteRowData(DbTable, TmpBinReader);
               finally
@@ -2076,11 +2101,12 @@ begin
             --之后是修改的内容，类似Log_MODIFY_ROW的r0和r1
             每2个为一组，至少有2组
             *)
-            OriginRowData := getUpdateSoltData(FLogSource.Fdbc,tPkg.LSN);
+            OriginRowData := getUpdateSoltData(FLogSource.Fdbc, Rldo.normalData.PreviousLSN);
             if OriginRowData = nil then
             begin
+              Loger.Add('获取行原始数据失败！' + lsn2str(tPkg.LSN) + ',pLSN:' + lsn2str(Rldo.normalData.PreviousLSN), LOG_WARNING or LOG_IMPORTANT);
               //备用方案，从dbcc page获取原始行数据（数据可能不准确
-              OriginRowData := getUpdateSoltFromDbccPage(FLogSource.Fdbc,Rldo.pageId);
+              OriginRowData := getUpdateSoltFromDbccPage(FLogSource.Fdbc, Rldo.pageId);
               if OriginRowData = nil then
               begin
                 Loger.Add('获取行原始数据失败！'+lsn2str(tPkg.LSN),LOG_ERROR or LOG_IMPORTANT);

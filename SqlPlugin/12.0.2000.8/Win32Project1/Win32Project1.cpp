@@ -8,11 +8,9 @@
 
 using namespace std;
 
-ULONGLONG Sqlmin_Page_ModifyRow_Ptr = 0;
-ULONGLONG Sqlmin_Page_ModifyRow_Data = 0;
+ULONGLONG Sqlmin_PageRef_ModifyColumnsInternal_Ptr = 0;
+ULONGLONG Sqlmin_PageRef_ModifyColumnsInternal_Data = 0x415441575653F5FFL;
 
-ULONGLONG Sqlmin_Page_ModifyColumns_Ptr = 0;
-ULONGLONG Sqlmin_Page_ModifyColumns_Data = 0;
 bool hooked = false;
 PTransPkg list_TransPkg = NULL;
 
@@ -37,6 +35,15 @@ void f_finalization() {
 }
 
 bool checkRawPtr(UINT_PTR rawData) {
+	if (IsBadReadPtr((void*)rawData, 8)) {
+		return false;
+	}
+	rawData = *(UINT_PTR*)rawData;
+	rawData = rawData + 8;
+	if (IsBadReadPtr((void*)rawData, 8)) {
+		return false;
+	}
+	rawData = *(UINT_PTR*)rawData;
 	if (IsBadReadPtr((void*)rawData, 6)) {
 		return false;
 	}
@@ -75,11 +82,13 @@ bool checkXdesRMRWPtr(UINT_PTR XdesRMRW) {
 }
 
 void domyWork_2(UINT_PTR XdesRMReadWrite, UINT_PTR rawData) {	
-	if (PaddingDataCnt < 100000 && checkRawPtr(rawData) && checkXdesRMRWPtr(XdesRMReadWrite))
+	if (PaddingDataCnt < 100000  && checkXdesRMRWPtr(XdesRMReadWrite))
 	{
 		WORD dbid = *(WORD*)(XdesRMReadWrite + 0x460);
-		if (dbid > 0 && dbid < 64 && (((INT64)1 << (dbid - 1)) & CdbId))
+		if (dbid > 0 && dbid < 64 && (((INT64)1 << (dbid - 1)) & CdbId) && checkRawPtr(rawData))
 		{
+			rawData = *(UINT_PTR*)rawData + 8;			
+			rawData = *(UINT_PTR*)rawData;
 			WORD RowFlag = *(WORD*)rawData;
 			UINT_PTR Endoffset = rawData + (*(WORD*)(rawData + 2) & 0x7FFF);
 			if (RowFlag & 0x10)
@@ -137,90 +146,6 @@ void domyWork_2(UINT_PTR XdesRMReadWrite, UINT_PTR rawData) {
 	}
 }
 
-void domyWork(UINT_PTR eCount, UINT_PTR r14, UINT_PTR logHeader, UINT_PTR oldPageData) {
-	__try
-	{
-		//10w数据未处理，就不记录后面的东西了，估计都挂了
-		if (eCount > 0 && PaddingDataCnt < 100000)
-		{
-			//r14+460 database id
-			//r14+32c lsn
-
-			WORD dbid = *(WORD*)(r14 + 0x460);
-			if (dbid > 0 && dbid < 64 && (((INT64)1 << (dbid - 1)) & CdbId))
-			{
-				PLSN lsn = (PLSN)(r14 + 0x32c);
-
-				DWORD TranID_1 = *(DWORD*)(logHeader + 0x10);
-				WORD TranID_2 = *(WORD*)(logHeader + 0x14);
-				WORD slot = *(WORD*)(logHeader + 0x1E);
-
-				WORD PageSoltCnt = *(WORD*)(oldPageData + 0x16);
-				if (slot < PageSoltCnt)
-				{
-					//开始位置
-					UINT_PTR RowDataOffset = oldPageData + *(WORD*)((oldPageData + 0x2000) - ((slot + 1) * 2));
-					//计算log长度
-					WORD RowFlag = *(WORD*)RowDataOffset;
-					UINT_PTR Endoffset = RowDataOffset + (*(WORD*)(RowDataOffset + 2) & 0x7FFF);				
-					if (RowFlag & 0x10)
-					{
-						//null map
-						WORD colCnt = *(WORD*)(Endoffset);
-						Endoffset += (colCnt + 7) >> 3;
-					}
-					Endoffset += 2;
-					if (RowFlag & 0x20)
-					{
-						//variants fields
-						WORD varColCnt = *(WORD*)(Endoffset);
-						Endoffset += varColCnt * 2;
-						//TODO:bug
-
-						Endoffset = RowDataOffset + (*(WORD*)(Endoffset) & 0x7FFF);
-					}
-					if (RowFlag & 0x40)
-					{
-						//???
-						Endoffset += 0xE;
-					}
-				
-					DWORD RowDatalength = (DWORD)(Endoffset - RowDataOffset);
-
-					BYTE* slotData = new BYTE[RowDatalength];
-					memcpy(slotData, (PVOID)RowDataOffset, RowDatalength);
-
-					PlogRecdItem LR = new logRecdItem;
-					LR->TranID_1 = TranID_1;
-					LR->TranID_2 = TranID_2;
-					LR->lsn.LSN_1 = lsn->LSN_1;
-					LR->lsn.LSN_2 = lsn->LSN_2;
-					LR->lsn.LSN_3 = lsn->LSN_3;
-					LR->dbId = dbid;
-
-					LR->length = RowDatalength;
-					LR->val = slotData;
-					LR->n = NULL;
-
-					PlogRecdItem oldLR = (PlogRecdItem)InterlockedExchangePointer((PVOID*)&logRecd_last, LR);
-					if (oldLR)
-					{
-						oldLR->n = LR;
-					}
-					else {
-						logRecd_first = LR;
-					}
-					InterlockedAdd(&PaddingDataCnt, 1);						
-				}
-			}
-		}
-	}
-	__except (EXCEPTION_EXECUTE_HANDLER)
-	{
-
-	}
-}
-
 PVOID _Lc_Get_PaddingData(void) {
 	PlogRecdItem LR = (PlogRecdItem)InterlockedExchangePointer((PVOID*)&logRecd_first, NULL);
 	if (LR)
@@ -233,64 +158,30 @@ PVOID _Lc_Get_PaddingData(void) {
 	return NULL;
 }
 
-bool hook_sqlmin_Page_ModifyColumns_x64_hasHooked(UINT_PTR hook_Ptr) {
-	UINT_PTR origindata = 0x564155415441F5FFL;
-	//sqlmin!Page::ModifyColumns:
-	// fff5  push rbp
-	// 4154  push r12
-	// 4155  push r13
-	// 4156  push r14
+bool hook_sqlmin_PageRef_ModifyColumnsInternal_x64_hasHooked(UINT_PTR hook_Ptr) {
+	//000007FEF5B2F950 | FF F5 | push rbp |
+	//000007FEF5B2F952 | 53    | push rbx |
+	//000007FEF5B2F953 | 56    | push rsi | 
+	//000007FEF5B2F954 | 57    | push rdi |
+	//000007FEF5B2F955 | 41 54 | push r12 |
+	//000007FEF5B2F957 | 41 55 | push r13 | 
 	UINT_PTR nowdata = *(UINT_PTR*)hook_Ptr;
-	return origindata != nowdata;
+	return Sqlmin_PageRef_ModifyColumnsInternal_Data != nowdata;
 }
 
-void hook_sqlmin_Page_ModifyColumns_x64(UINT_PTR hook_Ptr) {
-	if (!hook_sqlmin_Page_ModifyColumns_x64_hasHooked(hook_Ptr)) {
-		UINT_PTR hookfuncPnt = (UINT_PTR)&hookfunc_2;
-		UINT_PTR hookfuncPntEnd = (UINT_PTR)&hookfuncEnd_2;
-
-		ULONG backPnt = (hook_Ptr & 0xFFFFFFFF) + 0x6;
-		ULONG backPntData = backPnt - (hookfuncPntEnd & 0xFFFFFFFF) - 5; // jmp code Length
-		ULONG hookPntData = (hookfuncPnt & 0xFFFFFFFF) - (hook_Ptr & 0xFFFFFFFF) - 5; // jmp code Length
-		DWORD dwOldP;
-		VirtualProtect((LPVOID)hookfuncPntEnd, 0x10, PAGE_EXECUTE_READWRITE, &dwOldP);
-		*(BYTE*)hookfuncPntEnd = 0xE9;
-		hookfuncPntEnd += 1;
-		*(DWORD*)hookfuncPntEnd = backPntData;
-
-		VirtualProtect((LPVOID)hook_Ptr, 5, PAGE_EXECUTE_READWRITE, &dwOldP);
-		UINT_PTR interLockData = 0x56419000000000E9L | ((UINT_PTR)hookPntData << 8);
-		Sqlmin_Page_ModifyColumns_Data = *(UINT_PTR*)hook_Ptr;
-		*(UINT_PTR*)hook_Ptr = interLockData;
-
-		Sqlmin_Page_ModifyColumns_Ptr = hook_Ptr;
+void hook_sqlmin_PageRef_ModifyColumnsInternal_x64_unhook() {
+	if (Sqlmin_PageRef_ModifyColumnsInternal_Ptr && hook_sqlmin_PageRef_ModifyColumnsInternal_x64_hasHooked(Sqlmin_PageRef_ModifyColumnsInternal_Ptr)) {
+		*(ULONGLONG*)Sqlmin_PageRef_ModifyColumnsInternal_Ptr = Sqlmin_PageRef_ModifyColumnsInternal_Data;
+		Sqlmin_PageRef_ModifyColumnsInternal_Ptr = 0;
 	}
 }
 
-void hook_sqlmin_Page_ModifyColumns_x64_unhook() {
-	if (Sqlmin_Page_ModifyColumns_Ptr && hook_sqlmin_Page_ModifyColumns_x64_hasHooked(Sqlmin_Page_ModifyColumns_Ptr)) {
-		*(ULONGLONG*)Sqlmin_Page_ModifyColumns_Ptr = Sqlmin_Page_ModifyColumns_Data;
-		Sqlmin_Page_ModifyColumns_Ptr = 0;
-		Sqlmin_Page_ModifyColumns_Data = 0;
-	}
-}
-
-bool hook_sqlmin_Page_ModifyRow_x64_hasHooked(UINT_PTR hook_Ptr) {
-	UINT_PTR origindata = 0x44894420244C8944L;						  
-	//sqlmin!Page::ModifyRow:
-	//44894c2420      mov     dword ptr[rsp + 20h], r9d
-	//4489442418      mov     dword ptr[rsp + 18h], r8d
-	UINT_PTR nowdata = *(UINT_PTR*)hook_Ptr;
-	return origindata != nowdata;
-}
-
-void hook_sqlmin_Page_ModifyRow_x64(UINT_PTR hook_Ptr) {
-	if (!hook_sqlmin_Page_ModifyRow_x64_hasHooked(hook_Ptr)) {
+void hook_sqlmin_PageRef_ModifyColumnsInternal_x64(UINT_PTR hook_Ptr) {
+	if (!hook_sqlmin_PageRef_ModifyColumnsInternal_x64_hasHooked(hook_Ptr)) {
 		UINT_PTR hookfuncPnt = (UINT_PTR)&hookfunc;
 		UINT_PTR hookfuncPntEnd = (UINT_PTR)&hookfuncEnd;
-
-		ULONG backPnt = (hook_Ptr & 0xFFFFFFFF) + 0x6;
-		ULONG backPntData = backPnt - (hookfuncPntEnd & 0xFFFFFFFF) - 6; // jmp code Length
+		
+		ULONG backPntData = (hook_Ptr & 0xFFFFFFFF) - (hookfuncPntEnd & 0xFFFFFFFF) ; // jmp code Length
 		ULONG hookPntData = (hookfuncPnt & 0xFFFFFFFF) - (hook_Ptr & 0xFFFFFFFF) - 5; // jmp code Length
 		DWORD dwOldP;
 		VirtualProtect((LPVOID)hookfuncPntEnd, 0x10, PAGE_EXECUTE_READWRITE, &dwOldP);
@@ -299,31 +190,21 @@ void hook_sqlmin_Page_ModifyRow_x64(UINT_PTR hook_Ptr) {
 		*(DWORD*)hookfuncPntEnd = backPntData;
 
 		VirtualProtect((LPVOID)hook_Ptr, 5, PAGE_EXECUTE_READWRITE, &dwOldP);
-		UINT_PTR interLockData = 0x44894400000000E9L | ((UINT_PTR)hookPntData << 8);
-		Sqlmin_Page_ModifyRow_Data = *(UINT_PTR*)hook_Ptr;
+		UINT_PTR interLockData = 0x41544100000000E9L | ((UINT_PTR)hookPntData << 8);
 		*(UINT_PTR*)hook_Ptr = interLockData;
 
-		Sqlmin_Page_ModifyRow_Ptr = hook_Ptr;
-	}
-}
-
-void hook_sqlmin_Page_ModifyRow_x64_unhook() {
-	if (Sqlmin_Page_ModifyRow_Ptr && hook_sqlmin_Page_ModifyRow_x64_hasHooked(Sqlmin_Page_ModifyRow_Ptr)) {
-		*(ULONGLONG*)Sqlmin_Page_ModifyRow_Ptr = Sqlmin_Page_ModifyRow_Data;
-		Sqlmin_Page_ModifyRow_Ptr = 0;
-		Sqlmin_Page_ModifyRow_Data = 0;
+		Sqlmin_PageRef_ModifyColumnsInternal_Ptr = hook_Ptr;
 	}
 }
 
 void _Lc_unHook(void) {
 	EnterCriticalSection(&_critical);
-	hook_sqlmin_Page_ModifyRow_x64_unhook();
-	hook_sqlmin_Page_ModifyColumns_x64_unhook();
+	hook_sqlmin_PageRef_ModifyColumnsInternal_x64_unhook();	
 	hooked = false;
 	LeaveCriticalSection(&_critical);
 }
 
-int _Lc_doHook(UINT_PTR mRowPtr, UINT_PTR mColumnsPtr) {
+int _Lc_doHook(UINT_PTR mRowPtr) {
 	EnterCriticalSection(&_critical);
 	if (hooked)
 	{
@@ -343,21 +224,15 @@ int _Lc_doHook(UINT_PTR mRowPtr, UINT_PTR mColumnsPtr) {
 		LeaveCriticalSection(&_critical);
 		return 3;
 	}
-	testHookPnt = (UINT_PTR)sqlminBase + mColumnsPtr - 3;
-	if (IsBadReadPtr((void*)testHookPnt, 0x10)) {
-		LeaveCriticalSection(&_critical);
-		return 3;
-	}
-	testHookPnt = testHookPnt ^ (UINT_PTR)&_critical;
-	testHookPnt = testHookPnt >> 32;
-	if (testHookPnt)
+
+	testHookPnt = testHookPnt ^ (UINT_PTR)&_critical;	
+	if (testHookPnt >> 32)
 	{
 		//不在同一区域，hook失败！
 		LeaveCriticalSection(&_critical);
 		return 4;
 	}
-	hook_sqlmin_Page_ModifyRow_x64((UINT_PTR)sqlminBase + mRowPtr);
-	hook_sqlmin_Page_ModifyColumns_x64((UINT_PTR)sqlminBase + mColumnsPtr);
+	hook_sqlmin_PageRef_ModifyColumnsInternal_x64((UINT_PTR)sqlminBase + mRowPtr);
 
 	hooked = true;
 	LeaveCriticalSection(&_critical);
