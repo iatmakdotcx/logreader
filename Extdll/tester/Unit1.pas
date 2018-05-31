@@ -54,13 +54,13 @@ var
   Form1: TForm1;
   hh: THandle;
   Lr_clearCache: function(pSrvProc: Pointer): Integer;
-  d_do_SavePagelog: function(pSrvProc: Pointer): Integer;
-  Read_logAllWithTableResults:function (pSrvProc: Pointer; dbid: Byte; Lsn1: Dword):Integer;stdcall;
-  Read_log_One:function (dbid: Byte; Lsn1: Dword; Lsn2: Dword; Lsn3: word):PAnsiChar;stdcall;
-
-   aaaaaa: function :PansiChar;stdcall;
+  savePageLog2: function : Boolean;
+  Read_logAllWithTableResults: function(pSrvProc: Pointer; dbid: Byte; Lsn1: Dword): Integer; stdcall;
+  Read_log_One: function(dbid: Byte; Lsn1: Dword; Lsn2: Dword; Lsn3: word): PAnsiChar; stdcall;
+  aaaaaa: function: PansiChar; stdcall;
 
 implementation
+
 uses
   logCreatehelper;
 
@@ -83,7 +83,7 @@ begin
   rspp.val := PAnsiChar('1234567890');
   rspp.n := nil;
 
-  d_do_SavePagelog(nil);
+  savePageLog2;
 end;
 
 procedure TForm1.Button11Click(Sender: TObject);
@@ -116,8 +116,7 @@ begin
   bb2.n := nil;
   rspp := bb2;
 
-
-  d_do_SavePagelog(nil);
+savePageLog2
 
 end;
 
@@ -138,7 +137,7 @@ begin
   rspp.val := PAnsiChar('1234567890');
   rspp.n := nil;
 
-  d_do_SavePagelog(nil);
+savePageLog2;
 end;
 
 procedure TForm1.Button14Click(Sender: TObject);
@@ -197,7 +196,6 @@ begin
   bb2.n := nil;
   rspp := bb2;
 
-
   New(bb2);
   rspp.n := bb2;
   bb2.TranID_1 := $1;
@@ -211,7 +209,7 @@ begin
   bb2.n := nil;
   rspp := bb2;
 
-  d_do_SavePagelog(nil);
+ savePageLog2;
 end;
 
 procedure TForm1.Button15Click(Sender: TObject);
@@ -231,7 +229,7 @@ begin
   rspp.val := PAnsiChar('1234567890');
   rspp.n := nil;
 
-  d_do_SavePagelog(nil);
+ savePageLog2;
 
 end;
 
@@ -260,24 +258,24 @@ begin
   rspp.val := PAnsiChar('1234567890');
 
   rspp.n := nil;
-  d_do_SavePagelog(nil);
+  savePageLog2;
 end;
 
 procedure TForm1.Button18Click(Sender: TObject);
 begin
-  Read_logAllWithTableResults(nil,5,512);
+  Read_logAllWithTableResults(nil, 5, 512);
 end;
 
 procedure TForm1.Button19Click(Sender: TObject);
 begin
-  ShowMessage(string(Read_log_One(50,512,504,2)));
+  ShowMessage(string(Read_log_One(50, 512, 504, 2)));
 end;
 
 procedure TForm1.Button1Click(Sender: TObject);
 begin
   hh := LoadLibrary('LrExtutils.dll');
   Lr_clearCache := getprocaddress(hh, 'Lr_clearCache');
-  d_do_SavePagelog := getprocaddress(hh, 'd_do_SavePagelog');
+  savePageLog2 := getprocaddress(hh, 'savePageLog2');
   Read_logAllWithTableResults := getprocaddress(hh, 'Read_logAllWithTableResults');
   Read_log_One := getprocaddress(hh, 'Read_log_One');
   aaaaaa := getprocaddress(hh, 'aaaaaa');
@@ -354,7 +352,7 @@ begin
   bb2.n := nil;
   rspp := bb2;
 
-  d_do_SavePagelog(nil);
+savePageLog2;
 end;
 
 procedure TForm1.Button5Click(Sender: TObject);
@@ -374,7 +372,7 @@ begin
   rspp.val := PAnsiChar('1234567890');
   rspp.n := nil;
 
-  d_do_SavePagelog(nil);
+savePageLog2;
 end;
 
 procedure TForm1.Button6Click(Sender: TObject);
@@ -389,7 +387,7 @@ begin
   rspp.TranID_2 := $2;
   rspp.lsn.lsn_1 := $A1;
   rspp.lsn.lsn_2 := $A3;
-  rspp.lsn.lsn_3 := $01;
+  rspp.lsn.lsn_3 := $02;
   rspp.dbId := 5;
   rspp.length := 10;
   rspp.val := PAnsiChar('1234567890');
@@ -400,16 +398,13 @@ begin
   bb2.TranID_2 := $2;
   bb2.lsn.lsn_1 := $A1;
   bb2.lsn.lsn_2 := $A3;
-  bb2.lsn.lsn_3 := $02;
+  bb2.lsn.lsn_3 := $03;
   bb2.dbId := 5;
   bb2.length := 10;
   bb2.val := PAnsiChar('abcdefghij');
   bb2.n := nil;
-  rspp := bb2;
 
-
-  d_do_SavePagelog(nil);
-
+savePageLog2;
 end;
 
 procedure TForm1.Button7Click(Sender: TObject);
@@ -429,7 +424,7 @@ begin
   rspp.val := PAnsiChar('1234567890');
   rspp.n := nil;
 
-  d_do_SavePagelog(nil);
+savePageLog2;
 end;
 
 end.

@@ -145,7 +145,6 @@ type
     Page: TPage_Id;
   end;
 
-
 type
   T_Lr_PluginInfo = function(var shortname: PChar): integer; stdcall;
 
@@ -167,15 +166,16 @@ type
 
   T_Lr_PluginRegDDLXML = function(Xml: PChar): integer; stdcall;
 
-
 function LSN2Str(lsn: Tlog_LSN): string;
 
 function TranId2Str(trans: TTrans_Id): string;
 
+function PageRowCalcLength(rawData: Pointer): Integer;
+
 implementation
 
 uses
-  SysUtils;
+  SysUtils, Winapi.Windows;
 
 function LSN2Str(lsn: Tlog_LSN): string;
 begin
@@ -185,6 +185,42 @@ end;
 function TranId2Str(trans: TTrans_Id): string;
 begin
   Result := format('0x%.4X:%.8X', [trans.Id2, trans.Id1])
+end;
+
+function PageRowCalcLength(rawData: Pointer): Integer;
+var
+  RowFlag: Word;
+  Endoffset: UINT_PTR;
+  tmpWord: Word;
+begin
+  Result := 0;
+  try
+    RowFlag := PWORD(rawData)^;
+    Endoffset := UINT_PTR(rawData) + PWORD(UINT_PTR(rawData) + 2)^;
+    tmpWord := PWORD(Endoffset)^;
+    Endoffset := Endoffset + 2;
+    if (RowFlag and $10) > 0 then
+    begin
+      //null map
+      Endoffset := Endoffset + (tmpWord + 7) shr 3;
+    end;
+    if (RowFlag and $20) > 0 then
+    begin
+      //variants fields
+      tmpWord := PWORD(Endoffset)^;
+      Endoffset := Endoffset + tmpWord * 2;
+      Endoffset := UINT_PTR(rawData) + (PWORD(Endoffset)^ and $7FFF);
+    end;
+    if (RowFlag and $40) > 0 then
+    begin
+      //versioning tag
+      Endoffset := Endoffset + $E;
+    end;
+    Result := Endoffset - UINT_PTR(rawData);
+    if Result>$2000 then
+      Result := 0;
+  except
+  end;
 end;
 
 end.

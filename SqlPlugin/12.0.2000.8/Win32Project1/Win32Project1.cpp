@@ -91,13 +91,13 @@ void domyWork_2(UINT_PTR XdesRMReadWrite, UINT_PTR rawData) {
 			rawData = *(UINT_PTR*)rawData;
 			WORD RowFlag = *(WORD*)rawData;
 			UINT_PTR Endoffset = rawData + (*(WORD*)(rawData + 2) & 0x7FFF);
+			WORD colCnt = *(WORD*)(Endoffset);
+			Endoffset += 2;
 			if (RowFlag & 0x10)
 			{
 				//null map
-				WORD colCnt = *(WORD*)(Endoffset);
 				Endoffset += (colCnt + 7) >> 3;
 			}
-			Endoffset += 2;
 			if (RowFlag & 0x20)
 			{
 				//variants fields

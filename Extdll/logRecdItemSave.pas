@@ -3,7 +3,7 @@ unit logRecdItemSave;
 interface
 
 uses
-  System.SyncObjs, System.Contnrs, Winapi.Windows, System.Classes;
+  System.SyncObjs, System.Contnrs, Winapi.Windows, System.Classes, LidxMgr;
 
 type
   TLSN = packed record
@@ -56,10 +56,11 @@ type
     IdxFileCS:TCriticalSection;
     DataFile:THandle;
     DataFileCS:TCriticalSection;
+    idxObj : TLidxMgr;
   public
     constructor Create(dbid: Word; lsn1: DWORD; slogPath: string);
     destructor Destroy; override;
-    function Save(lsn2: WORD; logs: TList; data: TMemoryStream): Boolean;
+    function Save(lsn2: DWORD; logs: TList; data: TMemoryStream): Boolean;
   end;
 
   TPagelogFileMgr = class(TObject)
@@ -75,7 +76,7 @@ type
   public
     constructor Create;
     destructor Destroy; override;
-    function LogDataSaveToFile(dbid: Word; lsn1: DWORD; lsn2: WORD; logs: TList; data: TMemoryStream): Boolean;
+    function LogDataSaveToFile(dbid: Word; lsn1: DWORD; lsn2: DWORD; logs: TList; data: TMemoryStream): Boolean;
   end;
 
   TloopSaveMgr = class(TThread)
@@ -224,7 +225,7 @@ begin
   TDbidCustomBucketList(AData).Free;
 end;
 
-function TPagelogFileMgr.LogDataSaveToFile(dbid: Word; lsn1: DWORD; lsn2: WORD; logs: TList; data: TMemoryStream): Boolean;
+function TPagelogFileMgr.LogDataSaveToFile(dbid: Word; lsn1: DWORD; lsn2: DWORD; logs: TList; data: TMemoryStream): Boolean;
 var
   DB: TDbidCustomBucketList;
   ReqNo: TVlfMgr;
@@ -311,10 +312,15 @@ begin
     loger.Add('创建文件失败！'+syserrormessage(GetLastError)+':'+tmpFilePath+'1.data');
     loger.Add('之后采集数据将输出到本日志文件！');
   end;
+
+  idxObj := TLidxMgr.Create(IdxFile);
+  idxObj.initCheck;
 end;
 
 destructor TVlfMgr.Destroy;
 begin
+  idxObj.Free;
+
   CloseHandle(IdxFile);
   CloseHandle(DataFile);
 
@@ -323,15 +329,14 @@ begin
   inherited;
 end;
 
-function TVlfMgr.Save(lsn2: WORD; logs: TList; data: TMemoryStream): Boolean;
+function TVlfMgr.Save(lsn2: DWORD; logs: TList; data: TMemoryStream): Boolean;
 var
   J: Integer;
   tmpLsn: ^TLSNBuffer;
-  lsize:DWORD;
-  Wsize, Rsize:DWORD;
+  lsize:LARGE_INTEGER;
+  Rsize:DWORD;
   OutPutStr:string;
   TmpDataStr:string;
-  buf:Pointer;
 begin
   if logs.Count > 0 then
   begin
@@ -364,28 +369,16 @@ begin
     //先直接写入log到文件
     DataFileCS.Enter;
     try
-      lsize := SetFilePointer(DataFile, 0, nil, soFromEnd);
-      WriteFile(DataFile, data.Memory^, data.Size, Wsize, nil);
+      lsize.QuadPart := 0;
+      SetFilePointerEx(DataFile, 0, @lsize, soFromEnd);
+      WriteFile(DataFile, data.Memory^, data.Size, Rsize, nil);
     finally
       DataFileCS.Leave;
     end;
 
     IdxFileCS.Enter;
     try
-      Wsize := SizeOf(DWORD) + SizeOf(WORD) + logs.Count * SizeOf(WORD) + logs.Count * SizeOf(DWORD);
-      buf := AllocMem(Wsize + 10);
-      PDWORD(buf)^ := lsn2;
-      PWORD(UINT_PTR(buf) + 4)^ := logs.Count;
-      for J := 0 to logs.Count - 1 do
-      begin
-        tmpLsn := logs[J];
-        PWORD(UINT_PTR(buf) + 6 + UINT_PTR(J * 2))^ := tmpLsn.lsn_3;
-        PDWORD(UINT_PTR(buf) + 6 + logs.Count * 2 + UINT_PTR(J * 4))^ := lsize + tmpLsn.Offset;
-      end;
-
-      SetFilePointer(IdxFile, 0, nil, soFromEnd);
-      WriteFile(IdxFile, buf^, Wsize, Rsize, nil);
-      FreeMem(buf);
+      idxObj.writeRow(lsn2, logs, lsize)
     finally
       IdxFileCS.Leave;
     end;

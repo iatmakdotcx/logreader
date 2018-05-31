@@ -33,7 +33,8 @@ uses
   logRecdItemSave in 'logRecdItemSave.pas',
   MakCommonfuncs in 'H:\Delphi\通用的自定义单元\MakCommonfuncs.pas',
   logRecdItemReader in 'logRecdItemReader.pas',
-  cfg in 'cfg.pas';
+  cfg in 'cfg.pas',
+  LidxMgr in 'LidxMgr.pas';
 
 {$R *.res}
 

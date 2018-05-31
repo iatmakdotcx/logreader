@@ -9,7 +9,9 @@ uses
   logCreatehelper in 'logCreatehelper.pas',
   MakCommonfuncs in 'H:\Delphi\通用的自定义单元\MakCommonfuncs.pas',
   Memory_Common in 'H:\Delphi\通用的自定义单元\Memory_Common.pas',
-  pluginlog in 'H:\Delphi\通用的自定义单元\pluginlog.pas';
+  pluginlog in 'H:\Delphi\通用的自定义单元\pluginlog.pas',
+  p_idxmgr in 'p_idxmgr.pas' {Form2},
+  blockReader in 'blockReader.pas';
 
 {$R *.res}
 
@@ -43,6 +45,7 @@ begin
   Application.Initialize;
   Application.MainFormOnTaskbar := True;
   Application.CreateForm(TForm1, Form1);
+  Application.CreateForm(TForm2, Form2);
   Application.Run;
 end.
 

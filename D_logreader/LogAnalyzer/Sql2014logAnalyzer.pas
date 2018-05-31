@@ -7,6 +7,23 @@ uses
   Contnrs, BinDataUtils, SqlDDLs, LogtransPkgMgr;
 
 type
+  /// <summary>
+  /// 缓存单行日志（COMPENSATION可能会修改数据
+  /// </summary>
+  TsqlRawBuf = class(TObject)
+    OperaType: TOperationType;
+    page:TPage_Id;
+    table:TdbTableItem;
+    dataFromDbccPage:boolean;//dbcc的raw数据不用处理修正数据，本来就是修正之后的数据
+    R0:Pointer;
+    R1:Pointer;
+    public
+    constructor Create;
+    destructor Destroy; override;
+  end;
+  /// <summary>
+  /// 完整的单个操作
+  /// </summary>
   Tsql2014RowData = class(TObject)
     OperaType: TOperationType;
     Fields: TList;
@@ -377,7 +394,9 @@ var
   I: Integer;
   TTpi: TTransPkgItem;
   DataRow: Tsql2014RowData;
+  DataRow_buf:TsqlRawBuf;
   DMLitem: TDMLItem;
+  TmpBinReader: TbinDataReader;
 begin
   Loger.Add('TSql2014logAnalyzer.Execute ==> transId:%s, MinLsn:%s', [TranId2Str(FTranspkg.Ftransid),LSN2Str(TTransPkgItem(FTranspkg.Items[0]).lsn)]);
   //通知插件
@@ -394,7 +413,27 @@ begin
   //开始干正事
   for I := 0 to FRows.Count - 1 do
   begin
-    DataRow := Tsql2014RowData(FRows[I]);
+    if FRows[i] is TsqlRawBuf then
+    begin
+      DataRow_buf := TsqlRawBuf(FRows[i]);
+      TmpBinReader := TbinDataReader.Create(DataRow_buf.R0, $2000);
+      try
+        DataRow := PriseRowLog_InsertDeleteRowData(DataRow_buf.table, TmpBinReader);
+      finally
+        TmpBinReader.Free;
+      end;
+      if (DataRow_buf.OperaType = Opt_Update) and (DataRow_buf.R1 <> nil) then
+      begin
+        TmpBinReader := TbinDataReader.Create(DataRow_buf.R1, $2000);
+        try
+          DataRow.afterUpdate := PriseRowLog_InsertDeleteRowData(DataRow_buf.table, TmpBinReader);
+        finally
+          TmpBinReader.Free;
+        end;
+      end;
+    end else begin
+      DataRow := Tsql2014RowData(FRows[I]);
+    end;
     Loger.Add(lsn2str(DataRow.LSN) + '-->' + DML_BuilderSql(DataRow));
    // continue;
     if DataRow.Table.Owner = 'sys' then
@@ -1917,14 +1956,16 @@ var
   BinReader: TbinDataReader;
   I:Integer;
   OriginRowData:TBytes;
+  OriginRowDataDbcc:boolean;
   TableId: Integer;
   DbTable: TdbTableItem;
-  TmpBinReader: TbinDataReader;
   tmpdata:Pointer;
-  DataRow_bef,DataRow_aft: Tsql2014RowData;
+  DataRow_buf: TsqlRawBuf;
+  RawDataLen:Integer;
 begin
   BinReader := nil;
-  DataRow_bef := nil;
+  DataRow_buf := nil;
+  OriginRowDataDbcc := false;
   Rldo := tPkg.Raw.data;
   try
     try
@@ -1950,63 +1991,79 @@ begin
                 BinReader.alignTo4;
               end;
             end;
-            OriginRowData := getUpdateSoltData(FLogSource.Fdbc,tPkg.LSN);
-            if OriginRowData = nil then
+            if (Rldo.normalData.FlagBits and 1) > 0 then
             begin
-              //备用方案，从dbcc page获取原始行数据（数据可能不准确
-              OriginRowData := getUpdateSoltFromDbccPage(FLogSource.Fdbc,Rldo.pageId);
+              //COMPENSATION
+              for I := 0 to FRows.Count - 1 do
+              begin
+                if(FRows[i] is TsqlRawBuf) then
+                begin
+                  DataRow_buf := TsqlRawBuf(FRows[i]);
+                  if (DataRow_buf.page.PID = Rldo.pageId.PID) and
+                    (DataRow_buf.page.FID = Rldo.pageId.FID) and
+                    (DataRow_buf.page.solt = Rldo.pageId.solt) then
+                  begin
+                    //找到页，修正页数据
+                    if not DataRow_buf.dataFromDbccPage then
+                    begin
+                      RawDataLen := PageRowCalcLength(DataRow_buf.R1);
+                      applyChange(DataRow_buf.R1, R_[1], Rldo.OffsetInRow, Rldo.ModifySize, R_Info[1].Length, RawDataLen);
+                    end;
+                    Break;
+                  end
+                end;
+              end;
+            end else begin
+              OriginRowData := getUpdateSoltData(FLogSource.Fdbc, Rldo.normalData.PreviousLSN);
               if OriginRowData = nil then
               begin
-                Loger.Add('获取行原始数据失败！'+lsn2str(tPkg.LSN),LOG_ERROR or LOG_IMPORTANT);
+                Loger.Add('获取行原始数据失败！' + lsn2str(tPkg.LSN) + ',pLSN:' + lsn2str(Rldo.normalData.PreviousLSN), LOG_WARNING or LOG_IMPORTANT);
+                OriginRowDataDbcc := true;
+                //备用方案，从dbcc page获取原始行数据（数据可能不准确
+                OriginRowData := getUpdateSoltFromDbccPage(FLogSource.Fdbc, Rldo.pageId);
+                if OriginRowData = nil then
+                begin
+                  Loger.Add('获取行原始数据失败！'+lsn2str(tPkg.LSN),LOG_ERROR or LOG_IMPORTANT);
+                  Exit;
+                end;
+              end;
+
+              BinReader.SetRange(R_Info[3].Offset, R_Info[3].Length);
+              BinReader.skip(6);
+              TableId := BinReader.readInt;
+              DbTable := FLogSource.Fdbc.dict.tables.GetItemById(TableId);
+              if DbTable = nil then
+              begin
+                //忽略的表
                 Exit;
               end;
-            end;
-            BinReader.SetRange(R_Info[3].Offset, R_Info[3].Length);
-            BinReader.skip(6);
-            TableId := BinReader.readInt;
-            DbTable := FLogSource.Fdbc.dict.tables.GetItemById(TableId);
-            if DbTable = nil then
-            begin
-              //忽略的表
-              Exit;
-            end;
 
-
-            tmpdata := AllocMem($2000);
-            try
-              Move(OriginRowData[0], tmpdata^, Length(OriginRowData));
-              applyChange(tmpdata, R_[0], Rldo.OffsetInRow, R_Info[0].Length, R_Info[1].Length, Length(OriginRowData));
-              //before update
-              TmpBinReader := TbinDataReader.Create(tmpdata, $2000);
+              DataRow_buf := TsqlRawBuf.Create;
               try
-                DataRow_bef := PriseRowLog_InsertDeleteRowData(DbTable, TmpBinReader);
-              finally
-                TmpBinReader.Free;
-              end;
+                DataRow_buf.OperaType := Opt_Update;
+                DataRow_buf.page := Rldo.pageId;
+                DataRow_buf.table := DbTable;
+                DataRow_buf.dataFromDbccPage := OriginRowDataDbcc;
+                //before
+                tmpdata := AllocMem($2000);
+                Move(OriginRowData[0], tmpdata^, Length(OriginRowData));
+                RawDataLen := PageRowCalcLength(tmpdata);
+                applyChange(tmpdata, R_[0], Rldo.OffsetInRow, R_Info[0].Length, R_Info[1].Length, RawDataLen);
+                DataRow_buf.R0 := tmpdata;
+                //after
+                tmpdata := AllocMem($2000);
+                Move(OriginRowData[0], tmpdata^, Length(OriginRowData));
+                DataRow_buf.R1 := tmpdata;
 
-//              Move(OriginRowData[0], tmpdata^, Length(OriginRowData));
-//              applyChange(tmpdata, R_[1], Rldo.OffsetInRow, Rldo.ModifySize);
-              //after update
-              TmpBinReader := TbinDataReader.Create(@OriginRowData[0], $2000);
-              try
-                DataRow_aft := PriseRowLog_InsertDeleteRowData(DbTable, TmpBinReader);
-              finally
-                TmpBinReader.Free;
+                FRows.Add(DataRow_buf);
+              except
+                DataRow_buf.Free;
               end;
-
-              DataRow_bef.afterUpdate := DataRow_aft;
-            finally
-              FreeMem(tmpdata);
+              SetLength(OriginRowData, 0);
             end;
           end;
       else
         Loger.Add('PriseRowLog_MODIFY_ROW 遇到尚未处理的 ContextCode :' + contextCodeToStr(Rldo.normalData.ContextCode));
-      end;
-      if DataRow_bef <> nil then
-      begin
-        DataRow_bef.OperaType := Opt_Update;
-        DataRow_bef.lsn := tPkg.LSN;
-        FRows.Add(DataRow_bef);
       end;
     except
       on eexx: Exception do
@@ -2393,6 +2450,25 @@ begin
     end;
   end;
   Result := nil;
+end;
+
+{ TsqlRawBuf }
+
+constructor TsqlRawBuf.Create;
+begin
+  R0 := nil;
+  R1 := nil;
+end;
+
+destructor TsqlRawBuf.Destroy;
+begin
+  if R0<>nil then
+    FreeMem(R0);
+
+  if R1<>nil then
+    FreeMem(R1);
+
+  inherited;
 end;
 
 end.

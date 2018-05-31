@@ -1,8 +1,8 @@
 ﻿<?xml version="1.0" encoding="utf-8"?>
 <BorlandProject>
 	<Transactions>
-    <Transaction>1899-12-30 00:00:00.000.bdsproj,H:\Java\workspace\logreaderV2.0\Extdll\LrExtutils.bdsproj=H:\Java\workspace\logreaderV2.0\Extdll\Project1.bdsproj</Transaction>
     <Transaction>1899-12-30 00:00:00.000.bdsproj,H:\Java\workspace\logreaderV2.0\Extdll\Project1.bdsproj=C:\Users\Chin\Documents\RAD Studio\Projects\Project1.bdsproj</Transaction>
+    <Transaction>1899-12-30 00:00:00.000.bdsproj,H:\Java\workspace\logreaderV2.0\Extdll\LrExtutils.bdsproj=H:\Java\workspace\logreaderV2.0\Extdll\Project1.bdsproj</Transaction>
   </Transactions>
 	<ProjectSortOrder AutoSort="0" SortType="0">
     <File Path="H:"/>
@@ -21,5 +21,6 @@
     <File Path="SqlSvrHelper.pas"/>
     <File Path="logRecdItemReader.pas"/>
     <File Path="cfg.pas"/>
+    <File Path="LidxMgr.pas"/>
   </ProjectSortOrder>
 </BorlandProject>
