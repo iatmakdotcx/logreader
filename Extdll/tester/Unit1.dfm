@@ -158,7 +158,7 @@ object Form1: TForm1
     Top = 328
     Width = 75
     Height = 25
-    Caption = 'Button17'
+    Caption = 's1'
     TabOrder = 16
     OnClick = Button17Click
   end
@@ -188,5 +188,59 @@ object Form1: TForm1
     Caption = 'Button20'
     TabOrder = 19
     OnClick = Button20Click
+  end
+  object Button21: TButton
+    Left = 136
+    Top = 328
+    Width = 75
+    Height = 25
+    Caption = 's2'
+    TabOrder = 20
+    OnClick = Button21Click
+  end
+  object Button22: TButton
+    Left = 217
+    Top = 328
+    Width = 75
+    Height = 25
+    Caption = 's3'
+    TabOrder = 21
+    OnClick = Button22Click
+  end
+  object Button23: TButton
+    Left = 304
+    Top = 328
+    Width = 75
+    Height = 25
+    Caption = 's4'
+    TabOrder = 22
+    OnClick = Button23Click
+  end
+  object Button24: TButton
+    Left = 385
+    Top = 328
+    Width = 75
+    Height = 25
+    Caption = 's5'
+    TabOrder = 23
+    OnClick = Button24Click
+  end
+  object Button25: TButton
+    Left = 466
+    Top = 328
+    Width = 75
+    Height = 25
+    Caption = 's6'
+    TabOrder = 24
+    OnClick = Button25Click
+  end
+  object Button26: TButton
+    Left = 547
+    Top = 328
+    Width = 75
+    Height = 25
+    Caption = 's7'
+    TabOrder = 25
+    OnClick = Button26Click
   end
 end

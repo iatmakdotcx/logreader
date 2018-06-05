@@ -28,6 +28,12 @@ type
     Button18: TButton;
     Button19: TButton;
     Button20: TButton;
+    Button21: TButton;
+    Button22: TButton;
+    Button23: TButton;
+    Button24: TButton;
+    Button25: TButton;
+    Button26: TButton;
     procedure Button1Click(Sender: TObject);
     procedure Button2Click(Sender: TObject);
     procedure Button3Click(Sender: TObject);
@@ -44,6 +50,12 @@ type
     procedure Button18Click(Sender: TObject);
     procedure Button19Click(Sender: TObject);
     procedure Button20Click(Sender: TObject);
+    procedure Button21Click(Sender: TObject);
+    procedure Button22Click(Sender: TObject);
+    procedure Button23Click(Sender: TObject);
+    procedure Button24Click(Sender: TObject);
+    procedure Button25Click(Sender: TObject);
+    procedure Button26Click(Sender: TObject);
   private
     { Private declarations }
   public
@@ -97,8 +109,8 @@ begin
   rspp.TranID_1 := $1;
   rspp.TranID_2 := $2;
   rspp.lsn.lsn_1 := $A1;
-  rspp.lsn.lsn_2 := $A1;
-  rspp.lsn.lsn_3 := $01;
+  rspp.lsn.lsn_2 := $A0;
+  rspp.lsn.lsn_3 := $02;
   rspp.dbId := 5;
   rspp.length := 10;
   rspp.val := PAnsiChar('1234567890');
@@ -108,8 +120,8 @@ begin
   bb2.TranID_1 := $1;
   bb2.TranID_2 := $2;
   bb2.lsn.lsn_1 := $A1;
-  bb2.lsn.lsn_2 := $A1;
-  bb2.lsn.lsn_3 := $02;
+  bb2.lsn.lsn_2 := $A0;
+  bb2.lsn.lsn_3 := $04;
   bb2.dbId := 5;
   bb2.length := 10;
   bb2.val := PAnsiChar('abcdefghij');
@@ -239,25 +251,16 @@ var
 begin
   New(rspp);
   ____PaddingData := rspp;
-//  TlogRecdItem = packed record
-//    n: PlogRecdItem;
-//    TranID_1: DWORD;
-//    TranID_2: WORD;
-//    lsn: TLSN;
-//    length: DWORD;
-//    dbId: Word;
-//    val: Pointer;
-//  end;
-  rspp.TranID_1 := $2A7F;
+  rspp.TranID_1 := $0;
   rspp.TranID_2 := $0;
-  rspp.lsn.lsn_1 := $0200;
-  rspp.lsn.lsn_2 := $02f0;
-  rspp.lsn.lsn_3 := $02;
+  rspp.lsn.lsn_1 := $A1;
+  rspp.lsn.lsn_2 := $c0;
+  rspp.lsn.lsn_3 := $03;
   rspp.dbId := 5;
-  rspp.length := $c;
+  rspp.length := $A;
   rspp.val := PAnsiChar('1234567890');
-
   rspp.n := nil;
+
   savePageLog2;
 end;
 
@@ -284,6 +287,120 @@ end;
 procedure TForm1.Button20Click(Sender: TObject);
 begin
   ShowMessage(aaaaaa);
+end;
+
+procedure TForm1.Button21Click(Sender: TObject);
+var
+  rspp: PlogRecdItem;
+begin
+  New(rspp);
+  ____PaddingData := rspp;
+  rspp.TranID_1 := $0;
+  rspp.TranID_2 := $0;
+  rspp.lsn.lsn_1 := $A1;
+  rspp.lsn.lsn_2 := $c0;
+  rspp.lsn.lsn_3 := $05;
+  rspp.dbId := 5;
+  rspp.length := $A;
+  rspp.val := PAnsiChar('1234567890');
+  rspp.n := nil;
+
+  savePageLog2;
+end;
+
+procedure TForm1.Button22Click(Sender: TObject);
+var
+  rspp: PlogRecdItem;
+begin
+  New(rspp);
+  ____PaddingData := rspp;
+  rspp.TranID_1 := $0;
+  rspp.TranID_2 := $0;
+  rspp.lsn.lsn_1 := $A1;
+  rspp.lsn.lsn_2 := $c8;
+  rspp.lsn.lsn_3 := $1;
+  rspp.dbId := 5;
+  rspp.length := $A;
+  rspp.val := PAnsiChar('1234567890');
+  rspp.n := nil;
+
+  savePageLog2;
+end;
+
+procedure TForm1.Button23Click(Sender: TObject);
+var
+  rspp: PlogRecdItem;
+begin
+  New(rspp);
+  ____PaddingData := rspp;
+  rspp.TranID_1 := $0;
+  rspp.TranID_2 := $0;
+  rspp.lsn.lsn_1 := $A1;
+  rspp.lsn.lsn_2 := $d0;
+  rspp.lsn.lsn_3 := $3;
+  rspp.dbId := 5;
+  rspp.length := $A;
+  rspp.val := PAnsiChar('1234567890');
+  rspp.n := nil;
+
+  savePageLog2;
+end;
+
+procedure TForm1.Button24Click(Sender: TObject);
+var
+  rspp: PlogRecdItem;
+begin
+  New(rspp);
+  ____PaddingData := rspp;
+  rspp.TranID_1 := $0;
+  rspp.TranID_2 := $0;
+  rspp.lsn.lsn_1 := $A1;
+  rspp.lsn.lsn_2 := $c8;
+  rspp.lsn.lsn_3 := $10;
+  rspp.dbId := 5;
+  rspp.length := $A;
+  rspp.val := PAnsiChar('1234567890');
+  rspp.n := nil;
+
+  savePageLog2;
+end;
+
+procedure TForm1.Button25Click(Sender: TObject);
+var
+  rspp: PlogRecdItem;
+begin
+  New(rspp);
+  ____PaddingData := rspp;
+  rspp.TranID_1 := $0;
+  rspp.TranID_2 := $0;
+  rspp.lsn.lsn_1 := $A1;
+  rspp.lsn.lsn_2 := $c7;
+  rspp.lsn.lsn_3 := $1;
+  rspp.dbId := 5;
+  rspp.length := $A;
+  rspp.val := PAnsiChar('1234567890');
+  rspp.n := nil;
+
+  savePageLog2;
+end;
+
+procedure TForm1.Button26Click(Sender: TObject);
+var
+  rspp: PlogRecdItem;
+begin
+  New(rspp);
+  ____PaddingData := rspp;
+  rspp.TranID_1 := $0;
+  rspp.TranID_2 := $0;
+  rspp.lsn.lsn_1 := $A1;
+  rspp.lsn.lsn_2 := $c7;
+  rspp.lsn.lsn_3 := $10;
+  rspp.dbId := 5;
+  rspp.length := $A;
+  rspp.val := PAnsiChar('1234567890');
+  rspp.n := nil;
+
+  savePageLog2;
 end;
 
 procedure TForm1.Button2Click(Sender: TObject);

@@ -3,7 +3,7 @@ unit LidxMgr;
 interface
 
 uses
-  Winapi.Windows, System.Classes;
+  Winapi.Windows, System.Classes, System.SyncObjs;
 
 
 type
@@ -22,6 +22,27 @@ type
   end;
 
 type
+  //内存目录，避免插入数据时过多io
+  TmemoIdx = class(TList)
+  private
+    type
+      PItem = ^TItem;
+      TItem = record
+        lsn2: DWORD;
+        Offset: DWORD;
+      end;
+    var
+      FCs: TCriticalSection;
+      FmaxItemCnt: Integer; //超出此数量时，删除最早的
+    procedure checkOverFlow;
+  public
+    constructor Create(maxItemCnt: Integer = 100);
+    destructor Destroy; override;
+    procedure Append(lsn2: DWORD; Offset: DWORD);
+    procedure Insert(lsn2: DWORD; Offset: DWORD; dataSize:Cardinal);
+  end;
+
+
   TLidxMgr = class(TObject)
   private
     const
@@ -31,6 +52,7 @@ type
       _FileHandle: THandle;
       dl1: TList;
       dictPnt:Pointer;
+      memoIdx:TmemoIdx;
       MaxItem: Pointer;     //最大的项目
       MaxItemOffset: Dword; //最大项目的offset
     function writeRow_replaceIn(Offset: DWORD; logs: TList; lsize: LARGE_INTEGER): Boolean;
@@ -58,6 +80,8 @@ constructor TLidxMgr.Create(IdxFileHandle: THandle);
 begin
   _FileHandle := IdxFileHandle;
   dl1 := TList.Create;
+  memoIdx:=TmemoIdx.Create(100);
+
   MaxItem := AllocMem($2000);
   MaxItemOffset := 0;
   dictPnt := AllocMem($2000);
@@ -65,9 +89,10 @@ end;
 
 destructor TLidxMgr.Destroy;
 begin
-  dl1.Free;
   FreeMem(MaxItem);
   FreeMem(dictPnt);
+  memoIdx.Free;
+  dl1.Free;
   inherited;
 end;
 
@@ -111,9 +136,10 @@ begin
     SetFilePointer(_FileHandle, $2000, nil, soFromBeginning);
     WriteFile(_FileHandle, tmpDictItem.type_, SizeOf(TdictItem), nsize, nil);
 
-    dl1.Add(dictPnt);
+    SetFilePointer(_FileHandle, $3FFF, nil, soFromBeginning);
+    WriteFile(_FileHandle, nsize, 1, nsize, nil);
 
-    MaxItemOffset := $4000;
+    dl1.Add(dictPnt);
   end
   else
   begin
@@ -216,12 +242,12 @@ begin
   lastCnt := FileLen - Offset;
   //读老数据
   buf := GetMemory(lastCnt);
-  if Offset=MaxItemOffset then
+  if Offset = MaxItemOffset then
   begin
     Move(maxitem^, buf^, lastCnt);
   end else begin
     SetFilePointer(_FileHandle, Offset, nil, soFromBeginning);
-    ReadFile(_FileHandle, buf^, lastCnt, nsize, nil);
+    ReadFile(_FileHandle, buf^, lastCnt, nSize, nil);
   end;
   tmpLsn2 := PDWord(buf)^;
   tmplsn3Cnt := PWord(UINT_PTR(buf) + 4)^;
@@ -295,19 +321,22 @@ begin
   //之后的全部读出来，再写回去
   if lastCnt > 0 then
   begin
-    SetFilePointer(_FileHandle, Offset + oldBlockSize, nil, soFromBeginning);
-    ReadFile(_FileHandle, Pointer(UINT_PTR(newBlockData) + newBlockSize)^, lastCnt, nSize, nil);
+//    SetFilePointer(_FileHandle, Offset + oldBlockSize, nil, soFromBeginning);
+//    ReadFile(_FileHandle, Pointer(UINT_PTR(newBlockData) + newBlockSize)^, lastCnt, nSize, nil);
+    Move(Pointer(UINT_PTR(buf) + oldBlockSize)^, Pointer(UINT_PTR(newBlockData) + newBlockSize)^, lastCnt);
   end;
 
   SetFilePointer(_FileHandle, Offset, nil, soFromBeginning);
   WriteFile(_FileHandle, newBlockData^, newBlockSize + lastCnt, nSize, nil);
 
-  if MaxItemOffset=Offset then
+  if MaxItemOffset = Offset then
   begin
+    //修改了最后一个
     //更新 MaxItem
     Move(newBlockData^, MaxItem^, newBlockSize);
   end else begin
-    MaxItemOffset := MaxItemOffset+(newBlockSize-oldBlockSize);
+    MaxItemOffset := MaxItemOffset + (newBlockSize - oldBlockSize);
+    memoIdx.Insert(tmpLsn2, Offset,newBlockSize - oldBlockSize);
   end;
   FreeMem(newBlockData);
   FreeMem(buf);
@@ -371,6 +400,7 @@ begin
   WriteFile(_FileHandle, newBlockData^, newBlockSize + lastCnt, nSize, nil);
 
   MaxItemOffset := MaxItemOffset + newBlockSize;
+  memoIdx.Insert(Lsn2, Offset, newBlockSize);
   FreeMem(newBlockData);
   Result := True;
 end;
@@ -419,10 +449,11 @@ begin
         PDWORD(UINT_PTR(buf) + 6 + logs.Count * 2 + UINT_PTR(J * 4))^ := lsize.LowPart + tmpLsn.Offset;
       end;
     end;
-    MaxItemOffset := SetFilePointer(_FileHandle, MaxItemOffset, nil, soFromBeginning);
+    MaxItemOffset := SetFilePointer(_FileHandle, 0, nil, soFromEnd);
     WriteFile(_FileHandle, buf^, oSize, nSize, nil);
 
     Move(buf^, MaxItem^, oSize);
+    memoIdx.Append(lsn2, MaxItemOffset);
     FreeMem(buf);
     Result := True;
   end
@@ -449,7 +480,27 @@ var
   tmpLsn2: DWORD;
   tmplsn3Cnt: Word;
   iLen:Cardinal;
+  tmpitem:TmemoIdx.PItem;
 begin
+  memoIdx.FCs.Enter;
+  try
+    for I := memoIdx.Count - 1 downto 0 do
+    begin
+      tmpitem := TmemoIdx.PItem(memoIdx.Items[I]);
+      if tmpitem.lsn2 = lsn2 then
+      begin
+        writeRow_replaceIn(tmpitem.Offset, logs, lsize);
+        Exit;
+      end else if tmpitem.lsn2 < lsn2 then
+      begin
+        writeRow_Insert(TmemoIdx.PItem(memoIdx.Items[I+1]).Offset, lsn2, logs, lsize);
+        Exit;
+      end;
+    end;
+  finally
+    memoIdx.FCs.Leave;
+  end;
+
   for I := dl1.Count-1 downto 0 do
   begin
     TmpdItem := dl1[i];
@@ -513,5 +564,73 @@ begin
 
 end;
 
+
+{ TmemoIdx }
+procedure TmemoIdx.Append(lsn2, Offset: DWORD);
+var
+  tmpitem:PItem;
+begin
+  FCs.Enter;
+  try
+    New(tmpitem);
+    tmpitem.lsn2 := lsn2;
+    tmpitem.Offset := Offset;
+    Add(tmpitem);
+    checkOverFlow;
+  finally
+    FCs.Leave;
+  end;
+end;
+
+procedure TmemoIdx.checkOverFlow;
+begin
+  if Count > FmaxItemCnt then
+  begin
+    Dispose(Items[0]);
+    Delete(0);
+  end;
+end;
+
+constructor TmemoIdx.Create(maxItemCnt: Integer);
+begin
+  FmaxItemCnt := maxItemCnt;
+  FCs := TCriticalSection.Create;
+end;
+
+destructor TmemoIdx.Destroy;
+begin
+  FCs.Free;
+  inherited;
+end;
+
+procedure TmemoIdx.Insert(lsn2, Offset: DWORD; dataSize: Cardinal);
+var
+  tmpitem,tmp:PItem;
+  I: Integer;
+begin
+  FCs.Enter;
+  try
+    for I := Count - 1 downto 0 do
+    begin
+      tmp := PItem(Items[i]);
+      if tmp.lsn2 = lsn2 then
+      begin
+        Break;
+      end else if tmp.lsn2 > lsn2 then begin
+        //继续向前查找，因为是insert到前面的，Offset要后移
+        tmp.Offset := tmp.Offset + dataSize;
+      end else if tmp.lsn2 < lsn2 then begin
+        New(tmpitem);
+        tmpitem.lsn2 := lsn2;
+        tmpitem.Offset := Offset;
+        inherited Insert(I+1, tmpitem);
+        Break;
+      end;
+    end;
+    checkOverFlow;
+  finally
+    FCs.Leave;
+  end;
+end;
 
 end.

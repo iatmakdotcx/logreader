@@ -1,9 +1,9 @@
 ﻿<?xml version="1.0" encoding="utf-8"?>
 <BorlandProject>
 	<Transactions>
-    <Transaction>1899-12-30 00:00:00.000.373,C:\Users\Chin\Documents\Embarcadero\Studio\Projects\ProjectGroup1.groupproj=H:\Java\workspace\logreaderV2.0\Extdll\tester\ProjectGroup1.groupproj</Transaction>
+    <Transaction>1899-12-30 00:00:00.000.373,H:\Java\workspace\logreaderV2.0\Extdll\tester\ProjectGroup1.groupproj=C:\Users\Chin\Documents\Embarcadero\Studio\Projects\ProjectGroup1.groupproj</Transaction>
   </Transactions>
 	<Default.Personality>
-		<Projects ActiveProject="H:\Java\workspace\logreaderV2.0\Extdll\tester\Project1.dproj"/>
+		<Projects ActiveProject="H:\Java\workspace\logreaderV2.0\Extdll\LrExtutils.dproj"/>
 	</Default.Personality>
 </BorlandProject>
