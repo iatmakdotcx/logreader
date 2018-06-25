@@ -71,9 +71,10 @@ type
     procedure PriseRowLog(tPkg: TTransPkgItem);
     procedure PriseRowLog_Insert(tPkg: TTransPkgItem);
     function getDataFrom_TEXT_MIX(idx: TBytes): TBytes;
-    function DML_BuilderSql_Insert(aRowData: Tsql2014RowData): string;
-    function DML_BuilderSql_Delete(aRowData: Tsql2014RowData): string;
     function DML_BuilderSql(aRowData: Tsql2014RowData): string;
+    function DML_BuilderSql_Insert(aRowData: Tsql2014RowData): string;
+    function DML_BuilderSql_Update(aRowData: Tsql2014RowData): string;
+    function DML_BuilderSql_Delete(aRowData: Tsql2014RowData): string;
     function Read_LCX_TEXT_MIX_DATA(tPkg: TTransPkgItem; BinReader: TbinDataReader): TBytes;
     procedure PriseDDLPkg(DataRow: Tsql2014RowData);
     procedure PriseDDLPkg_sysrscols(DataRow: Tsql2014RowData);
@@ -101,7 +102,6 @@ type
     function GenSql_CreateColumn(ddlitem: TDDL_Create_Column): string;
     function getColsTypeStr(col: TdbFieldItem): string;
     function GenSql_DropColumn(ddlitem: TDDL_Delete_Column): string;
-    function DML_BuilderSql_Update(aRowData: Tsql2014RowData): string;
     procedure PriseRowLog_MODIFY_ROW(tPkg: TTransPkgItem);
     procedure PriseRowLog_MODIFY_COLUMNS(tPkg: TTransPkgItem);
   public
@@ -248,11 +248,11 @@ var
   raw_old,raw_new: PdbFieldValue;
 begin
   whereStr := '';
-  if aRowData.Table.UniqueKeys.Count > 0 then
+  if aRowData.Table.UniqueClusteredKeys.Count > 0 then
   begin
-    for I := 0 to aRowData.Table.UniqueKeys.Count - 1 do
+    for I := 0 to aRowData.Table.UniqueClusteredKeys.Count - 1 do
     begin
-      field := aRowData.Table.UniqueKeys[I];
+      field := aRowData.Table.UniqueClusteredKeys[I];
       for J := 0 to aRowData.Fields.Count - 1 do
       begin
         fieldval := PdbFieldValue(aRowData.Fields[J]);
@@ -327,11 +327,11 @@ var
   field: TdbFieldItem;
 begin
   whereStr := '';
-  if aRowData.Table.UniqueKeys.Count > 0 then
+  if aRowData.Table.UniqueClusteredKeys.Count > 0 then
   begin
-    for I := 0 to aRowData.Table.UniqueKeys.Count - 1 do
+    for I := 0 to aRowData.Table.UniqueClusteredKeys.Count - 1 do
     begin
-      field := aRowData.Table.UniqueKeys[I];
+      field := aRowData.Table.UniqueClusteredKeys[I];
       for J := 0 to aRowData.Fields.Count - 1 do
       begin
         fieldval := PdbFieldValue(aRowData.Fields[J]);
@@ -435,7 +435,7 @@ begin
       DataRow := Tsql2014RowData(FRows[I]);
     end;
     Loger.Add(lsn2str(DataRow.LSN) + '-->' + DML_BuilderSql(DataRow));
-   // continue;
+    //continue;
     if DataRow.Table.Owner = 'sys' then
     begin
       //如果操作的是系统表则是ddl语句

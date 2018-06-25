@@ -34,6 +34,8 @@ type
     Button24: TButton;
     Button25: TButton;
     Button26: TButton;
+    GroupBox1: TGroupBox;
+    Button27: TButton;
     procedure Button1Click(Sender: TObject);
     procedure Button2Click(Sender: TObject);
     procedure Button3Click(Sender: TObject);
@@ -56,6 +58,7 @@ type
     procedure Button24Click(Sender: TObject);
     procedure Button25Click(Sender: TObject);
     procedure Button26Click(Sender: TObject);
+    procedure Button27Click(Sender: TObject);
   private
     { Private declarations }
   public
@@ -70,6 +73,7 @@ var
   Read_logAllWithTableResults: function(pSrvProc: Pointer; dbid: Byte; Lsn1: Dword): Integer; stdcall;
   Read_log_One: function(dbid: Byte; Lsn1: Dword; Lsn2: Dword; Lsn3: word): PAnsiChar; stdcall;
   aaaaaa: function: PansiChar; stdcall;
+  Lr_doo_test : function(dbid: Word; lsn1, lsn2: DWORD; lsn3: WORD):string;stdcall;
 
 implementation
 
@@ -282,6 +286,7 @@ begin
   Read_logAllWithTableResults := getprocaddress(hh, 'Read_logAllWithTableResults');
   Read_log_One := getprocaddress(hh, 'Read_log_One');
   aaaaaa := getprocaddress(hh, 'aaaaaa');
+  Lr_doo_test := getprocaddress(hh, 'Lr_doo_test');
 end;
 
 procedure TForm1.Button20Click(Sender: TObject);
@@ -401,6 +406,20 @@ begin
   rspp.n := nil;
 
   savePageLog2;
+end;
+
+procedure TForm1.Button27Click(Sender: TObject);
+begin
+//  rspp.TranID_1 := $0;
+//  rspp.TranID_2 := $0;
+//  rspp.lsn.lsn_1 := $A1;
+//  rspp.lsn.lsn_2 := $c0;
+//  rspp.lsn.lsn_3 := $03;
+//  rspp.dbId := 5;
+//  rspp.length := $A;
+//  rspp.val := PAnsiChar('1234567890');
+
+  ShowMessage(Lr_doo_test(7,$a1,$c0,$03));
 end;
 
 procedure TForm1.Button2Click(Sender: TObject);

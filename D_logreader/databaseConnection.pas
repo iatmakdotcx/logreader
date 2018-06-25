@@ -529,7 +529,7 @@ begin
     rDataset.Free;
   end;
   //刷新唯一键信息
-  aSql := 'select a.id,a.colid from sysindexkeys a join (select object_id,min(index_id) idxid from sys.indexes where is_unique=1 group by object_id) b on a.id=b.object_id and a.indid=b.idxid order by a.id,keyno ';
+  aSql := 'select a.id,a.colid from sysindexkeys a join sys.indexes b on a.id=b.object_id and a.indid=b.index_id and is_unique=1 and [type]=1 order by a.id,keyno';
   if ExecSql(aSql, rDataset) then
   begin
     dict.RefreshTablesUniqueKey(rDataset);

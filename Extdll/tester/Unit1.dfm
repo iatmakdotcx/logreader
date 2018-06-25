@@ -243,4 +243,21 @@ object Form1: TForm1
     TabOrder = 25
     OnClick = Button26Click
   end
+  object GroupBox1: TGroupBox
+    Left = 24
+    Top = 381
+    Width = 737
+    Height = 81
+    Caption = 'Read-Test'
+    TabOrder = 26
+    object Button27: TButton
+      Left = 24
+      Top = 16
+      Width = 75
+      Height = 25
+      Caption = 'Button27'
+      TabOrder = 0
+      OnClick = Button27Click
+    end
+  end
 end

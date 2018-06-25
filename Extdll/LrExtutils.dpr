@@ -594,18 +594,14 @@ var
   lsn1,lsn2: Dword;
   lsn3:Word;
   parCnt:Integer;
-  xmlResult:string;
+  memory:TMemoryStream;
+  lsnVal: PAnsiChar;
 begin
   Result := SUCCEED;
+  srv_describe(pSrvProc, 1, 'LSN', SRV_NULLTERM, SRVCHAR, 22, SRVCHAR, 22, nil);
+  srv_describe(pSrvProc, 2, 'data', SRV_NULLTERM, SRV_TDS_IMAGE, 0, SRVBIGVARCHAR, 0, nil);
   parCnt := srv_rpcparams(pSrvProc);
-  if parCnt = 2 then
-  begin
-    dbid := getParam_int(pSrvProc, 1);
-    lsn1 := getParam_int(pSrvProc, 2);
-    SqlSvr_SendMsg(pSrvProc, Format('dbid:%d, lsn1:%d',[dbid,lsn1]));
-    xmlResult := Read_logAll(dbid, Lsn1);
-    Read_logXmlToTableResults(pSrvProc, Lsn1, xmlResult);
-  end else if parCnt = 4 then
+  if parCnt = 4 then
   begin
     dbid := getParam_int(pSrvProc, 1);
     lsn1 := getParam_int(pSrvProc, 2);
@@ -613,56 +609,16 @@ begin
     lsn3 := getParam_int(pSrvProc, 4);
 
     SqlSvr_SendMsg(pSrvProc, Format('dbid:%d, lsn:%.8x:%.8x:%.4x',[dbid,lsn1,lsn2,lsn3]));
-    xmlResult := Read_log_One(dbid, Lsn1, lsn2, lsn3);
-    Read_logXmlToTableResults(pSrvProc, Lsn1, xmlResult);
-
-  end else begin
-    SqlSvr_SendMsg(pSrvProc, '参数不正确！');
-  end;
-  srv_senddone(pSrvProc, SRV_DONE_FINAL or SRV_DONE_COUNT, 0, 0);
-end;
-
-/// <summary>
-/// 读取日志主函数
-/// </summary>
-/// <param name="pSrvProc"></param>
-/// <returns></returns>
-function Lr_roo2(pSrvProc: SRV_PROC): Integer;
-var
-  dbid :Byte;
-  lsn1,lsn2: Dword;
-  lsn3:Word;
-  parCnt:Integer;
-  xmlResult:string;
-begin
-  Result := SUCCEED;
-  parCnt := srv_rpcparams(pSrvProc);
-
-  srv_describe(pSrvProc, 1, 'data', SRV_NULLTERM, SRVTEXT, 0, SRVTEXT, 0, nil);
-  if parCnt = 2 then
-  begin
-    dbid := getParam_int(pSrvProc, 1);
-    lsn1 := getParam_int(pSrvProc, 2);
-    SqlSvr_SendMsg(pSrvProc, Format('dbid:%d, lsn1:%d',[dbid,lsn1]));
-    xmlResult := Read_logAll(dbid, Lsn1);
-    SqlSvr_SendMsg(pSrvProc, xmlResult);
-
-    srv_setcoldata(pSrvProc, 1, PAnsiChar(AnsiString(xmlResult)));
-    srv_setcollen(pSrvProc, 1, Length(xmlResult));
-    srv_sendrow(pSrvProc);
-  end else if parCnt = 4 then
-  begin
-    dbid := getParam_int(pSrvProc, 1);
-    lsn1 := getParam_int(pSrvProc, 2);
-    lsn2 := getParam_int(pSrvProc, 3);
-    lsn3 := getParam_int(pSrvProc, 4);
-
-    SqlSvr_SendMsg(pSrvProc, Format('dbid:%d, lsn:%.8x:%.8x:%.4x',[dbid,lsn1,lsn2,lsn3]));
-    xmlResult := Read_log_One(dbid, Lsn1, lsn2, lsn3);
-
-    srv_setcoldata(pSrvProc, 1, PAnsiChar(AnsiString(xmlResult)));
-    srv_setcollen(pSrvProc, 1, Length(xmlResult));
-    srv_sendrow(pSrvProc);
+    memory:=TMemoryStream.Create;
+    if PagelogFileMgr.LogDataGetDate(dbid, Lsn1, lsn2, lsn3, memory) then
+    begin
+      lsnVal := PAnsiChar(AnsiString(Format('%.8x:%.8x:%.4x', [Lsn1, lsn2, lsn3])));
+      srv_setcoldata(pSrvProc, 1, lsnVal);
+      srv_setcoldata(pSrvProc, 2, memory.Memory);
+      srv_setcollen(pSrvProc, 2, memory.Size);
+      srv_sendrow(pSrvProc);
+    end;
+    memory.Free;
   end else begin
     SqlSvr_SendMsg(pSrvProc, '参数不正确！');
   end;
@@ -684,6 +640,22 @@ begin
   end;
 end;
 
+function Lr_doo_test(dbid: Word; lsn1, lsn2: DWORD; lsn3: WORD):string;stdcall;
+var
+  memory:TMemoryStream;
+begin
+  memory := TMemoryStream.Create;
+  if PagelogFileMgr.LogDataGetDate(dbid, lsn1, lsn2, lsn3, memory) then
+  begin
+    Result := bytestostr(memory.Memory,memory.Size);
+  end
+  else
+  begin
+    result := '';
+  end;
+  memory.Free;
+end;
+
 exports
   {$IFDEF DEBUG}
 
@@ -691,7 +663,7 @@ exports
   savePageLog2,
   Lr_doo,
   Lr_roo,
-  Lr_roo2;
+  Lr_doo_test;
 
 begin
   DLLProc := @DLLMainHandler; //动态库地址告诉系统，结束的时候执行卸载

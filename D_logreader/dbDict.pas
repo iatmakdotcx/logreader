@@ -50,7 +50,10 @@ type
     TableNmae: string;
     Owner: string;
     Fields: TdbFields;
-    UniqueKeys:TList;
+    /// <summary>
+    /// 唯一聚合键（如果有
+    /// </summary>
+    UniqueClusteredKeys:TList;
   public
     constructor Create;
     destructor Destroy; override;
@@ -189,14 +192,14 @@ begin
       tblId := Qry.Fields[0].AsInteger;
       tti := tables.GetItemById(tblId);
       if tti <> nil then
-        tti.UniqueKeys.Clear;
+        tti.UniqueClusteredKeys.Clear;
     end;
     if tti <> nil then
     begin
       field := tti.Fields.GetItemById(Qry.Fields[1].AsInteger);
       if field<>nil then
       begin
-        tti.UniqueKeys.Add(field);
+        tti.UniqueClusteredKeys.Add(field);
       end;
     end;
     Qry.Next;
@@ -529,13 +532,13 @@ end;
 constructor TdbTableItem.Create;
 begin
   Fields := TdbFields.Create;
-  UniqueKeys:=TList.Create;
+  UniqueClusteredKeys:=TList.Create;
 end;
 
 
 destructor TdbTableItem.Destroy;
 begin
-  UniqueKeys.Free;
+  UniqueClusteredKeys.Free;
   Fields.Free;
   inherited;
 end;
@@ -578,10 +581,10 @@ begin
     wter.WriteString(field.collation_name);
     wter.WriteInteger(field.CodePage);
   end;
-  wter.WriteInteger(UniqueKeys.Count);
-  for I := 0 to UniqueKeys.Count - 1 do
+  wter.WriteInteger(UniqueClusteredKeys.Count);
+  for I := 0 to UniqueClusteredKeys.Count - 1 do
   begin
-    field := TdbFieldItem(UniqueKeys[I]);
+    field := TdbFieldItem(UniqueClusteredKeys[I]);
     wter.WriteInteger(field.Col_id);
   end;
   wter.Free;
@@ -621,7 +624,7 @@ begin
     FieldCount := Rter.ReadInteger;
     for I := 0 to FieldCount - 1 do
     begin
-      UniqueKeys.Add(Fields.GetItemById(Rter.ReadInteger));
+      UniqueClusteredKeys.Add(Fields.GetItemById(Rter.ReadInteger));
     end;
   finally
     Rter.Free;

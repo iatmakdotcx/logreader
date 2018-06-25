@@ -61,6 +61,7 @@ type
     constructor Create(dbid: Word; lsn1: DWORD; slogPath: string);
     destructor Destroy; override;
     function Save(lsn2: DWORD; logs: TList; data: TMemoryStream): Boolean;
+    function Get(lsn2: DWORD; lsn3: WORD; var data: TMemoryStream): Boolean;
   end;
 
   TPagelogFileMgr = class(TObject)
@@ -69,7 +70,6 @@ type
       SsPath = 'data\';
     var
       f_path: string;
-      SaveCs: TCriticalSection;
       dbids: TDbidCustomBucketList;
     procedure dbidsObjAction(AItem, AData: Pointer; out AContinue: Boolean);
     procedure VlfMgrObjAction(AItem, AData: Pointer; out AContinue: Boolean);
@@ -77,6 +77,7 @@ type
     constructor Create;
     destructor Destroy; override;
     function LogDataSaveToFile(dbid: Word; lsn1: DWORD; lsn2: DWORD; logs: TList; data: TMemoryStream): Boolean;
+    function LogDataGetDate(dbid: Word; lsn1: DWORD; lsn2: DWORD; lsn3: WORD; var data: TMemoryStream): Boolean;
   end;
 
   TloopSaveMgr = class(TThread)
@@ -197,8 +198,6 @@ var
   Pathbuf: array[0..MAX_PATH + 2] of Char;
 begin
   inherited;
-  SaveCs := TCriticalSection.Create;
-
   GetModuleFileName(HInstance, Pathbuf, MAX_PATH);
   f_path := ExtractFilePath(string(Pathbuf)) + SsPath;
   ForceDirectories(f_path);
@@ -210,7 +209,6 @@ begin
   dbids.ForEach(dbidsObjAction);
   dbids.Clear;
   dbids.Free;
-  SaveCs.Free;
   inherited;
 end;
 
@@ -225,33 +223,53 @@ begin
   TDbidCustomBucketList(AData).Free;
 end;
 
+function TPagelogFileMgr.LogDataGetDate(dbid: Word; lsn1, lsn2: DWORD; lsn3: WORD; var data: TMemoryStream): Boolean;
+var
+  DB: TDbidCustomBucketList;
+  ReqNo: TVlfMgr;
+begin
+  if (dbid > 0) and (lsn1 > 0) then
+  begin
+    DB := dbids[dbid];
+    if DB = nil then
+    begin
+      DB := TDbidCustomBucketList.Create;
+      dbids.Add(dbid, DB);
+    end;
+    ReqNo := DB[lsn1];
+    if ReqNo = nil then
+    begin
+      ReqNo := TVlfMgr.Create(dbid, lsn1, f_path);
+      DB.Add(lsn1, ReqNo)
+    end;
+    Result := ReqNo.Get(lsn2, lsn3, data);
+  end else begin
+    Result := false;
+  end;
+end;
+
 function TPagelogFileMgr.LogDataSaveToFile(dbid: Word; lsn1: DWORD; lsn2: DWORD; logs: TList; data: TMemoryStream): Boolean;
 var
   DB: TDbidCustomBucketList;
   ReqNo: TVlfMgr;
 begin
-  SaveCs.Enter;
-  try
-    if (dbid > 0) and (lsn1 > 0) then
+  if (dbid > 0) and (lsn1 > 0) then
+  begin
+    DB := dbids[dbid];
+    if DB = nil then
     begin
-      DB := dbids[dbid];
-      if DB = nil then
-      begin
-        DB := TDbidCustomBucketList.Create;
-        dbids.Add(dbid, DB);
-      end;
-      ReqNo := DB[lsn1];
-      if ReqNo = nil then
-      begin
-        ReqNo := TVlfMgr.Create(dbid, lsn1, f_path);
-        DB.Add(lsn1, ReqNo)
-      end;
-      Result := ReqNo.Save(lsn2, logs, data);
-    end else begin
-      Result := false;
+      DB := TDbidCustomBucketList.Create;
+      dbids.Add(dbid, DB);
     end;
-  finally
-    SaveCs.Leave;
+    ReqNo := DB[lsn1];
+    if ReqNo = nil then
+    begin
+      ReqNo := TVlfMgr.Create(dbid, lsn1, f_path);
+      DB.Add(lsn1, ReqNo)
+    end;
+    Result := ReqNo.Save(lsn2, logs, data);
+  end else begin
+    Result := false;
   end;
 end;
 
@@ -327,6 +345,41 @@ begin
   IdxFileCS.Free;
   DataFileCS.Free;
   inherited;
+end;
+
+function TVlfMgr.Get(lsn2: DWORD; lsn3: WORD; var data: TMemoryStream): Boolean;
+var
+  dOffset:UInt64;
+  buf:Pointer;
+  DataSize,Rsize:Cardinal;
+begin
+  Result := false;
+  if idxObj.findRow(lsn2,lsn3,dOffset) then
+  begin
+    buf := GetMemory($2000);
+    try
+      SetFilePointerEx(DataFile, dOffset, nil, soFromBeginning);
+      if ReadFile(DataFile, buf^, $2000, Rsize, nil) and (Rsize >0) then
+      begin
+        DataSize := PDWORD(buf)^;
+        if DataSize>$2000 then
+        begin
+          Loger.Add('TVlfMgr.Get 日志错误,行数据过大。', LOG_ERROR);
+          exit;
+        end else begin
+          data.Write(PDWORD(UIntPtr(buf)+4)^, DataSize);
+          data.Seek(0, 0);
+          Result := True;
+        end;
+      end else begin
+        Loger.Add('TVlfMgr.Get：%d,%d 读取数据失败',[lsn2,lsn3], LOG_ERROR);
+      end;
+    finally
+      FreeMemory(buf);
+    end;
+  end else begin
+    Loger.Add('TVlfMgr.Get：%d,%d 查找行数据失败',[lsn2,lsn3], LOG_ERROR);
+  end;
 end;
 
 function TVlfMgr.Save(lsn2: DWORD; logs: TList; data: TMemoryStream): Boolean;

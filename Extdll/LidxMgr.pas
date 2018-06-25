@@ -49,12 +49,16 @@ type
       IdxFileHeader: array[0..$F] of AnsiChar = ('L', 'R', 'I', 'D', 'X', 'P', 'K', 'G', #0, #0, #0, #0, #0, #0, #0, #0);
       IdxFileHeader_Version: DWORD = 1;
     var
+      _optCnt:Integer;
       _FileHandle: THandle;
       dl1: TList;
       dictPnt:Pointer;
       memoIdx:TmemoIdx;
       MaxItem: Pointer;     //最大的项目
       MaxItemOffset: Dword; //最大项目的offset
+
+      MaxItemCs: TCriticalSection;
+      dl1Cs: TCriticalSection;
     function writeRow_replaceIn(Offset: DWORD; logs: TList; lsize: LARGE_INTEGER): Boolean;
     function writeRow_Insert(Offset: DWORD; Lsn2: DWORD; logs: TList; lsize: LARGE_INTEGER): Boolean;
     procedure dict_load;
@@ -65,6 +69,7 @@ type
     destructor Destroy; override;
     function initCheck: Boolean;
     function writeRow(lsn2: DWORD; logs: TList; lsize: LARGE_INTEGER): Boolean;
+    function findRow(lsn2: DWORD; lsn3: WORD; out dOffset:UInt64): Boolean;
   end;
 
 
@@ -85,6 +90,9 @@ begin
   MaxItem := AllocMem($2000);
   MaxItemOffset := 0;
   dictPnt := AllocMem($2000);
+  _optCnt := 0;
+  MaxItemCs := TCriticalSection.Create;
+  dl1Cs := TCriticalSection.Create;
 end;
 
 destructor TLidxMgr.Destroy;
@@ -93,6 +101,8 @@ begin
   FreeMem(dictPnt);
   memoIdx.Free;
   dl1.Free;
+  MaxItemCs.Free;
+  dl1Cs.Free;
   inherited;
 end;
 
@@ -195,6 +205,7 @@ begin
     end;
   end;
   FreeMem(buf);
+  Result := True;
 end;
 
 procedure TLidxMgr.dict_load;
@@ -202,23 +213,226 @@ var
   TmpdItem:PdictItem;
 begin
   TmpdItem := dictPnt;
-  while Uintptr(TmpdItem) < (Uintptr(dictPnt) + $2000) do
-  begin
-    if TmpdItem.type_=1 then
+  dl1Cs.Enter;
+  try
+    dl1.Clear;
+    while Uintptr(TmpdItem) < (Uintptr(dictPnt) + $2000) do
     begin
-      dl1.Add(TmpdItem);
-    end else begin
-      Break;
+      if TmpdItem.type_ = 1 then
+      begin
+        dl1.Add(TmpdItem);
+      end
+      else
+      begin
+        Break;
+      end;
+      Inc(TmpdItem);
     end;
-//    TmpdItem := Pointer(Uintptr(TmpdItem)+SizeOf(TdictItem));
-    Inc(TmpdItem);
+  finally
+    dl1Cs.Free;
   end;
 end;
 
 procedure TLidxMgr.dict_save;
+var
+  TmpdItem:PdictItem;
+  wSize, nSize:Cardinal;
 begin
+  if dl1.Count>0 then
+  begin
+    TmpdItem := dl1[dl1.Count - 1];
+    if TmpdItem.Offset <> MaxItemOffset then
+    begin
+      TmpdItem := dictPnt;
+      Inc(TmpdItem, dl1.Count);
+      TmpdItem.type_ := 1;
+      TmpdItem.lsn2 := PDWOrd(MaxItem)^;
+      TmpdItem.Offset := MaxItemOffset;
+      if dl1.Count > $380 then
+      begin
+        //删除第二个，依次前移
+        Move(Pointer(Uintptr(dictPnt) + 2 * SizeOf(TdictItem))^, Pointer(Uintptr(dictPnt) + SizeOf(TdictItem))^, SizeOf(TdictItem) * (dl1.Count + 1));
+      end else begin
+        //后面追加
 
+      end;
+      wSize := $2000;
+      SetFilePointer(_FileHandle, wSize, nil, soFromBeginning);
+      ReadFile(_FileHandle, dictPnt^, wSize, nSize, nil);
+      dict_load;
+    end;
+  end;
 
+end;
+
+function TLidxMgr.findRow(lsn2: DWORD; lsn3: WORD; out dOffset: UInt64): Boolean;
+var
+  tmpLsn2:Dword;
+  tmpLsn3Cnt:Word;
+  I, J: Integer;
+  tptp:TmemoIdx.PItem;
+  tmpDictItem: PdictItem;
+  BlockSize:Cardinal;
+  dlEPosi:Cardinal;   //记录mmoidx的开始位置，之后查找索引就到这个位置结束即可。
+  buf:Pointer;
+  nSize:Cardinal;
+  posi:Cardinal;
+  isX64Addr:Boolean;
+begin
+  Result := False;
+  MaxItemCs.Enter;
+  try
+    tmpLsn2 := PDWORD(MaxItem)^;
+  except
+    MaxItemCs.Leave;
+    Exit;
+  end;
+  tmpLsn2 := tmpLsn2 and $7FFFFFFF;
+  if lsn2 = tmpLsn2 then
+  begin
+    try
+      tmpLsn3Cnt := PWORD(UIntPtr(MaxItem)+4)^;
+      for I := 0 to tmpLsn3Cnt-1 do
+      begin
+        if PWORD(UIntPtr(MaxItem) + 6 + I * 2)^ = lsn3 then
+        begin
+          if (tmpLsn2 and $80000000) > 0 then
+          begin
+            //x64
+            dOffset := PUint64(UIntPtr(MaxItem) + 6 + tmpLsn3Cnt * 2 + I * 8)^
+          end else begin
+            //x86
+            dOffset := PUint64(UIntPtr(MaxItem) + 6 + tmpLsn3Cnt * 2 + I * 4)^
+          end;
+          Result := True;
+        end;
+      end;
+    finally
+      MaxItemCs.Leave;
+    end;
+    Exit;
+  end
+  else if lsn2 < tmpLsn2 then
+  begin
+    MaxItemCs.Leave;
+    dlEPosi := 0;
+    //search memoIdx
+    memoIdx.FCs.Enter;
+    try
+      if memoIdx.Count > 0 then
+      begin
+        tptp := TmemoIdx.PItem(memoIdx.Get(0));
+        dlEPosi := tptp.Offset;
+        if lsn2 > tptp.lsn2 then
+        begin
+          for I := memoIdx.Count - 1 downto 0 do
+          begin
+            tptp := TmemoIdx.PItem(memoIdx.Get(i));
+            if lsn2 = tptp.lsn2 then
+            begin
+              dOffset := tptp.Offset;
+              Result := True;
+              Exit;
+            end;
+          end;
+        end;
+      end;
+    finally
+      memoIdx.FCs.Leave;
+    end;
+
+    //search
+    dl1Cs.Enter;
+    try
+      for I := dl1.Count-1 Downto 0 do
+      begin
+        tmpDictItem := dl1[i];
+        if lsn2 >= tmpDictItem.lsn2 then
+        begin
+          if i = dl1.Count-1 then
+          begin
+            BlockSize := 0;
+            if dlEPosi=0 then
+            begin
+              //没有mmoidx，直接取文件末尾
+              dlEPosi := GetFileSize(_FileHandle, nil);
+            end;
+            if dlEPosi < tmpDictItem.Offset then
+            begin
+              Loger.Add('TLidxMgr.findRow[dlEPosi < tmpDictItem.Offset] 畸形索引文件', LOG_ERROR);
+              Exit;
+            end;
+            BlockSize := dlEPosi - tmpDictItem.Offset;
+          end else begin
+            BlockSize := PdictItem(dl1[i+1])^.Offset - tmpDictItem.Offset;
+          end;
+          if BlockSize> 100*1024*1024 then
+          begin
+            Loger.Add('TLidxMgr.findRow[BlockSize > 100MB] 畸形索引文件', LOG_ERROR);
+            Exit;
+          end;
+
+          buf := GetMemory(BlockSize);
+          SetFilePointer(_FileHandle, tmpDictItem.Offset, nil, soFromBeginning);
+          if ReadFile(_FileHandle, buf^, BlockSize, nSize, nil) and (nSize>0) then
+          begin
+            posi := 0;
+            while posi + 12 < nSize do
+            begin
+              tmpLsn2 := PDWord(UINT_PTR(buf) + posi)^;
+              tmplsn3Cnt := PWord(UINT_PTR(buf) + 4 + posi)^;
+              isX64Addr := (tmpLsn2 and $80000000) > 0;
+              if isX64Addr then
+                tmpLsn2 := tmpLsn2 and $7FFFFFFF;
+              if tmpLsn2 = lsn2 then
+              begin
+                for J := 0 to tmpLsn3Cnt-1 do
+                begin
+                  if PWORD(UINT_PTR(buf) + posi + 6 + J * 2)^ = lsn3 then
+                  begin
+                    if isX64Addr then
+                    begin
+                      //x64
+                      dOffset := PUint64(UINT_PTR(buf) + posi + 6 + tmpLsn3Cnt * 2 + J * 8)^
+                    end else begin
+                      //x86
+                      dOffset := PUint64(UINT_PTR(buf) + posi + 6 + tmpLsn3Cnt * 2 + J * 4)^
+                    end;
+                    Result := True;
+                  end;
+                end;
+                exit;
+              end else if tmpLsn2 > lsn2 then
+              begin
+                //未找到
+                Loger.Add('TLidxMgr.findRow 未找到', LOG_WARNING);
+                Exit;
+              end else begin
+                //继续查找下一个
+              end;
+              if isX64Addr then
+              begin
+                posi := posi + 6 + tmpLsn3Cnt * (2 + 8);
+              end
+              else
+              begin
+                posi := posi + 6 + tmpLsn3Cnt * (2 + 4);
+              end;
+            end;
+          end;
+          FreeMemory(buf);
+          Exit;
+        end;
+      end;
+    finally
+      dl1Cs.Leave;
+    end;
+  end
+  else
+  begin
+    MaxItemCs.Leave;
+    //大于MaxItem的，肯定是空的
+  end;
 end;
 
 function TLidxMgr.writeRow_replaceIn(Offset: DWORD; logs: TList; lsize: LARGE_INTEGER): Boolean;
@@ -321,8 +535,6 @@ begin
   //之后的全部读出来，再写回去
   if lastCnt > 0 then
   begin
-//    SetFilePointer(_FileHandle, Offset + oldBlockSize, nil, soFromBeginning);
-//    ReadFile(_FileHandle, Pointer(UINT_PTR(newBlockData) + newBlockSize)^, lastCnt, nSize, nil);
     Move(Pointer(UINT_PTR(buf) + oldBlockSize)^, Pointer(UINT_PTR(newBlockData) + newBlockSize)^, lastCnt);
   end;
 
@@ -333,7 +545,12 @@ begin
   begin
     //修改了最后一个
     //更新 MaxItem
-    Move(newBlockData^, MaxItem^, newBlockSize);
+    MaxItemcs.Enter;
+    try
+      Move(newBlockData^, MaxItem^, newBlockSize);
+    finally
+      MaxItemcs.Leave;
+    end;
   end else begin
     MaxItemOffset := MaxItemOffset + (newBlockSize - oldBlockSize);
     memoIdx.Insert(tmpLsn2, Offset,newBlockSize - oldBlockSize);
@@ -416,7 +633,6 @@ begin
   Result := False;
   if (logs.Count = 0) then
     Exit;
-  tmpLsn := logs[0];
 
   MaxLsn2 := PDWORD(MaxItem)^ and $7FFFFFFF;
   if lsn2 > MaxLsn2 then
@@ -452,7 +668,12 @@ begin
     MaxItemOffset := SetFilePointer(_FileHandle, 0, nil, soFromEnd);
     WriteFile(_FileHandle, buf^, oSize, nSize, nil);
 
-    Move(buf^, MaxItem^, oSize);
+    MaxItemcs.Enter;
+    try
+      Move(buf^, MaxItem^, oSize);
+    finally
+      MaxItemcs.Leave;
+    end;
     memoIdx.Append(lsn2, MaxItemOffset);
     FreeMem(buf);
     Result := True;
@@ -466,6 +687,12 @@ begin
   begin
     //insert
     getapplypointer(lsn2, logs, lsize);
+  end;
+  Inc(_optCnt);
+  if _optCnt>100 then
+  begin
+    _optCnt :=0;
+    dict_save;
   end;
 end;
 
