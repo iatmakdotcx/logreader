@@ -17,7 +17,8 @@ type
     dataFromDbccPage:boolean;//dbcc的raw数据不用处理修正数据，本来就是修正之后的数据
     R0:Pointer;
     R1:Pointer;
-    public
+    UniqueClusteredKeys:string;
+  public
     constructor Create;
     destructor Destroy; override;
   end;
@@ -30,6 +31,7 @@ type
     Table: TdbTableItem;
     lsn: Tlog_LSN;
     afterUpdate:Tsql2014RowData;
+    UniqueClusteredKeys:string;
   public
     function getFieldStrValue(FieldName: string): string;
     function getField(FieldName: string):PdbFieldValue;overload;
@@ -75,6 +77,7 @@ type
     function DML_BuilderSql_Insert(aRowData: Tsql2014RowData): string;
     function DML_BuilderSql_Update(aRowData: Tsql2014RowData): string;
     function DML_BuilderSql_Delete(aRowData: Tsql2014RowData): string;
+    function DML_BuilderSql_Where(aRowData: Tsql2014RowData): string;
     function Read_LCX_TEXT_MIX_DATA(tPkg: TTransPkgItem; BinReader: TbinDataReader): TBytes;
     procedure PriseDDLPkg(DataRow: Tsql2014RowData);
     procedure PriseDDLPkg_sysrscols(DataRow: Tsql2014RowData);
@@ -104,6 +107,7 @@ type
     function GenSql_DropColumn(ddlitem: TDDL_Delete_Column): string;
     procedure PriseRowLog_MODIFY_ROW(tPkg: TTransPkgItem);
     procedure PriseRowLog_MODIFY_COLUMNS(tPkg: TTransPkgItem);
+    function PriseRowLog_UniqueClusteredKeys(BinReader: TbinDataReader; DbTable: TdbTableItem): string;
   public
     /// <summary>
     ///
@@ -239,43 +243,13 @@ begin
 end;
 
 var
-  whereStr: string;
   updateStr:string;
-  I, J: Integer;
-  fieldval: PdbFieldValue;
-  field: TdbFieldItem;
+  I: Integer;
   DataRow_aft: Tsql2014RowData;
   raw_old,raw_new: PdbFieldValue;
+  whereStr: string;
 begin
-  whereStr := '';
-  if aRowData.Table.UniqueClusteredKeys.Count > 0 then
-  begin
-    for I := 0 to aRowData.Table.UniqueClusteredKeys.Count - 1 do
-    begin
-      field := aRowData.Table.UniqueClusteredKeys[I];
-      for J := 0 to aRowData.Fields.Count - 1 do
-      begin
-        fieldval := PdbFieldValue(aRowData.Fields[J]);
-        if fieldval.field.Col_id = field.Col_id then
-        begin
-          whereStr := whereStr + Format('and %s=%s ', [fieldval.field.getSafeColName, Hvu_GetFieldStrValueWithQuoteIfNeed(fieldval.field, fieldval.value)]);
-          Break;
-        end;
-      end;
-    end;
-  end
-  else
-  begin
-    for I := 0 to aRowData.Fields.Count - 1 do
-    begin
-      fieldval := PdbFieldValue(aRowData.Fields[I]);
-      whereStr := whereStr + Format('and %s=%s ', [fieldval.field.getSafeColName, Hvu_GetFieldStrValueWithQuoteIfNeed(fieldval.field, fieldval.value)]);
-    end;
-  end;
-  if whereStr.Length > 0 then
-  begin
-    Delete(whereStr, 1, 4);  //"and "
-  end;
+  whereStr := DML_BuilderSql_Where(aRowData);
 
   updateStr := '';
   DataRow_aft := aRowData.afterUpdate;
@@ -283,6 +257,10 @@ begin
   begin
     raw_old := aRowData.getField(aRowData.Table.Fields[i].Col_id);
     raw_new := DataRow_aft.getField(aRowData.Table.Fields[i].Col_id);
+    if (raw_new=nil)  and (raw_old=nil)then
+    begin
+
+    end else
     if raw_new = nil then
     begin
       //var 值 ————>  null
@@ -294,6 +272,32 @@ begin
   if updateStr.Length > 0 then
     Delete(updateStr, 1, 2);  //", "
   Result := Format('UPDATE %s SET %s WHERE %s;', [aRowData.Table.getFullName, updateStr, whereStr]);
+end;
+
+function TSql2014logAnalyzer.DML_BuilderSql_Where(aRowData: Tsql2014RowData): string;
+var
+  whereStr: string;
+  I: Integer;
+  fieldval: PdbFieldValue;
+begin
+  if aRowData.UniqueClusteredKeys <> '' then
+  begin
+    Result := aRowData.UniqueClusteredKeys;
+  end
+  else
+  begin
+    whereStr := '';
+    for I := 0 to aRowData.Fields.Count - 1 do
+    begin
+      fieldval := PdbFieldValue(aRowData.Fields[I]);
+      whereStr := whereStr + Format('and %s=%s ', [fieldval.field.getSafeColName, Hvu_GetFieldStrValueWithQuoteIfNeed(fieldval.field, fieldval.value)]);
+    end;
+    if whereStr.Length > 0 then
+    begin
+      Delete(whereStr, 1, 4);  //"and "
+    end;
+    Result := whereStr;
+  end;
 end;
 
 function TSql2014logAnalyzer.DML_BuilderSql_Insert(aRowData: Tsql2014RowData): string;
@@ -322,39 +326,9 @@ end;
 function TSql2014logAnalyzer.DML_BuilderSql_Delete(aRowData: Tsql2014RowData): string;
 var
   whereStr: string;
-  I, J: Integer;
-  fieldval: PdbFieldValue;
-  field: TdbFieldItem;
 begin
-  whereStr := '';
-  if aRowData.Table.UniqueClusteredKeys.Count > 0 then
-  begin
-    for I := 0 to aRowData.Table.UniqueClusteredKeys.Count - 1 do
-    begin
-      field := aRowData.Table.UniqueClusteredKeys[I];
-      for J := 0 to aRowData.Fields.Count - 1 do
-      begin
-        fieldval := PdbFieldValue(aRowData.Fields[J]);
-        if fieldval.field.Col_id = field.Col_id then
-        begin
-          whereStr := whereStr + Format('and %s=%s ', [fieldval.field.getSafeColName, Hvu_GetFieldStrValueWithQuoteIfNeed(fieldval.field, fieldval.value)]);
-          Break;
-        end;
-      end;
-    end;
-  end
-  else
-  begin
-    for I := 0 to aRowData.Fields.Count - 1 do
-    begin
-      fieldval := PdbFieldValue(aRowData.Fields[I]);
-      whereStr := whereStr + Format('and %s=%s ', [fieldval.field.getSafeColName, Hvu_GetFieldStrValueWithQuoteIfNeed(fieldval.field, fieldval.value)]);
-    end;
-  end;
-  if whereStr.Length > 0 then
-  begin
-    Delete(whereStr, 1, 4);  //"and "
-  end;
+  whereStr := DML_BuilderSql_Where(aRowData);
+
   Result := Format('DELETE FROM %s WHERE %s;', [aRowData.Table.getFullName, whereStr]);
 end;
 
@@ -422,6 +396,8 @@ begin
       finally
         TmpBinReader.Free;
       end;
+      DataRow.UniqueClusteredKeys := DataRow_buf.UniqueClusteredKeys;
+      DataRow.OperaType := DataRow_buf.OperaType;
       if (DataRow_buf.OperaType = Opt_Update) and (DataRow_buf.R1 <> nil) then
       begin
         TmpBinReader := TbinDataReader.Create(DataRow_buf.R1, $2000);
@@ -451,20 +427,21 @@ begin
       begin
         PriseDDLPkg_U(DataRow);
       end;
+
     end
     else
     begin
       // dml 语句
-      DMLitem := TDMLItem.Create;
-      DMLitem.data := DataRow;
-      DDL.Add(DMLitem);
+//      DMLitem := TDMLItem.Create;
+//      DMLitem.data := DataRow;
+//      DDL.Add(DMLitem);
     end;
   end;
   if DDL.FItems.Count>0 then
   begin
-    Loger.Add(GenSql);
     ApplySysDDLChange;
   end;
+  Loger.Add(GenSql);
 end;
 
 function TSql2014logAnalyzer.GenSql: string;
@@ -1919,6 +1896,88 @@ begin
   end;
 end;
 
+function TSql2014logAnalyzer.PriseRowLog_UniqueClusteredKeys(BinReader: TbinDataReader;DbTable: TdbTableItem):string;
+var
+  flag:Byte;
+  I, J: Integer;
+  field: TdbFieldItem;
+  fieldval: PdbFieldValue;
+  values: TList;
+  varFCnt:Integer;
+  varFxIdx:array of Word;
+  fieldCnt:Word;
+  tmpCardinal:Cardinal;
+begin
+  flag := BinReader.readByte;
+  Result := '';
+  varFCnt := 0;
+  values := TList.Create;
+  try
+    for I := 0 to DbTable.UniqueClusteredKeys.Count - 1 do
+    begin
+      field := DbTable.UniqueClusteredKeys[I];
+      if (field.leaf_pos > 0) then
+      begin
+        New(fieldval);
+        fieldval.field := field;
+        fieldval.value := BinReader.readBytes(field.Max_length);
+        values.Add(fieldval);
+      end
+      else
+      begin
+        if varFCnt = 0 then
+        begin
+          //field Cnt
+          fieldCnt := BinReader.readWord;
+          //效验索引字段数量
+          if fieldCnt <> DbTable.UniqueClusteredKeys.Count then
+          begin
+          //有问题数据，跳出
+            Exit;
+          end;
+          //nullmap
+          BinReader.skip((fieldCnt + 7) shr 3);
+          if (flag and $20) = 0 then
+          begin
+            // ?? 不包含var字段 值
+            Exit;
+          end;
+          //var 字段数量
+          fieldCnt := BinReader.readWord;
+          SetLength(varFxIdx, fieldCnt);
+          tmpCardinal := BinReader.Position;
+          for j := 0 to fieldCnt -1 do
+          begin
+            varFxIdx[i] := BinReader.readWord - tmpCardinal;
+            tmpCardinal := varFxIdx[i];
+          end;
+        end;
+        New(fieldval);
+        fieldval.field := field;
+        fieldval.value := BinReader.readBytes(varFxIdx[varFCnt]);
+        values.Add(fieldval);
+        varFCnt := varFCnt + 1;
+      end;
+    end;
+    for I := 0 to values.Count - 1 do
+    begin
+      fieldval := values[I];
+      Result := Result + Format('and %s=%s ', [fieldval.field.getSafeColName,
+        Hvu_GetFieldStrValueWithQuoteIfNeed(fieldval.field, fieldval.value)]);
+    end;
+    if values.Count>0 then
+    begin
+      Delete(Result, 1, 4);  //"and "
+    end;
+  finally
+    for I := 0 to values.Count - 1 do
+    begin
+      Dispose(values[I]);
+    end;
+    values.Free;
+  end;
+end;
+
 procedure TSql2014logAnalyzer.PriseRowLog_MODIFY_ROW(tPkg: TTransPkgItem);
 procedure applyChange(srcData, pdata: Pointer; offset, size_old, size_new, datarowCnt: Integer);
 var
@@ -1962,6 +2021,7 @@ var
   tmpdata:Pointer;
   DataRow_buf: TsqlRawBuf;
   RawDataLen:Integer;
+  UniqueClusteredKeys:string;
 begin
   BinReader := nil;
   DataRow_buf := nil;
@@ -2037,6 +2097,12 @@ begin
                 //忽略的表
                 Exit;
               end;
+              if (DbTable.UniqueClusteredKeys.Count>0) and (R_Info[2].Length > 0) then
+              begin
+                //读取UniqueClusteredKeys
+                BinReader.SetRange(R_Info[2].Offset, R_Info[2].Length);
+                UniqueClusteredKeys := PriseRowLog_UniqueClusteredKeys(BinReader, DbTable);
+              end;
 
               DataRow_buf := TsqlRawBuf.Create;
               try
@@ -2044,6 +2110,7 @@ begin
                 DataRow_buf.page := Rldo.pageId;
                 DataRow_buf.table := DbTable;
                 DataRow_buf.dataFromDbccPage := OriginRowDataDbcc;
+                DataRow_buf.UniqueClusteredKeys := UniqueClusteredKeys;
                 //before
                 tmpdata := AllocMem($2000);
                 Move(OriginRowData[0], tmpdata^, Length(OriginRowData));

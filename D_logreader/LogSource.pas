@@ -4,7 +4,7 @@ interface
 
 uses
   I_LogProvider, I_logReader, databaseConnection, p_structDefine, Types,
-  System.Classes;
+  System.Classes, System.SyncObjs;
 
 type
   LS_STATUE = (tLS_unknown, tLS_NotConfig, tLS_NotConnectDB, tLs_noLogReader, tLS_running, tLS_stopped, tLS_suspension);
@@ -12,6 +12,7 @@ type
 type
   TLogSource = class(TObject)
   private
+    FRunCs: TCriticalSection;
     Fstatus:LS_STATUE;
     procedure ClrLogSource;
   public
@@ -25,13 +26,6 @@ type
     function GetVlf_LSN(LSN: Tlog_LSN): PVLF_Info;
     function GetVlf_SeqNo(SeqNo:DWORD): PVLF_Info;
     function GetRawLogByLSN(LSN: Tlog_LSN;var OutBuffer: TMemory_data): Boolean;
-    /// <summary>
-    /// 根据时间搜索Lsn。返回大于指定时间的第一个 LOP_COMMIT_XACT的Lsn
-    /// </summary>
-    /// <param name="adt"></param>
-    /// <param name="LSN"></param>
-    /// <returns></returns>
-    function SearchLsnByTime(adt:TDateTime; var LSN: Tlog_LSN): Boolean;
     function Create_picker:Boolean;
     procedure Stop_picker;
     function status:LS_STATUE;
@@ -103,6 +97,7 @@ begin
   FLogReader := nil;
   Fdbc := nil;
   FLogPicker := nil;
+  FRunCs:=TCriticalSection.Create;
 end;
 
 function TLogSource.CreateLogReader(ExistsRenew:Boolean = False):Boolean;
@@ -130,23 +125,32 @@ end;
 
 function TLogSource.Create_picker: Boolean;
 begin
+  Result := False;
   if FProcCurLSN.LSN_1 = 0 then
   begin
     Loger.Add(' FProcCurLSN 为空启动logpicker失败');
-    Result := False;
     Exit;
   end
   else
   begin
-    FLogPicker := TSql2014LogPicker.Create(Self, FProcCurLSN);
-    Fstatus := tLS_running;
-    Result := True;
+    FRunCs.Enter;
+    try
+      if FLogPicker = nil then
+      begin
+        FLogPicker := TSql2014LogPicker.Create(Self, FProcCurLSN);
+        Fstatus := tLS_running;
+        Result := True;
+      end;
+    finally
+      FRunCs.Leave;
+    end;
   end;
 end;
 
 destructor TLogSource.Destroy;
 begin
   ClrLogSource;
+  FRunCs.Free;
   inherited;
 end;
 
@@ -345,17 +349,6 @@ begin
   finally
     mmo.Free;
   end;
-end;
-
-
-function TLogSource.SearchLsnByTime(adt: TDateTime; var LSN: Tlog_LSN): Boolean;
-begin
-  Result := false;
-  LSN.LSN_1 := 0;
-  LSN.LSN_2 := 0;
-  LSN.LSN_3 := 0;
-
-
 end;
 
 { TLogSourceList }
