@@ -3,7 +3,7 @@
         <ProjectGuid>{4940BA3D-4C59-4467-B66C-ACAFD292D033}</ProjectGuid>
         <MainSource>LrExtutils.dpr</MainSource>
         <Base>True</Base>
-        <Config Condition="'$(Config)'==''">Debug</Config>
+        <Config Condition="'$(Config)'==''">Release</Config>
         <TargetedPlatforms>1027</TargetedPlatforms>
         <AppType>Library</AppType>
         <FrameworkType>None</FrameworkType>
@@ -124,6 +124,16 @@
             <MainSource>MainSource</MainSource>
         </DelphiCompile>
         <DCCReference Include="HashHelper.pas"/>
+        <DCCReference Include="MsOdsApi.pas"/>
+        <DCCReference Include="SqlSvrHelper.pas"/>
+        <DCCReference Include="dbhelper.pas"/>
+        <DCCReference Include="pageCaptureDllHandler.pas"/>
+        <DCCReference Include="H:\Delphi\通用的自定义单元\Memory_Common.pas"/>
+        <DCCReference Include="logRecdItemSave.pas"/>
+        <DCCReference Include="H:\Delphi\通用的自定义单元\MakCommonfuncs.pas"/>
+        <DCCReference Include="logRecdItemReader.pas"/>
+        <DCCReference Include="cfg.pas"/>
+        <DCCReference Include="LidxMgr.pas"/>
         <DCCReference Include="H:\Delphi\通用的自定义单元\loglog.pas"/>
         <DCCReference Include="H:\Delphi\通用的自定义单元\Log4D.pas"/>
         <BuildConfiguration Include="Debug">
@@ -190,7 +200,16 @@
                         <Overwrite>true</Overwrite>
                     </Platform>
                 </DeployFile>
-                <DeployClass Name="ProjectiOSDeviceResourceRules"/>
+                <DeployClass Name="DependencyModule">
+                    <Platform Name="Win32">
+                        <Operation>0</Operation>
+                        <Extensions>.dll;.bpl</Extensions>
+                    </Platform>
+                    <Platform Name="OSX32">
+                        <Operation>1</Operation>
+                        <Extensions>.dylib</Extensions>
+                    </Platform>
+                </DeployClass>
                 <DeployClass Name="ProjectOSXResource">
                     <Platform Name="OSX32">
                         <RemoteDir>Contents\Resources</RemoteDir>
@@ -501,16 +520,7 @@
                         <Operation>1</Operation>
                     </Platform>
                 </DeployClass>
-                <DeployClass Name="DependencyModule">
-                    <Platform Name="Win32">
-                        <Operation>0</Operation>
-                        <Extensions>.dll;.bpl</Extensions>
-                    </Platform>
-                    <Platform Name="OSX32">
-                        <Operation>1</Operation>
-                        <Extensions>.dylib</Extensions>
-                    </Platform>
-                </DeployClass>
+                <DeployClass Name="ProjectiOSDeviceResourceRules"/>
                 <ProjectRoot Platform="iOSDevice64" Name="$(PROJECTNAME).app"/>
                 <ProjectRoot Platform="Win64" Name="$(PROJECTNAME)"/>
                 <ProjectRoot Platform="iOSDevice32" Name="$(PROJECTNAME).app"/>

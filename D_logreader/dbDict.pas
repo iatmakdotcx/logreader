@@ -398,6 +398,11 @@ procedure TdbTables.addTable(item: TdbTableItem);
     begin
       // https://msdn.microsoft.com/zh-cn/library/ms179503
       TableName := LowerCase(TableName);
+      if (TableName = 'sysprufiles') //数据库文件信息，路径，大小等、
+      then
+      begin
+        result := true;
+      end;
 //      if (TableName = 'sysowners') or (TableName = 'sysschobjs') or (TableName = 'syscolpars') or (TableName = 'sysobjvalues') or (TableName = 'sysidxstats') or (TableName = 'sysiscols') or (TableName = 'sysrscols') or (TableName = 'syshobtcolumns') or (TableName = 'sysrowsetcolumns') or (TableName = 'sysallocunits') or (TableName = 'sysrowsets') or (TableName = 'syssingleobjrefs') or (TableName = 'sysmultiobjrefs') or (TableName = 'sysprivs') or (TableName = 'sysclsobjs') then
 //      begin
 //        Result := True;

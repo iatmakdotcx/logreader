@@ -252,27 +252,33 @@ var
   raw_old,raw_new: PdbFieldValue;
   whereStr: string;
 begin
-  whereStr := DML_BuilderSql_Where(aRowData);
-
-  updateStr := '';
-  for I := 0 to aRowData.Table.Fields.Count - 1 do
+  if aRowData.old_data<>nil then
   begin
-    raw_old := aRowData.old_data.getField(aRowData.Table.Fields[i].Col_id);
-    raw_new := aRowData.new_data.getField(aRowData.Table.Fields[i].Col_id);
-    if (raw_new=nil)  and (raw_old=nil)then
+    whereStr := DML_BuilderSql_Where(aRowData);
+    updateStr := '';
+    for I := 0 to aRowData.Table.Fields.Count - 1 do
     begin
+      raw_old := aRowData.old_data.getField(aRowData.Table.Fields[i].Col_id);
+      raw_new := aRowData.new_data.getField(aRowData.Table.Fields[i].Col_id);
+      if (raw_new=nil)  and (raw_old=nil)then
+      begin
 
-    end else
-    if raw_new = nil then
-    begin
-      //var 值 ————>  null
-      updateStr := updateStr + Format(', %s=NULL',[raw_old.field.getSafeColName]);
-    end else if (raw_old = nil) or (not binEquals(raw_new.value, raw_old.value)) then begin
-      updateStr := updateStr + Format(', %s=%s',[raw_new.field.getSafeColName, Hvu_GetFieldStrValueWithQuoteIfNeed(raw_new.field, raw_new.value)]);
-    end
+      end else
+      if raw_new = nil then
+      begin
+        //var 值 ————>  null
+        updateStr := updateStr + Format(', %s=NULL',[raw_old.field.getSafeColName]);
+      end else if (raw_old = nil) or (not binEquals(raw_new.value, raw_old.value)) then begin
+        updateStr := updateStr + Format(', %s=%s',[raw_new.field.getSafeColName, Hvu_GetFieldStrValueWithQuoteIfNeed(raw_new.field, raw_new.value)]);
+      end
+    end;
+    if updateStr.Length > 0 then
+      Delete(updateStr, 1, 2);  //", "
+  end else begin
+    //使用Select数据作源
+    whereStr := aRowData.UniqueClusteredKeys;
+    updateStr := FLogSource.Fdbc.getUpdateSQLfromSelect(aRowData.Table, whereStr)
   end;
-  if updateStr.Length > 0 then
-    Delete(updateStr, 1, 2);  //", "
   Result := Format('UPDATE %s SET %s WHERE %s;', [aRowData.Table.getFullName, updateStr, whereStr]);
 end;
 
@@ -289,9 +295,9 @@ begin
   else
   begin
     whereStr := '';
-    for I := 0 to aRowData.old_data.Fields.Count - 1 do
+    for I := 0 to aRowData.new_data.Fields.Count - 1 do
     begin
-      fieldval := PdbFieldValue(aRowData.old_data.Fields[I]);
+      fieldval := PdbFieldValue(aRowData.new_data.Fields[I]);
       whereStr := whereStr + Format('and %s=%s ', [fieldval.field.getSafeColName, Hvu_GetFieldStrValueWithQuoteIfNeed(fieldval.field, fieldval.value)]);
     end;
     if whereStr.Length > 0 then
@@ -1703,8 +1709,7 @@ begin
                 (DataRow.page.solt = Rldo.pageId.solt) then
               begin
                 //撤销之前的数据
-                FreeMem(DataRow.R0);
-                DataRow.R0 := nil;
+                FRows.Delete(i);
                 Break;
               end
             end;
@@ -1855,8 +1860,7 @@ begin
                 (DataRow.page.solt = Rldo.pageId.solt) then
               begin
                 //撤销之前的数据
-                FreeMem(DataRow.R0);
-                DataRow.R0 := nil;
+                FRows.Delete(i);
                 Break;
               end
             end;
@@ -1893,7 +1897,7 @@ begin
             end;
             //开始读取R0
             DataRow := Tsql2014Opt.Create;
-            DataRow.OperaType := Opt_Insert;
+            DataRow.OperaType := Opt_Delete;
             DataRow.page := Rldo.pageId;
             DataRow.table := DbTable;
             DataRow.R0 := GetMemory(R_Info[0].Length);
@@ -2113,7 +2117,7 @@ begin
               if OriginRowData = nil then
               begin
                 Loger.Add('获取行原始数据失败！' + lsn2str(tPkg.LSN) + ',pLSN:' + lsn2str(Rldo.normalData.PreviousLSN), LOG_WARNING or LOG_IMPORTANT);
-                if DataRow_buf.UniqueClusteredKeys = '' then
+                if (DataRow_buf.UniqueClusteredKeys = '') or (DbTable.Owner='sys') then
                 begin
                   //如果没有聚合索引，从dbcc page获取原始行数据。因为不会出现重建聚合，所以page页相内容不容易发生变动，数据相对可靠。
                   OriginRowData := getUpdateSoltFromDbccPage(FLogSource.Fdbc, Rldo.pageId);
@@ -2537,6 +2541,8 @@ begin
   R0 := nil;
   R1 := nil;
   UnReliableRData := False;
+  old_data := nil;
+  new_data := nil;
 end;
 
 destructor Tsql2014Opt.Destroy;
@@ -2546,6 +2552,11 @@ begin
 
   if R1<>nil then
     FreeMem(R1);
+
+  if old_data<>nil then
+     old_data.Free;
+  if new_data<>nil then
+     new_data.Free;
 
   inherited;
 end;

@@ -346,14 +346,14 @@ begin
     MsTypes.IMAGE, MsTypes.VARBINARY, MsTypes.BINARY:
       Result := '0x' + bytestostr_singleHex(Value);
 
-    MsTypes.TIMESTAMP:      //SqlServer 不允许显式写入TIMESTAMP字段
-      Result := '0x' + bytestostr_singleHex(Value);
-
     MsTypes.UNIQUEIDENTIFIER:
       begin
         Result := Hvu_Bytes2GUIDStr(Value);
         needQuote := True;
       end;
+
+    MsTypes.TIMESTAMP:      //SqlServer 不允许显式写入TIMESTAMP字段
+      Result := '0x' + bytestostr_singleHex(Value);
 
     MsTypes.GEOGRAPHY:
       begin

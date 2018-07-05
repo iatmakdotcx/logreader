@@ -81,14 +81,16 @@ type
     /// <returns>执行是否成功</returns>
     function ExecSql(aSql: string; out resDataset: TCustomADODataSet;withOpen:Boolean=True): Boolean;
     function CheckIsSysadmin:Boolean;
+    function getUpdateSQLfromSelect(table:TdbTableItem; wherekey: string): string;
     property dbok:Boolean read FdBConfigOK;
+
   end;
 
 implementation
 
 uses
   Windows, SysUtils, dbHelper, comm_func, MakCommonfuncs, loglog,
-  Winapi.ADOInt, System.Variants;
+  Winapi.ADOInt, System.Variants, Data.DB, dbFieldTypes;
 
 function CloneRecordset(const Data: _Recordset): _Recordset;
 var
@@ -410,6 +412,188 @@ begin
       Result := True;
     rDataset.Free;
   end;
+end;
+
+function TdatabaseConnection.getUpdateSQLfromSelect(table:TdbTableItem; wherekey:string): string;
+function DumpMemory2Str(data:Pointer; dataSize:Integer): string;
+var
+  I: Integer;
+begin
+  Result := '';
+  for I := 0 to dataSize-1 do
+  begin
+    Result := Result + IntToHex(Pbyte(uintptr(data)+I)^,2);
+  end;
+end;
+function getfieldValueAsString(field: TField): string;
+var
+  ddSize: Integer;
+  buff: Pointer;
+  Data: OleVariant;
+  blobData: TBytes;
+begin
+  if field.IsNull then
+  begin
+    Result := 'NULL';
+    Exit;
+  end;
+
+  case field.DataType of
+      //int
+    ftSingle,
+    ftByte,
+    ftExtended,
+    ftSmallint,
+    ftInteger,
+    ftWord,
+    ftFloat,
+    ftCurrency,
+    ftBCD,
+    ftFMTBcd,
+    ftAutoInc,
+    ftLargeint,
+    ftLongWord,
+    ftShortint:
+      begin
+        Result := field.AsString;
+      end;
+      //string
+    ftFixedChar,
+    ftString,
+    ftDate,
+    ftTime,
+    ftDateTime,
+    ftMemo,
+    ftWideString,
+    ftFixedWideChar,
+    ftFmtMemo,
+    ftWideMemo,
+    ftGuid:
+      begin
+        Result := field.AsString.QuotedString;
+      end;
+      //bool
+    ftBoolean:
+      begin
+        if field.AsBoolean then
+        begin
+          Result := '1';
+        end
+        else
+        begin
+          Result := '0';
+        end;
+      end;
+      //varbinary
+    ftVarBytes:
+      begin
+        ddSize := field.DataSize;
+        if ddSize = 0 then
+        begin
+          Result := 'NULL';
+          Exit;
+        end;
+        buff := AllocMem(ddSize);
+        if field.GetData(buff) then
+        begin
+          ddSize := Pword(buff)^;
+          Result := '0x' + DumpMemory2Str(pointer(Uintptr(buff) + 2), ddSize);
+        end;
+        FreeMem(buff);
+      end;
+    ftVariant:
+      begin
+        //TODO:暂时不支持此类型
+        Result := 'NULL';
+      end
+  else    //bin
+    if field.IsBlob then
+    begin
+      blobData := TBlobField(field).Value;
+      if Length(blobData) = 0 then
+      begin
+        Result := 'NULL';
+        Exit;
+      end;
+      Result := '0x' + DumpMemory2Str(@blobData[0], Length(blobData));
+      SetLength(blobData, 0);
+    end
+    else
+    begin
+      ddSize := field.DataSize;
+      if ddSize = 0 then
+      begin
+        Result := 'NULL';
+        Exit;
+      end;
+      buff := AllocMem(ddSize);
+      if field.GetData(buff) then
+      begin
+        Result := '0x' + DumpMemory2Str(buff, ddSize);
+      end;
+      FreeMem(buff);
+    end;
+//     ftUnknown: ;
+//     ftBytes: ;
+//     ftBlob: ;
+//     ftGraphic: ;
+//     ftParadoxOle: ;
+//     ftDBaseOle: ;
+//     ftTypedBinary: ;
+//     ftCursor: ;
+//     ftADT: ;
+//     ftArray: ;
+//     ftReference: ;
+//     ftDataSet: ;
+//     ftOraBlob: ;
+//     ftOraClob: ;
+//     ftInterface: ;
+//     ftIDispatch: ;
+//     ftTimeStamp: ;
+//     ftOraTimeStamp: ;
+//     ftOraInterval: ;
+//     ftConnection: ;
+//     ftParams: ;
+//     ftStream: ;
+//     ftTimeStampOffset: ;
+//     ftObject: ;
+  end;
+end;
+
+var
+  rDataset:TCustomADODataSet;
+  aSql:string;
+  I: Integer;
+  fieldsStr:string;
+begin
+  Result := '';
+  fieldsStr := '';
+  for I := 0 to table.Fields.Count -1 do
+  begin
+    case table.Fields[i].type_id of
+      MsTypes.TIMESTAMP,
+      MsTypes.GEOGRAPHY,
+      MsTypes.XML,
+      MsTypes.SQL_VARIANT:
+      Continue;
+    else
+      fieldsStr := fieldsStr + ',[' + table.Fields[I].ColName + ']';
+    end
+  end;
+  if fieldsStr.Length>2 then
+  begin
+    Delete(fieldsStr,1,1);
+    aSql := 'select ' + fieldsStr + ' from ' + table.TableNmae + ' where ' + wherekey;
+    if ExecSql(aSql, rDataset) then
+    begin
+      for I := 0 to rDataset.Fields.Count -1 do
+      begin
+        Result := Result + ',['+rDataset.Fields[i].FieldName+']=' + getfieldValueAsString(rDataset.Fields[i]);
+      end;
+      Delete(Result,1,1);
+      rDataset.Free;
+    end;
+  end
 end;
 
 function TdatabaseConnection.GetCollationPropertyFromId(id: Integer): string;
