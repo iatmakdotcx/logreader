@@ -107,7 +107,7 @@ type
 implementation
 
 uses
-  pluginlog,Types;
+  loglog,Types;
 
 { TDbDict }
 

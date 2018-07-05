@@ -11,7 +11,7 @@ function GetldfHandle(pid: Cardinal; logFileList:TlogFile_List): Boolean;
 implementation
 
 uses
-  Windows, SysUtils, MakCommonfuncs, pluginlog, StrUtils;
+  Windows, SysUtils, MakCommonfuncs, loglog, StrUtils;
   
 type
   PSYSTEM_HANDLE_INFORMATION = ^SYSTEM_HANDLE_INFORMATION;

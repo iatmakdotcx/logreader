@@ -77,7 +77,7 @@ type
     constructor Create;
     destructor Destroy; override;
     function LogDataSaveToFile(dbid: Word; lsn1: DWORD; lsn2: DWORD; logs: TList; data: TMemoryStream): Boolean;
-    function LogDataGetDate(dbid: Word; lsn1: DWORD; lsn2: DWORD; lsn3: WORD; var data: TMemoryStream): Boolean;
+    function LogDataGetData(dbid: Word; lsn1: DWORD; lsn2: DWORD; lsn3: WORD; var data: TMemoryStream): Boolean;
   end;
 
   TloopSaveMgr = class(TThread)
@@ -97,7 +97,7 @@ var
 implementation
 
 uses
-  pageCaptureDllHandler, System.SysUtils, pluginlog,Memory_Common;
+  pageCaptureDllHandler, System.SysUtils, loglog,Memory_Common;
 
 
 function savePageLog2: Boolean;
@@ -223,28 +223,34 @@ begin
   TDbidCustomBucketList(AData).Free;
 end;
 
-function TPagelogFileMgr.LogDataGetDate(dbid: Word; lsn1, lsn2: DWORD; lsn3: WORD; var data: TMemoryStream): Boolean;
+function TPagelogFileMgr.LogDataGetData(dbid: Word; lsn1, lsn2: DWORD; lsn3: WORD; var data: TMemoryStream): Boolean;
 var
   DB: TDbidCustomBucketList;
   ReqNo: TVlfMgr;
 begin
-  if (dbid > 0) and (lsn1 > 0) then
-  begin
-    DB := dbids[dbid];
-    if DB = nil then
+  Result := false;
+  try
+    if (dbid > 0) and (lsn1 > 0) then
     begin
-      DB := TDbidCustomBucketList.Create;
-      dbids.Add(dbid, DB);
+      DB := dbids[dbid];
+      if DB = nil then
+      begin
+        DB := TDbidCustomBucketList.Create;
+        dbids.Add(dbid, DB);
+      end;
+      ReqNo := DB[lsn1];
+      if ReqNo = nil then
+      begin
+        ReqNo := TVlfMgr.Create(dbid, lsn1, f_path);
+        DB.Add(lsn1, ReqNo)
+      end;
+      Result := ReqNo.Get(lsn2, lsn3, data);
     end;
-    ReqNo := DB[lsn1];
-    if ReqNo = nil then
+  except
+    on dd:Exception do
     begin
-      ReqNo := TVlfMgr.Create(dbid, lsn1, f_path);
-      DB.Add(lsn1, ReqNo)
+      Loger.Add('TPagelogFileMgr.LogDataGetData  >> '+ dd.Message);
     end;
-    Result := ReqNo.Get(lsn2, lsn3, data);
-  end else begin
-    Result := false;
   end;
 end;
 
@@ -468,8 +474,8 @@ begin
         Loger.Add('TloopSaveMgr.Execute fail ' + eee.Message, LOG_ERROR or LOG_IMPORTANT);
       end;
     end;
-    //10S
-    for I := 0 to 100 - 1 do
+    //2S
+    for I := 0 to 20 - 1 do
     begin
       Sleep(100);
       if Terminated then

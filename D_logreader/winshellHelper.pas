@@ -12,7 +12,7 @@ function Check_LrExtutils_DataPath_Authentication(aDataPath: string): Boolean;
 implementation
 
 uses
-  System.SysUtils, Winapi.Windows, System.Classes, MakCommonfuncs, pluginlog;
+  System.SysUtils, Winapi.Windows, System.Classes, MakCommonfuncs, loglog;
 
 procedure Set_LrExtutils_DataPath_Authentication(aDataPath: string);
 var

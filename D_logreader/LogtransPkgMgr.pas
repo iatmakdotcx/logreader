@@ -38,7 +38,7 @@ type
 implementation
 
 uses
-  OpCode, plugins, pluginlog;
+  OpCode, plugins, loglog;
 
 { TTransPkgMgr }
 

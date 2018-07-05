@@ -123,20 +123,9 @@
         <DelphiCompile Include="$(MainSource)">
             <MainSource>MainSource</MainSource>
         </DelphiCompile>
-        <DCCReference Include="H:\Delphi\FastMMnew\FastMM4Messages.pas"/>
-        <DCCReference Include="H:\Delphi\FastMMnew\FastMM4.pas"/>
         <DCCReference Include="HashHelper.pas"/>
-        <DCCReference Include="MsOdsApi.pas"/>
-        <DCCReference Include="SqlSvrHelper.pas"/>
-        <DCCReference Include="dbhelper.pas"/>
-        <DCCReference Include="pageCaptureDllHandler.pas"/>
-        <DCCReference Include="H:\Delphi\通用的自定义单元\Memory_Common.pas"/>
-        <DCCReference Include="H:\Delphi\通用的自定义单元\pluginlog.pas"/>
-        <DCCReference Include="logRecdItemSave.pas"/>
-        <DCCReference Include="H:\Delphi\通用的自定义单元\MakCommonfuncs.pas"/>
-        <DCCReference Include="logRecdItemReader.pas"/>
-        <DCCReference Include="cfg.pas"/>
-        <DCCReference Include="LidxMgr.pas"/>
+        <DCCReference Include="H:\Delphi\通用的自定义单元\loglog.pas"/>
+        <DCCReference Include="H:\Delphi\通用的自定义单元\Log4D.pas"/>
         <BuildConfiguration Include="Debug">
             <Key>Cfg_2</Key>
             <CfgParent>Base</CfgParent>

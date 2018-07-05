@@ -55,7 +55,7 @@ procedure pageCapture_init(LcDll: string);
 implementation
 
 uses
-  System.SysUtils, pluginlog;
+  System.SysUtils, loglog;
 
 var
   dllHandle: THandle = 0;

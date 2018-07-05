@@ -70,7 +70,7 @@ var
 implementation
 
 uses
-  dbHelper, ResHelper, sqlextendedprocHelper, MakCommonfuncs, winshellHelper, pluginlog;
+  dbHelper, ResHelper, sqlextendedprocHelper, MakCommonfuncs, winshellHelper, loglog;
 
 {$R *.dfm}
 

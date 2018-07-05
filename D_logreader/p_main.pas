@@ -57,7 +57,7 @@ implementation
 
 uses
   dbConnectionCfg, databaseConnection, p_structDefine, Memory_Common, plugins,
-  MakCommonfuncs, pluginlog, sqlextendedprocHelper;
+  MakCommonfuncs, loglog, sqlextendedprocHelper;
 
 {$R *.dfm}
 

@@ -51,7 +51,7 @@ var
 implementation
 
 uses
-  Windows, Classes, MakCommonfuncs, pluginlog;
+  Windows, Classes, MakCommonfuncs, loglog;
 
 const
   PluginsPath = 'plugins';

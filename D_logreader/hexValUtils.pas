@@ -21,7 +21,7 @@ function getInt64(Value: TBytes; idx: Integer; len: Integer = 8): QWORD;
 implementation
 
 uses
-  DateUtils, dbFieldTypes, System.Math, Memory_Common, pluginlog;
+  DateUtils, dbFieldTypes, System.Math, Memory_Common, loglog;
 
 function Hvu_Hex2Datetime(msec: Int64): TDateTime;
 var

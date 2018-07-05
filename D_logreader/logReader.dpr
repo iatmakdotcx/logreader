@@ -15,7 +15,6 @@ uses
   LogSource in 'LogSource.pas',
   p_structDefine in 'p_structDefine.pas',
   LocalDbLogProvider in 'LogProvider\LocalDbLogProvider.pas',
-  pluginlog in 'H:\Delphi\通用的自定义单元\pluginlog.pas',
   MakCommonfuncs in 'H:\Delphi\通用的自定义单元\MakCommonfuncs.pas',
   Memory_Common in 'H:\Delphi\通用的自定义单元\Memory_Common.pas',
   databaseConnection in 'databaseConnection.pas',
@@ -39,7 +38,9 @@ uses
   impConfig in 'impConfig.pas',
   ResHelper in 'res\ResHelper.pas',
   sqlextendedprocHelper in 'sqlextendedprocHelper.pas',
-  winshellHelper in 'winshellHelper.pas';
+  winshellHelper in 'winshellHelper.pas',
+  loglog in 'H:\Delphi\通用的自定义单元\loglog.pas',
+  Log4D in 'H:\Delphi\通用的自定义单元\Log4D.pas';
 
 {$R *.res}
 
@@ -49,8 +50,8 @@ begin
   if IsRunningAsAdmin then
   begin
     Application.CreateForm(TForm1, Form1);
-    Application.CreateForm(TForm2, Form2);
-    Application.Run;
+  Application.CreateForm(TForm2, Form2);
+  Application.Run;
   end else begin
     showmessage('必须“使用管理员身份”运行本程序');
   end;

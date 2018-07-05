@@ -68,7 +68,7 @@ implementation
 
 uses
   LdfLogProvider, Sql2014LogReader, LocalDbLogProvider, MakCommonfuncs,
-  Windows, pluginlog, SysUtils;
+  Windows, loglog, SysUtils;
 
 { TLogSource }
 

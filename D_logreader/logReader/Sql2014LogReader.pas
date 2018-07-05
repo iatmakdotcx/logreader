@@ -42,7 +42,7 @@ type
 implementation
 
 uses
-  Windows, SysUtils, Memory_Common, pluginlog, LocalDbLogProvider, OpCode,
+  Windows, SysUtils, Memory_Common, loglog, LocalDbLogProvider, OpCode,
   plugins, hexValUtils;
 
 { TSql2014LogReader }

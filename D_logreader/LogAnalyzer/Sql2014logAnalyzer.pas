@@ -7,31 +7,13 @@ uses
   Contnrs, BinDataUtils, SqlDDLs, LogtransPkgMgr;
 
 type
+
   /// <summary>
-  /// 缓存单行日志（COMPENSATION可能会修改数据
-  /// </summary>
-  TsqlRawBuf = class(TObject)
-    OperaType: TOperationType;
-    page:TPage_Id;
-    table:TdbTableItem;
-    dataFromDbccPage:boolean;//dbcc的raw数据不用处理修正数据，本来就是修正之后的数据
-    R0:Pointer;
-    R1:Pointer;
-    UniqueClusteredKeys:string;
-  public
-    constructor Create;
-    destructor Destroy; override;
-  end;
-  /// <summary>
-  /// 完整的单个操作
+  /// 一个独立的行数据
   /// </summary>
   Tsql2014RowData = class(TObject)
-    OperaType: TOperationType;
     Fields: TList;
-    Table: TdbTableItem;
-    lsn: Tlog_LSN;
-    afterUpdate:Tsql2014RowData;
-    UniqueClusteredKeys:string;
+    //Table: TdbTableItem;
   public
     function getFieldStrValue(FieldName: string): string;
     function getField(FieldName: string):PdbFieldValue;overload;
@@ -39,6 +21,28 @@ type
     constructor Create;
     destructor Destroy; override;
   end;
+  /// <summary>
+  /// 一个完整的操作（可能包含多个Lsn的运行结果
+  /// 缓存日志（COMPENSATION可能会修改数据
+  /// </summary>
+  Tsql2014Opt = class(TObject)
+    OperaType: TOperationType;
+    page:TPage_Id;
+    table:TdbTableItem;
+    UnReliableRData:Boolean;       //标识R0和R1的值是不可靠的 (来源为dbcc page
+    R0:Pointer;                    //新数据
+    R1:Pointer;                    //老数据
+    UniqueClusteredKeys:string;
+    //
+    old_data:Tsql2014RowData;
+    new_data:Tsql2014RowData;
+  public
+    constructor Create;
+    destructor Destroy; override;
+
+    procedure Pretreatment;
+  end;
+
 
   TMIX_DATA_Item = class(TObject)
     Idx: QWORD;
@@ -73,35 +77,35 @@ type
     procedure PriseRowLog(tPkg: TTransPkgItem);
     procedure PriseRowLog_Insert(tPkg: TTransPkgItem);
     function getDataFrom_TEXT_MIX(idx: TBytes): TBytes;
-    function DML_BuilderSql(aRowData: Tsql2014RowData): string;
-    function DML_BuilderSql_Insert(aRowData: Tsql2014RowData): string;
-    function DML_BuilderSql_Update(aRowData: Tsql2014RowData): string;
-    function DML_BuilderSql_Delete(aRowData: Tsql2014RowData): string;
-    function DML_BuilderSql_Where(aRowData: Tsql2014RowData): string;
+    function DML_BuilderSql(aRowData: Tsql2014Opt): string;
+    function DML_BuilderSql_Insert(aRowData: Tsql2014Opt): string;
+    function DML_BuilderSql_Update(aRowData: Tsql2014Opt): string;
+    function DML_BuilderSql_Delete(aRowData: Tsql2014Opt): string;
+    function DML_BuilderSql_Where(aRowData: Tsql2014Opt): string;
     function Read_LCX_TEXT_MIX_DATA(tPkg: TTransPkgItem; BinReader: TbinDataReader): TBytes;
-    procedure PriseDDLPkg(DataRow: Tsql2014RowData);
-    procedure PriseDDLPkg_sysrscols(DataRow: Tsql2014RowData);
-    procedure PriseDDLPkg_sysschobjs(DataRow: Tsql2014RowData);
-    procedure PriseDDLPkg_sysobjvalues(DataRow: Tsql2014RowData);
+    procedure PriseDDLPkg(DataRow: Tsql2014Opt);
+    procedure PriseDDLPkg_sysrscols(DataRow: Tsql2014Opt);
+    procedure PriseDDLPkg_sysschobjs(DataRow: Tsql2014Opt);
+    procedure PriseDDLPkg_sysobjvalues(DataRow: Tsql2014Opt);
     function GenSql: string;
     function GenSql_CreateDefault(ddlitem: TDDLItem): string;
     function GenSql_CreateTable(ddlitem: TDDLItem): string;
     procedure PriseRowLog_Delete(tPkg: TTransPkgItem);
     function PriseRowLog_InsertDeleteRowData(DbTable: TdbTableItem; BinReader: TbinDataReader): Tsql2014RowData;
-    procedure PriseDDLPkg_D(DataRow: Tsql2014RowData);
-    procedure PriseDDLPkg_U(DataRow: Tsql2014RowData);
-    procedure PriseDDLPkg_D_sysschobjs(DataRow: Tsql2014RowData);
-    procedure PriseDDLPkg_D_syscolpars(DataRow: Tsql2014RowData);
+    procedure PriseDDLPkg_D(DataRow: Tsql2014Opt);
+    procedure PriseDDLPkg_U(DataRow: Tsql2014Opt);
+    procedure PriseDDLPkg_D_sysschobjs(DataRow: Tsql2014Opt);
+    procedure PriseDDLPkg_D_syscolpars(DataRow: Tsql2014Opt);
     function GenSql_DDL_Insert(ddlitem: TDDLItem_Insert): string;
     function GenSql_DDL_Delete(ddlitem: TDDLItem_Delete): string;
     function GenSql_DDL_Update(ddlitem: TDDLItem_Update): string;
     function GenSql_DropDefault(ddlitem: TDDL_Delete_Def): string;
     function GenSql_DropTable(ddlitem: TDDL_Delete_Table): string;
-    procedure PriseDDLPkg_sysiscols(DataRow: Tsql2014RowData);
-    procedure PriseDDLPkg_syssingleobjrefs(DataRow: Tsql2014RowData);
+    procedure PriseDDLPkg_sysiscols(DataRow: Tsql2014Opt);
+    procedure PriseDDLPkg_syssingleobjrefs(DataRow: Tsql2014Opt);
     function GenSql_CreatePrimaryKey(ddlitem: TDDL_Create_PrimaryKey): string;
     procedure Execute2(FTranspkg: TTransPkg);
-    procedure PriseDDLPkg_syscolpars(DataRow: Tsql2014RowData);
+    procedure PriseDDLPkg_syscolpars(DataRow: Tsql2014Opt);
     function GenSql_CreateColumn(ddlitem: TDDL_Create_Column): string;
     function getColsTypeStr(col: TdbFieldItem): string;
     function GenSql_DropColumn(ddlitem: TDDL_Delete_Column): string;
@@ -126,7 +130,7 @@ type
 implementation
 
 uses
-  pluginlog, plugins, OpCode, hexValUtils, contextCode, dbFieldTypes,
+  loglog, plugins, OpCode, hexValUtils, contextCode, dbFieldTypes,
   Memory_Common, sqlextendedprocHelper;
 
 type
@@ -208,14 +212,14 @@ begin
         end;
       end;
 
-    end else begin
+    end else if (ddlitem.OpType = Opt_Update) then begin
       //todo:修改
 
     end;
   end;
 end;
 
-function TSql2014logAnalyzer.DML_BuilderSql(aRowData: Tsql2014RowData): string;
+function TSql2014logAnalyzer.DML_BuilderSql(aRowData: Tsql2014Opt): string;
 begin
   case aRowData.OperaType of
     Opt_Insert:
@@ -229,7 +233,7 @@ begin
   end;
 end;
 
-function TSql2014logAnalyzer.DML_BuilderSql_Update(aRowData: Tsql2014RowData): string;
+function TSql2014logAnalyzer.DML_BuilderSql_Update(aRowData: Tsql2014Opt): string;
 function binEquals(v1, v2: TBytes): Boolean;
 begin
   if v1 = v2 then
@@ -245,18 +249,16 @@ end;
 var
   updateStr:string;
   I: Integer;
-  DataRow_aft: Tsql2014RowData;
   raw_old,raw_new: PdbFieldValue;
   whereStr: string;
 begin
   whereStr := DML_BuilderSql_Where(aRowData);
 
   updateStr := '';
-  DataRow_aft := aRowData.afterUpdate;
   for I := 0 to aRowData.Table.Fields.Count - 1 do
   begin
-    raw_old := aRowData.getField(aRowData.Table.Fields[i].Col_id);
-    raw_new := DataRow_aft.getField(aRowData.Table.Fields[i].Col_id);
+    raw_old := aRowData.old_data.getField(aRowData.Table.Fields[i].Col_id);
+    raw_new := aRowData.new_data.getField(aRowData.Table.Fields[i].Col_id);
     if (raw_new=nil)  and (raw_old=nil)then
     begin
 
@@ -274,7 +276,7 @@ begin
   Result := Format('UPDATE %s SET %s WHERE %s;', [aRowData.Table.getFullName, updateStr, whereStr]);
 end;
 
-function TSql2014logAnalyzer.DML_BuilderSql_Where(aRowData: Tsql2014RowData): string;
+function TSql2014logAnalyzer.DML_BuilderSql_Where(aRowData: Tsql2014Opt): string;
 var
   whereStr: string;
   I: Integer;
@@ -287,9 +289,9 @@ begin
   else
   begin
     whereStr := '';
-    for I := 0 to aRowData.Fields.Count - 1 do
+    for I := 0 to aRowData.old_data.Fields.Count - 1 do
     begin
-      fieldval := PdbFieldValue(aRowData.Fields[I]);
+      fieldval := PdbFieldValue(aRowData.old_data.Fields[I]);
       whereStr := whereStr + Format('and %s=%s ', [fieldval.field.getSafeColName, Hvu_GetFieldStrValueWithQuoteIfNeed(fieldval.field, fieldval.value)]);
     end;
     if whereStr.Length > 0 then
@@ -300,7 +302,7 @@ begin
   end;
 end;
 
-function TSql2014logAnalyzer.DML_BuilderSql_Insert(aRowData: Tsql2014RowData): string;
+function TSql2014logAnalyzer.DML_BuilderSql_Insert(aRowData: Tsql2014Opt): string;
 var
   fields: string;
   StrVal: string;
@@ -309,13 +311,13 @@ var
 begin
   fields := '';
   StrVal := '';
-  for I := 0 to aRowData.Fields.Count - 1 do
+  for I := 0 to aRowData.new_data.Fields.Count - 1 do
   begin
-    fieldval := PdbFieldValue(aRowData.Fields[I]);
+    fieldval := PdbFieldValue(aRowData.new_data.Fields[I]);
     fields := fields + ',' + fieldval.field.getSafeColName;
     StrVal := StrVal + ',' + Hvu_GetFieldStrValueWithQuoteIfNeed(fieldval.field, fieldval.value);
   end;
-  if aRowData.Fields.Count > 0 then
+  if aRowData.new_data.Fields.Count > 0 then
   begin
     Delete(fields, 1, 1);
     Delete(StrVal, 1, 1);
@@ -323,12 +325,11 @@ begin
   Result := Format('INSERT INTO %s(%s)values(%s);', [aRowData.Table.getFullName, fields, StrVal]);
 end;
 
-function TSql2014logAnalyzer.DML_BuilderSql_Delete(aRowData: Tsql2014RowData): string;
+function TSql2014logAnalyzer.DML_BuilderSql_Delete(aRowData: Tsql2014Opt): string;
 var
   whereStr: string;
 begin
   whereStr := DML_BuilderSql_Where(aRowData);
-
   Result := Format('DELETE FROM %s WHERE %s;', [aRowData.Table.getFullName, whereStr]);
 end;
 
@@ -367,8 +368,7 @@ var
   mm: TMemory_data;
   I: Integer;
   TTpi: TTransPkgItem;
-  DataRow: Tsql2014RowData;
-  DataRow_buf:TsqlRawBuf;
+  DataRow_buf:Tsql2014Opt;
   DMLitem: TDMLItem;
   TmpBinReader: TbinDataReader;
 begin
@@ -384,58 +384,56 @@ begin
     PriseRowLog(TTpi);
   end;
 
-  //开始干正事
+  //分析Sql
   for I := 0 to FRows.Count - 1 do
   begin
-    if FRows[i] is TsqlRawBuf then
+    DataRow_buf := Tsql2014Opt(FRows[i]);
+    if DataRow_buf.R0<>nil then
     begin
-      DataRow_buf := TsqlRawBuf(FRows[i]);
       TmpBinReader := TbinDataReader.Create(DataRow_buf.R0, $2000);
       try
-        DataRow := PriseRowLog_InsertDeleteRowData(DataRow_buf.table, TmpBinReader);
+        DataRow_buf.new_data := PriseRowLog_InsertDeleteRowData(DataRow_buf.table, TmpBinReader);
       finally
         TmpBinReader.Free;
       end;
-      DataRow.UniqueClusteredKeys := DataRow_buf.UniqueClusteredKeys;
-      DataRow.OperaType := DataRow_buf.OperaType;
       if (DataRow_buf.OperaType = Opt_Update) and (DataRow_buf.R1 <> nil) then
       begin
         TmpBinReader := TbinDataReader.Create(DataRow_buf.R1, $2000);
         try
-          DataRow.afterUpdate := PriseRowLog_InsertDeleteRowData(DataRow_buf.table, TmpBinReader);
+          DataRow_buf.old_data := PriseRowLog_InsertDeleteRowData(DataRow_buf.table, TmpBinReader);
         finally
           TmpBinReader.Free;
         end;
       end;
-    end else begin
-      DataRow := Tsql2014RowData(FRows[I]);
     end;
-    Loger.Add(lsn2str(DataRow.LSN) + '-->' + DML_BuilderSql(DataRow));
+
+    Loger.Add('-->' + DML_BuilderSql(DataRow_buf));
     //continue;
-    if DataRow.Table.Owner = 'sys' then
+    if DataRow_buf.Table.Owner = 'sys' then
     begin
       //如果操作的是系统表则是ddl语句
-      if DataRow.OperaType = Opt_Insert then
+      if DataRow_buf.OperaType = Opt_Insert then
       begin
-        PriseDDLPkg(DataRow);
+        PriseDDLPkg(DataRow_buf);
       end
-      else if DataRow.OperaType = Opt_Delete then
+      else if DataRow_buf.OperaType = Opt_Delete then
       begin
-        PriseDDLPkg_D(DataRow);
+        PriseDDLPkg_D(DataRow_buf);
       end
-      else if DataRow.OperaType = Opt_Update then
+      else if DataRow_buf.OperaType = Opt_Update then
       begin
-        PriseDDLPkg_U(DataRow);
+        PriseDDLPkg_U(DataRow_buf);
       end;
 
     end
     else
     begin
       // dml 语句
-//      DMLitem := TDMLItem.Create;
-//      DMLitem.data := DataRow;
-//      DDL.Add(DMLitem);
+      DMLitem := TDMLItem.Create;
+      DMLitem.data := DataRow_buf;
+      DDL.Add(DMLitem);
     end;
+
   end;
   if DDL.FItems.Count>0 then
   begin
@@ -470,7 +468,7 @@ begin
           Tmpstr := GenSql_DDL_Delete(TDDLItem_Delete(ddlitem));
         Opt_DML:
           begin
-            Tmpstr := DML_BuilderSql(Tsql2014RowData(TDMLItem(DDL.FItems[I]).data))
+            Tmpstr := DML_BuilderSql(TDMLItem(DDL.FItems[I]).data)
           end;
       end;
       if Tmpstr <> '' then
@@ -870,7 +868,7 @@ begin
   end;
 end;
 
-procedure TSql2014logAnalyzer.PriseDDLPkg_D(DataRow: Tsql2014RowData);
+procedure TSql2014logAnalyzer.PriseDDLPkg_D(DataRow: Tsql2014Opt);
 begin
   if DataRow.Table.TableNmae = 'sysschobjs' then
   begin
@@ -884,7 +882,7 @@ begin
   end
 end;
 
-procedure TSql2014logAnalyzer.PriseDDLPkg_D_syscolpars(DataRow: Tsql2014RowData);
+procedure TSql2014logAnalyzer.PriseDDLPkg_D_syscolpars(DataRow: Tsql2014Opt);
 var
   I: Integer;
   pdd: PdbFieldValue;
@@ -896,9 +894,9 @@ begin
   TableId := 0;
   ColName := '';
 
-  for I := 0 to DataRow.Fields.Count - 1 do
+  for I := 0 to DataRow.new_data.Fields.Count - 1 do
   begin
-    pdd := PdbFieldValue(DataRow.Fields[I]);
+    pdd := PdbFieldValue(DataRow.new_data.Fields[I]);
     pdd_field_ColName := LowerCase(pdd.field.ColName);
     if pdd_field_ColName = 'id' then
     begin
@@ -916,12 +914,12 @@ begin
   DDL.Add(ColObj);
 end;
 
-procedure TSql2014logAnalyzer.PriseDDLPkg_U(DataRow: Tsql2014RowData);
+procedure TSql2014logAnalyzer.PriseDDLPkg_U(DataRow: Tsql2014Opt);
 begin
   //todo:PriseDDLPkg_U
 end;
 
-procedure TSql2014logAnalyzer.PriseDDLPkg(DataRow: Tsql2014RowData);
+procedure TSql2014logAnalyzer.PriseDDLPkg(DataRow: Tsql2014Opt);
 var
   rowsetid: int64;
   ObjId: Integer;
@@ -937,8 +935,8 @@ begin
   end
   else if DataRow.Table.TableNmae = 'sysrowsets' then
   begin
-    rowsetid := StrToInt64(DataRow.getFieldStrValue('rowsetid'));
-    ObjId := StrToInt(DataRow.getFieldStrValue('idmajor'));
+    rowsetid := StrToInt64(DataRow.new_data.getFieldStrValue('rowsetid'));
+    ObjId := StrToInt(DataRow.new_data.getFieldStrValue('idmajor'));
     AllocUnitMgr.Add(rowsetid, ObjId);
   end
   else if DataRow.Table.TableNmae = 'sysrscols' then
@@ -961,7 +959,7 @@ begin
 
 end;
 
-procedure TSql2014logAnalyzer.PriseDDLPkg_syscolpars(DataRow: Tsql2014RowData);
+procedure TSql2014logAnalyzer.PriseDDLPkg_syscolpars(DataRow: Tsql2014Opt);
 var
   ddlitem: TDDLItem;
   FieldItem: TdbFieldItem;
@@ -972,17 +970,17 @@ var
   ObjId: Integer;
   ddl_col:TDDL_Create_Column;
 begin
-  if TryStrToInt(DataRow.getFieldStrValue('id'), ObjId) then
+  if TryStrToInt(DataRow.new_data.getFieldStrValue('id'), ObjId) then
   begin
     ddlitem := DDL.GetItem(ObjId);
     FieldItem := TdbFieldItem.Create;
-    FieldItem.Col_id := StrToInt(DataRow.getFieldStrValue('colid'));
-    FieldItem.ColName := DataRow.getFieldStrValue('name');
-    FieldItem.type_id := StrToInt(DataRow.getFieldStrValue('xtype'));
-    FieldItem.Max_length := StrToInt(DataRow.getFieldStrValue('length'));
-    FieldItem.procision := StrToInt(DataRow.getFieldStrValue('prec'));
-    FieldItem.scale := StrToInt(DataRow.getFieldStrValue('scale'));
-    collation_id := StrToInt(DataRow.getFieldStrValue('collationid'));
+    FieldItem.Col_id := StrToInt(DataRow.new_data.getFieldStrValue('colid'));
+    FieldItem.ColName := DataRow.new_data.getFieldStrValue('name');
+    FieldItem.type_id := StrToInt(DataRow.new_data.getFieldStrValue('xtype'));
+    FieldItem.Max_length := StrToInt(DataRow.new_data.getFieldStrValue('length'));
+    FieldItem.procision := StrToInt(DataRow.new_data.getFieldStrValue('prec'));
+    FieldItem.scale := StrToInt(DataRow.new_data.getFieldStrValue('scale'));
+    collation_id := StrToInt(DataRow.new_data.getFieldStrValue('collationid'));
     FieldItem.collation_name := FLogSource.Fdbc.GetCollationPropertyFromId(collation_id);
     if FieldItem.collation_name <> '' then
     begin
@@ -1021,7 +1019,7 @@ begin
 
 end;
 
-procedure TSql2014logAnalyzer.PriseDDLPkg_syssingleobjrefs(DataRow: Tsql2014RowData);
+procedure TSql2014logAnalyzer.PriseDDLPkg_syssingleobjrefs(DataRow: Tsql2014Opt);
 var
   I: Integer;
   pdd: PdbFieldValue;
@@ -1035,9 +1033,9 @@ begin
   objId := 0;
   indepid := 0;
 
-  for I := 0 to DataRow.Fields.Count - 1 do
+  for I := 0 to DataRow.new_data.Fields.Count - 1 do
   begin
-    pdd := PdbFieldValue(DataRow.Fields[I]);
+    pdd := PdbFieldValue(DataRow.new_data.Fields[I]);
     pdd_field_ColName := LowerCase(pdd.field.ColName);
     if pdd_field_ColName = 'depid' then
     begin
@@ -1064,7 +1062,7 @@ begin
   end;
 end;
 
-procedure TSql2014logAnalyzer.PriseDDLPkg_sysiscols(DataRow: Tsql2014RowData);
+procedure TSql2014logAnalyzer.PriseDDLPkg_sysiscols(DataRow: Tsql2014Opt);
 var
   I: Integer;
   pdd: PdbFieldValue;
@@ -1080,9 +1078,9 @@ begin
   status := 0;
   fieldId := 0;
 
-  for I := 0 to DataRow.Fields.Count - 1 do
+  for I := 0 to DataRow.new_data.Fields.Count - 1 do
   begin
-    pdd := PdbFieldValue(DataRow.Fields[I]);
+    pdd := PdbFieldValue(DataRow.new_data.Fields[I]);
     pdd_field_ColName := LowerCase(pdd.field.ColName);
     if pdd_field_ColName = 'idmajor' then
     begin
@@ -1101,7 +1099,7 @@ begin
   IDXs.Add(objId, indexId, fieldId, (status and 4) > 0);
 end;
 
-procedure TSql2014logAnalyzer.PriseDDLPkg_sysobjvalues(DataRow: Tsql2014RowData);
+procedure TSql2014logAnalyzer.PriseDDLPkg_sysobjvalues(DataRow: Tsql2014Opt);
 var
   I: Integer;
   pdd: PdbFieldValue;
@@ -1114,9 +1112,9 @@ begin
   objId := 0;
   value := '';
 
-  for I := 0 to DataRow.Fields.Count - 1 do
+  for I := 0 to DataRow.new_data.Fields.Count - 1 do
   begin
-    pdd := PdbFieldValue(DataRow.Fields[I]);
+    pdd := PdbFieldValue(DataRow.new_data.Fields[I]);
     pdd_field_ColName := LowerCase(pdd.field.ColName);
     if pdd_field_ColName = 'objid' then
     begin
@@ -1147,7 +1145,7 @@ begin
   end;
 end;
 
-procedure TSql2014logAnalyzer.PriseDDLPkg_D_sysschobjs(DataRow: Tsql2014RowData);
+procedure TSql2014logAnalyzer.PriseDDLPkg_D_sysschobjs(DataRow: Tsql2014Opt);
 
   procedure DeleteTablesSubObj(tableId: Integer);
   var
@@ -1191,9 +1189,9 @@ begin
   pid := 0;
 //  initprop := 0;
 
-  for I := 0 to DataRow.Fields.Count - 1 do
+  for I := 0 to DataRow.new_data.Fields.Count - 1 do
   begin
-    pdd := PdbFieldValue(DataRow.Fields[I]);
+    pdd := PdbFieldValue(DataRow.new_data.Fields[I]);
     pdd_field_ColName := LowerCase(pdd.field.ColName);
     if pdd_field_ColName = 'id' then
     begin
@@ -1288,7 +1286,7 @@ begin
 
 end;
 
-procedure TSql2014logAnalyzer.PriseDDLPkg_sysschobjs(DataRow: Tsql2014RowData);
+procedure TSql2014logAnalyzer.PriseDDLPkg_sysschobjs(DataRow: Tsql2014Opt);
 var
   I: Integer;
   pdd: PdbFieldValue;
@@ -1311,9 +1309,9 @@ begin
   pid := 0;
   initprop := 0;
 
-  for I := 0 to DataRow.Fields.Count - 1 do
+  for I := 0 to DataRow.new_data.Fields.Count - 1 do
   begin
-    pdd := PdbFieldValue(DataRow.Fields[I]);
+    pdd := PdbFieldValue(DataRow.new_data.Fields[I]);
     pdd_field_ColName := LowerCase(pdd.field.ColName);
     if pdd_field_ColName = 'id' then
     begin
@@ -1410,7 +1408,7 @@ begin
   end;
 end;
 
-procedure TSql2014logAnalyzer.PriseDDLPkg_sysrscols(DataRow: Tsql2014RowData);
+procedure TSql2014logAnalyzer.PriseDDLPkg_sysrscols(DataRow: Tsql2014Opt);
 var
   I: Integer;
   pdd: PdbFieldValue;
@@ -1431,9 +1429,9 @@ begin
   statusCode := 0;
   DataOffset := 0;
   Nullbit := 0;
-  for I := 0 to DataRow.Fields.Count - 1 do
+  for I := 0 to DataRow.new_data.Fields.Count - 1 do
   begin
-    pdd := PdbFieldValue(DataRow.Fields[I]);
+    pdd := PdbFieldValue(DataRow.new_data.Fields[I]);
     pdd_field_ColName := LowerCase(pdd.field.ColName);
     if pdd_field_ColName = 'rsid' then
     begin
@@ -1553,7 +1551,6 @@ begin
     end;
   end;
   DataRow := Tsql2014RowData.Create;
-  DataRow.Table := DbTable;
   if (InsertRowFlag and $10) > 0 then
   begin
     //nullMap := BinReader.readBytes((DbTable.Fields.Count + 7) shr 3);
@@ -1685,17 +1682,33 @@ var
   BinReader: TbinDataReader;
   TableId: Integer;
   DbTable: TdbTableItem;
-  DataRow: Tsql2014RowData;
+  DataRow: Tsql2014Opt;
 begin
   DataRow := nil;
   BinReader := nil;
   Rldo := tPkg.Raw.data;
   try
-    try
-      case Rldo.normalData.ContextCode of
-        LCX_HEAP, //堆表写入
-        LCX_CLUSTERED: //聚合写入
+    case Rldo.normalData.ContextCode of
+      LCX_HEAP,      //堆表写入(没有聚合索引的表
+      LCX_CLUSTERED: //聚合写入
+        begin
+          if (Rldo.normalData.FlagBits and 1)>0 then
           begin
+            //COMPENSATION    恢复事务中Delete的数据
+            for I := 0 to FRows.Count - 1 do
+            begin
+              DataRow := Tsql2014Opt(FRows[i]);
+              if (DataRow.page.PID = Rldo.pageId.PID) and
+                (DataRow.page.FID = Rldo.pageId.FID) and
+                (DataRow.page.solt = Rldo.pageId.solt) then
+              begin
+                //撤销之前的数据
+                FreeMem(DataRow.R0);
+                DataRow.R0 := nil;
+                Break;
+              end
+            end;
+          end else begin
             SetLength(R_, Rldo.NumElements);
             SetLength(R_Info, Rldo.NumElements);
             BinReader := TbinDataReader.Create(tPkg.Raw);
@@ -1716,7 +1729,7 @@ begin
             end;
             //一般是 3 块数据 (可以有N个块
             //1至n-2. 真实写入的数据
-            //n-1. 0 长度？
+            //n-1. 0 聚合索引信息（对于Insert日志，此值保持null
             //n. 表信息
             if R_Info[Rldo.NumElements - 1].Length = 0 then
             begin
@@ -1732,55 +1745,46 @@ begin
               //忽略的表
               Exit;
             end;
-            //开始读取R0
-            BinReader.SetRange(R_Info[0].Offset, R_Info[0].Length);
-            DataRow := PriseRowLog_InsertDeleteRowData(DbTable, BinReader);
-          end;
-        LCX_INDEX_LEAF: //索引写入
-          begin
-            //这东西应该可以忽略吧？？？
-          end;
-        LCX_TEXT_MIX: //行分块数据 image,text,ntext之类的
-          begin
-            SetLength(R_, Rldo.NumElements);
-            SetLength(R_Info, Rldo.NumElements);
-            BinReader := TbinDataReader.Create(tPkg.Raw);
-            BinReader.seek(SizeOf(TRawLog_DataOpt), soBeginning);
-            for I := 0 to Rldo.NumElements - 1 do
-            begin
-              R_Info[I].Length := BinReader.readWord;
-            end;
-            BinReader.alignTo4;
-            for I := 0 to Rldo.NumElements - 1 do
-            begin
-              if R_Info[I].Length > 0 then
-              begin
-                R_Info[I].Offset := BinReader.Position;
-                R_[I] := BinReader.readBytes(R_Info[I].Length);
-                BinReader.alignTo4;
-              end;
-            end;
-            //开始读取R0
-            BinReader.SetRange(R_Info[0].Offset, R_Info[0].Length);
-            Read_LCX_TEXT_MIX_DATA(tPkg, BinReader);
-          end;
-      else
-        Loger.Add('PriseRowLog_Insert 遇到尚未处理的 ContextCode :' + contextCodeToStr(Rldo.normalData.ContextCode));
-      end;
-      if DataRow <> nil then
-      begin
-        DataRow.OperaType := Opt_Insert;
-        DataRow.lsn := tPkg.LSN;
-        FRows.Add(DataRow);
-      end;
-    except
-      on eexx: Exception do
-      begin
-        if DataRow <> nil then
-          DataRow.Free;
 
-        raise eexx;
-      end;
+            DataRow := Tsql2014Opt.Create;
+            DataRow.OperaType := Opt_Insert;
+            DataRow.page := Rldo.pageId;
+            DataRow.table := DbTable;
+            DataRow.R0 := GetMemory(R_Info[0].Length);
+            Move(Pointer(UIntPtr(Rldo)+R_Info[0].Offset)^, DataRow.R0^, R_Info[0].Length);
+            FRows.Add(DataRow);
+          end;
+        end;
+      LCX_INDEX_LEAF: //索引写入
+        begin
+          //这东西应该可以忽略吧？？？
+        end;
+      LCX_TEXT_MIX: //行分块数据 image,text,ntext之类的
+        begin
+          SetLength(R_, Rldo.NumElements);
+          SetLength(R_Info, Rldo.NumElements);
+          BinReader := TbinDataReader.Create(tPkg.Raw);
+          BinReader.seek(SizeOf(TRawLog_DataOpt), soBeginning);
+          for I := 0 to Rldo.NumElements - 1 do
+          begin
+            R_Info[I].Length := BinReader.readWord;
+          end;
+          BinReader.alignTo4;
+          for I := 0 to Rldo.NumElements - 1 do
+          begin
+            if R_Info[I].Length > 0 then
+            begin
+              R_Info[I].Offset := BinReader.Position;
+              R_[I] := BinReader.readBytes(R_Info[I].Length);
+              BinReader.alignTo4;
+            end;
+          end;
+          //开始读取R0
+          BinReader.SetRange(R_Info[0].Offset, R_Info[0].Length);
+          Read_LCX_TEXT_MIX_DATA(tPkg, BinReader);
+        end;
+    else
+      Loger.Add('PriseRowLog_Insert 遇到尚未处理的 ContextCode :' + contextCodeToStr(Rldo.normalData.ContextCode));
     end;
   finally
     if BinReader <> nil then
@@ -1831,7 +1835,7 @@ var
   I: Integer;
   TableId: Integer;
   DbTable: TdbTableItem;
-  DataRow: Tsql2014RowData;
+  DataRow: Tsql2014Opt;
 begin
   BinReader := nil;
   DataRow := nil;
@@ -1840,39 +1844,62 @@ begin
     case Rldo.normalData.ContextCode of
       LCX_MARK_AS_GHOST, LCX_CLUSTERED, LCX_HEAP:
         begin
-          SetLength(R_, Rldo.NumElements);
-          SetLength(R_Info, Rldo.NumElements);
-          BinReader := TbinDataReader.Create(tPkg.Raw);
-          BinReader.seek(SizeOf(TRawLog_DataOpt), soBeginning);
-          for I := 0 to Rldo.NumElements - 1 do
+          if (Rldo.normalData.FlagBits and 1)>0 then
           begin
-            R_Info[I].Length := BinReader.readWord;
-          end;
-          BinReader.alignTo4;
-          for I := 0 to Rldo.NumElements - 1 do
-          begin
-            if R_Info[I].Length > 0 then
+            //COMPENSATION    删除事务中insert的数据
+            for I := 0 to FRows.Count - 1 do
             begin
-              R_Info[I].Offset := BinReader.Position;
-              R_[I] := BinReader.readBytes(R_Info[I].Length);
-              BinReader.alignTo4;
+              DataRow := Tsql2014Opt(FRows[i]);
+              if (DataRow.page.PID = Rldo.pageId.PID) and
+                (DataRow.page.FID = Rldo.pageId.FID) and
+                (DataRow.page.solt = Rldo.pageId.solt) then
+              begin
+                //撤销之前的数据
+                FreeMem(DataRow.R0);
+                DataRow.R0 := nil;
+                Break;
+              end
             end;
+          end else begin
+            SetLength(R_, Rldo.NumElements);
+            SetLength(R_Info, Rldo.NumElements);
+            BinReader := TbinDataReader.Create(tPkg.Raw);
+            BinReader.seek(SizeOf(TRawLog_DataOpt), soBeginning);
+            for I := 0 to Rldo.NumElements - 1 do
+            begin
+              R_Info[I].Length := BinReader.readWord;
+            end;
+            BinReader.alignTo4;
+            for I := 0 to Rldo.NumElements - 1 do
+            begin
+              if R_Info[I].Length > 0 then
+              begin
+                R_Info[I].Offset := BinReader.Position;
+                R_[I] := BinReader.readBytes(R_Info[I].Length);
+                BinReader.alignTo4;
+              end;
+            end;
+            //一般是 2 块数据
+            //1. 删除的行数据
+            //2. 表信息
+            BinReader.SetRange(R_Info[1].Offset, R_Info[1].Length);
+            BinReader.skip(6);
+            TableId := BinReader.readInt;
+            DbTable := FLogSource.Fdbc.dict.tables.GetItemById(TableId);
+            if DbTable = nil then
+            begin
+              //忽略的表
+              Exit;
+            end;
+            //开始读取R0
+            DataRow := Tsql2014Opt.Create;
+            DataRow.OperaType := Opt_Insert;
+            DataRow.page := Rldo.pageId;
+            DataRow.table := DbTable;
+            DataRow.R0 := GetMemory(R_Info[0].Length);
+            Move(Pointer(UIntPtr(Rldo)+R_Info[0].Offset)^, DataRow.R0^, R_Info[0].Length);
+            FRows.Add(DataRow);
           end;
-        //一般是 2 块数据
-        //1. 删除的行数据
-        //2. 表信息
-          BinReader.SetRange(R_Info[1].Offset, R_Info[1].Length);
-          BinReader.skip(6);
-          TableId := BinReader.readInt;
-          DbTable := FLogSource.Fdbc.dict.tables.GetItemById(TableId);
-          if DbTable = nil then
-          begin
-          //忽略的表
-            Exit;
-          end;
-        //开始读取R0
-          BinReader.SetRange(R_Info[0].Offset, R_Info[0].Length);
-          DataRow := PriseRowLog_InsertDeleteRowData(DbTable, BinReader);
         end;
       LCX_TEXT_MIX:
         begin
@@ -1883,13 +1910,6 @@ begin
 
         end;
     end;
-    if DataRow <> nil then
-    begin
-      DataRow.OperaType := Opt_Delete;
-      DataRow.lsn := tPkg.LSN;
-      FRows.Add(DataRow);
-    end;
-
   finally
     if BinReader <> nil then
       BinReader.Free;
@@ -2015,102 +2035,105 @@ var
   BinReader: TbinDataReader;
   I:Integer;
   OriginRowData:TBytes;
-  OriginRowDataDbcc:boolean;
   TableId: Integer;
   DbTable: TdbTableItem;
   tmpdata:Pointer;
-  DataRow_buf: TsqlRawBuf;
+  DataRow_buf: Tsql2014Opt;
   RawDataLen:Integer;
-  UniqueClusteredKeys:string;
 begin
   BinReader := nil;
   DataRow_buf := nil;
-  OriginRowDataDbcc := false;
   Rldo := tPkg.Raw.data;
   try
-    try
-      case Rldo.normalData.ContextCode of
-        LCX_HEAP, //堆表写入
-        LCX_CLUSTERED: //聚合写入
+    case Rldo.normalData.ContextCode of
+      LCX_HEAP, //堆表写入
+      LCX_CLUSTERED: //聚合写入
+        begin
+          SetLength(R_, Rldo.NumElements);
+          SetLength(R_Info, Rldo.NumElements);
+          BinReader := TbinDataReader.Create(tPkg.Raw);
+          BinReader.seek(SizeOf(TRawLog_DataOpt), soBeginning);
+          for I := 0 to Rldo.NumElements - 1 do
           begin
-            SetLength(R_, Rldo.NumElements);
-            SetLength(R_Info, Rldo.NumElements);
-            BinReader := TbinDataReader.Create(tPkg.Raw);
-            BinReader.seek(SizeOf(TRawLog_DataOpt), soBeginning);
-            for I := 0 to Rldo.NumElements - 1 do
+            R_Info[I].Length := BinReader.readWord;
+          end;
+          BinReader.alignTo4;
+          for I := 0 to Rldo.NumElements - 1 do
+          begin
+            if R_Info[I].Length > 0 then
             begin
-              R_Info[I].Length := BinReader.readWord;
+              R_Info[I].Offset := BinReader.Position;
+              R_[I] := BinReader.readBytes(R_Info[I].Length);
+              BinReader.alignTo4;
             end;
-            BinReader.alignTo4;
-            for I := 0 to Rldo.NumElements - 1 do
+          end;
+          if (Rldo.normalData.FlagBits and 1) > 0 then
+          begin
+            //COMPENSATION
+            for I := 0 to FRows.Count - 1 do
             begin
-              if R_Info[I].Length > 0 then
+              if(FRows[i] is Tsql2014Opt) then
               begin
-                R_Info[I].Offset := BinReader.Position;
-                R_[I] := BinReader.readBytes(R_Info[I].Length);
-                BinReader.alignTo4;
-              end;
-            end;
-            if (Rldo.normalData.FlagBits and 1) > 0 then
-            begin
-              //COMPENSATION
-              for I := 0 to FRows.Count - 1 do
-              begin
-                if(FRows[i] is TsqlRawBuf) then
+                DataRow_buf := Tsql2014Opt(FRows[i]);
+                if (DataRow_buf.page.PID = Rldo.pageId.PID) and
+                  (DataRow_buf.page.FID = Rldo.pageId.FID) and
+                  (DataRow_buf.page.solt = Rldo.pageId.solt) then
                 begin
-                  DataRow_buf := TsqlRawBuf(FRows[i]);
-                  if (DataRow_buf.page.PID = Rldo.pageId.PID) and
-                    (DataRow_buf.page.FID = Rldo.pageId.FID) and
-                    (DataRow_buf.page.solt = Rldo.pageId.solt) then
+                  //找到页，修正页数据   (等于nil的在封装的时候直接select表
+                  if (DataRow_buf.R0<>nil) and (not DataRow_buf.UnReliableRData) then
                   begin
-                    //找到页，修正页数据
-                    if not DataRow_buf.dataFromDbccPage then
-                    begin
-                      RawDataLen := PageRowCalcLength(DataRow_buf.R1);
-                      applyChange(DataRow_buf.R1, R_[1], Rldo.OffsetInRow, Rldo.ModifySize, R_Info[1].Length, RawDataLen);
-                    end;
-                    Break;
-                  end
-                end;
+                    RawDataLen := PageRowCalcLength(DataRow_buf.R1);
+                    applyChange(DataRow_buf.R1, R_[1], Rldo.OffsetInRow, Rldo.ModifySize, R_Info[1].Length, RawDataLen);
+                  end;
+                  Break;
+                end
               end;
-            end else begin
-              OriginRowData := getUpdateSoltData(FLogSource.Fdbc, Rldo.normalData.PreviousLSN);
-              if OriginRowData = nil then
-              begin
-                Loger.Add('获取行原始数据失败！' + lsn2str(tPkg.LSN) + ',pLSN:' + lsn2str(Rldo.normalData.PreviousLSN), LOG_WARNING or LOG_IMPORTANT);
-                OriginRowDataDbcc := true;
-                //备用方案，从dbcc page获取原始行数据（数据可能不准确
-                OriginRowData := getUpdateSoltFromDbccPage(FLogSource.Fdbc, Rldo.pageId);
-                if OriginRowData = nil then
-                begin
-                  Loger.Add('获取行原始数据失败！'+lsn2str(tPkg.LSN),LOG_ERROR or LOG_IMPORTANT);
-                  Exit;
-                end;
-              end;
+            end;
+          end else begin
+            BinReader.SetRange(R_Info[3].Offset, R_Info[3].Length);
+            BinReader.skip(6);
+            TableId := BinReader.readInt;
+            DbTable := FLogSource.Fdbc.dict.tables.GetItemById(TableId);
+            if DbTable = nil then
+            begin
+              //忽略的表
+              Exit;
+            end;
 
-              BinReader.SetRange(R_Info[3].Offset, R_Info[3].Length);
-              BinReader.skip(6);
-              TableId := BinReader.readInt;
-              DbTable := FLogSource.Fdbc.dict.tables.GetItemById(TableId);
-              if DbTable = nil then
-              begin
-                //忽略的表
-                Exit;
-              end;
+            DataRow_buf := Tsql2014Opt.Create;
+            try
               if (DbTable.UniqueClusteredKeys.Count>0) and (R_Info[2].Length > 0) then
               begin
                 //读取UniqueClusteredKeys
                 BinReader.SetRange(R_Info[2].Offset, R_Info[2].Length);
-                UniqueClusteredKeys := PriseRowLog_UniqueClusteredKeys(BinReader, DbTable);
+                DataRow_buf.UniqueClusteredKeys := PriseRowLog_UniqueClusteredKeys(BinReader, DbTable);
               end;
 
-              DataRow_buf := TsqlRawBuf.Create;
-              try
-                DataRow_buf.OperaType := Opt_Update;
-                DataRow_buf.page := Rldo.pageId;
-                DataRow_buf.table := DbTable;
-                DataRow_buf.dataFromDbccPage := OriginRowDataDbcc;
-                DataRow_buf.UniqueClusteredKeys := UniqueClusteredKeys;
+              OriginRowData := getUpdateSoltData(FLogSource.Fdbc, Rldo.normalData.PreviousLSN);
+              if OriginRowData = nil then
+              begin
+                Loger.Add('获取行原始数据失败！' + lsn2str(tPkg.LSN) + ',pLSN:' + lsn2str(Rldo.normalData.PreviousLSN), LOG_WARNING or LOG_IMPORTANT);
+                if DataRow_buf.UniqueClusteredKeys = '' then
+                begin
+                  //如果没有聚合索引，从dbcc page获取原始行数据。因为不会出现重建聚合，所以page页相内容不容易发生变动，数据相对可靠。
+                  OriginRowData := getUpdateSoltFromDbccPage(FLogSource.Fdbc, Rldo.pageId);
+                  if OriginRowData = nil then
+                  begin
+                    Loger.Add('获取行原始数据失败！'+lsn2str(tPkg.LSN), LOG_ERROR or LOG_IMPORTANT);
+                    DataRow_buf.Free;
+                    Exit;
+                  end;
+                  DataRow_buf.UnReliableRData := true;
+                end else begin
+                  //如果没有OriginRowData但是有 UniqueClusteredKeys则可以通过直接查询整行数据封装
+                end
+              end;
+
+              DataRow_buf.OperaType := Opt_Update;
+              DataRow_buf.page := Rldo.pageId;
+              DataRow_buf.table := DbTable;
+              if OriginRowData <> nil then
+              begin
                 //before
                 tmpdata := AllocMem($2000);
                 Move(OriginRowData[0], tmpdata^, Length(OriginRowData));
@@ -2121,22 +2144,17 @@ begin
                 tmpdata := AllocMem($2000);
                 Move(OriginRowData[0], tmpdata^, Length(OriginRowData));
                 DataRow_buf.R1 := tmpdata;
-
-                FRows.Add(DataRow_buf);
-              except
-                DataRow_buf.Free;
               end;
-              SetLength(OriginRowData, 0);
+
+              FRows.Add(DataRow_buf);
+            except
+              DataRow_buf.Free;
             end;
+            SetLength(OriginRowData, 0);
           end;
-      else
-        Loger.Add('PriseRowLog_MODIFY_ROW 遇到尚未处理的 ContextCode :' + contextCodeToStr(Rldo.normalData.ContextCode));
-      end;
-    except
-      on eexx: Exception do
-      begin
-        raise eexx;
-      end;
+        end;
+    else
+      Loger.Add('PriseRowLog_MODIFY_ROW 遇到尚未处理的 ContextCode :' + contextCodeToStr(Rldo.normalData.ContextCode));
     end;
   finally
     if BinReader <> nil then
@@ -2273,7 +2291,7 @@ begin
                 TmpBinReader.Free;
               end;
 
-              DataRow_bef.afterUpdate := DataRow_aft;
+
             finally
               FreeMem(tmpdata_bef);
             end;
@@ -2283,8 +2301,7 @@ begin
       end;
       if DataRow_bef <> nil then
       begin
-        DataRow_bef.OperaType := Opt_Update;
-        DataRow_bef.lsn := tPkg.LSN;
+
         FRows.Add(DataRow_bef);
       end;
     except
@@ -2388,7 +2405,6 @@ end;
 constructor Tsql2014RowData.Create;
 begin
   fields := TList.Create;
-  afterUpdate := nil;
 end;
 
 destructor Tsql2014RowData.Destroy;
@@ -2396,11 +2412,6 @@ var
   I: Integer;
   pdd: PdbFieldValue;
 begin
-  if afterUpdate<>nil then
-  begin
-    afterUpdate.Free;
-  end;
-
   for I := 0 to fields.Count - 1 do
   begin
     pdd := PdbFieldValue(fields[I]);
@@ -2521,13 +2532,14 @@ end;
 
 { TsqlRawBuf }
 
-constructor TsqlRawBuf.Create;
+constructor Tsql2014Opt.Create;
 begin
   R0 := nil;
   R1 := nil;
+  UnReliableRData := False;
 end;
 
-destructor TsqlRawBuf.Destroy;
+destructor Tsql2014Opt.Destroy;
 begin
   if R0<>nil then
     FreeMem(R0);
@@ -2536,6 +2548,11 @@ begin
     FreeMem(R1);
 
   inherited;
+end;
+
+procedure Tsql2014Opt.Pretreatment;
+begin
+
 end;
 
 end.

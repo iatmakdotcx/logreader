@@ -30,7 +30,7 @@ procedure init;
 implementation
 
 uses
-  Winapi.Windows, System.SysUtils, SqlSvrHelper, pluginlog;
+  Winapi.Windows, System.SysUtils, SqlSvrHelper, loglog;
 
 procedure init;
 begin

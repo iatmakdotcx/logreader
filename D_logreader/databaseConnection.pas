@@ -87,7 +87,7 @@ type
 implementation
 
 uses
-  Windows, SysUtils, dbHelper, comm_func, MakCommonfuncs, pluginlog,
+  Windows, SysUtils, dbHelper, comm_func, MakCommonfuncs, loglog,
   Winapi.ADOInt, System.Variants;
 
 function CloneRecordset(const Data: _Recordset): _Recordset;

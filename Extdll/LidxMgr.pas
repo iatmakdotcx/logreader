@@ -76,7 +76,7 @@ type
 implementation
 
 uses
-  pluginlog, System.SysUtils;
+  loglog, System.SysUtils;
 
 
 { T3LidxMgr }
@@ -160,7 +160,6 @@ begin
       Exit;
     end;
 
-
     Move(Pointer(UIntPtr(buf) + $2000)^, dictPnt^, $2000);
     dict_load;
     //取最后一个目录
@@ -229,7 +228,7 @@ begin
       Inc(TmpdItem);
     end;
   finally
-    dl1Cs.Free;
+    dl1Cs.Leave;
   end;
 end;
 
@@ -302,7 +301,7 @@ begin
             dOffset := PUint64(UIntPtr(MaxItem) + 6 + tmpLsn3Cnt * 2 + I * 8)^
           end else begin
             //x86
-            dOffset := PUint64(UIntPtr(MaxItem) + 6 + tmpLsn3Cnt * 2 + I * 4)^
+            dOffset := PDword(UIntPtr(MaxItem) + 6 + tmpLsn3Cnt * 2 + I * 4)^
           end;
           Result := True;
         end;
@@ -344,6 +343,7 @@ begin
     //search
     dl1Cs.Enter;
     try
+
       for I := dl1.Count-1 Downto 0 do
       begin
         tmpDictItem := dl1[i];
@@ -373,54 +373,57 @@ begin
           end;
 
           buf := GetMemory(BlockSize);
-          SetFilePointer(_FileHandle, tmpDictItem.Offset, nil, soFromBeginning);
-          if ReadFile(_FileHandle, buf^, BlockSize, nSize, nil) and (nSize>0) then
-          begin
-            posi := 0;
-            while posi + 12 < nSize do
+          try
+            SetFilePointer(_FileHandle, tmpDictItem.Offset, nil, soFromBeginning);
+            if ReadFile(_FileHandle, buf^, BlockSize, nSize, nil) and (nSize>0) then
             begin
-              tmpLsn2 := PDWord(UINT_PTR(buf) + posi)^;
-              tmplsn3Cnt := PWord(UINT_PTR(buf) + 4 + posi)^;
-              isX64Addr := (tmpLsn2 and $80000000) > 0;
-              if isX64Addr then
-                tmpLsn2 := tmpLsn2 and $7FFFFFFF;
-              if tmpLsn2 = lsn2 then
+              posi := 0;
+              while posi + 12 < nSize do
               begin
-                for J := 0 to tmpLsn3Cnt-1 do
+                tmpLsn2 := PDWord(UINT_PTR(buf) + posi)^;
+                tmplsn3Cnt := PWord(UINT_PTR(buf) + 4 + posi)^;
+                isX64Addr := (tmpLsn2 and $80000000) > 0;
+                if isX64Addr then
+                  tmpLsn2 := tmpLsn2 and $7FFFFFFF;
+                if tmpLsn2 = lsn2 then
                 begin
-                  if PWORD(UINT_PTR(buf) + posi + 6 + J * 2)^ = lsn3 then
+                  for J := 0 to tmpLsn3Cnt-1 do
                   begin
-                    if isX64Addr then
+                    if PWORD(UINT_PTR(buf) + posi + 6 + J * 2)^ = lsn3 then
                     begin
-                      //x64
-                      dOffset := PUint64(UINT_PTR(buf) + posi + 6 + tmpLsn3Cnt * 2 + J * 8)^
-                    end else begin
-                      //x86
-                      dOffset := PUint64(UINT_PTR(buf) + posi + 6 + tmpLsn3Cnt * 2 + J * 4)^
+                      if isX64Addr then
+                      begin
+                        //x64
+                        dOffset := PUint64(UINT_PTR(buf) + posi + 6 + tmpLsn3Cnt * 2 + J * 8)^
+                      end else begin
+                        //x86
+                        dOffset := PDword(UINT_PTR(buf) + posi + 6 + tmpLsn3Cnt * 2 + J * 4)^
+                      end;
+                      Result := True;
                     end;
-                    Result := True;
                   end;
+                  exit;
+                end else if tmpLsn2 > lsn2 then
+                begin
+                  //未找到
+                  Loger.Add('TLidxMgr.findRow 未找到', LOG_WARNING);
+                  Exit;
+                end else begin
+                  //继续查找下一个
                 end;
-                exit;
-              end else if tmpLsn2 > lsn2 then
-              begin
-                //未找到
-                Loger.Add('TLidxMgr.findRow 未找到', LOG_WARNING);
-                Exit;
-              end else begin
-                //继续查找下一个
-              end;
-              if isX64Addr then
-              begin
-                posi := posi + 6 + tmpLsn3Cnt * (2 + 8);
-              end
-              else
-              begin
-                posi := posi + 6 + tmpLsn3Cnt * (2 + 4);
+                if isX64Addr then
+                begin
+                  posi := posi + 6 + tmpLsn3Cnt * (2 + 8);
+                end
+                else
+                begin
+                  posi := posi + 6 + tmpLsn3Cnt * (2 + 4);
+                end;
               end;
             end;
+          finally
+            FreeMemory(buf);
           end;
-          FreeMemory(buf);
           Exit;
         end;
       end;

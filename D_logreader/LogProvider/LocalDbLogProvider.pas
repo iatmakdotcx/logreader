@@ -34,7 +34,7 @@ type
 implementation
 
 uses
-  SysUtils, MakCommonfuncs, pluginlog;
+  SysUtils, MakCommonfuncs, loglog;
 
 constructor TLocalDbLogProvider.Create;
 begin

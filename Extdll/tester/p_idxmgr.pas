@@ -21,7 +21,7 @@ var
 implementation
 
 uses
-  pluginlog, System.Math;
+  loglog, System.Math;
 
 {$R *.dfm}
 
