@@ -33,6 +33,7 @@ type
     R0:Pointer;                    //新数据
     R1:Pointer;                    //老数据
     UniqueClusteredKeys:string;
+    deleteFlag:Boolean;            //数据删除标志（ 为ture的数据不生产Sql
     //
     old_data:Tsql2014RowData;
     new_data:Tsql2014RowData;
@@ -335,8 +336,29 @@ end;
 function TSql2014logAnalyzer.DML_BuilderSql_Delete(aRowData: Tsql2014Opt): string;
 var
   whereStr: string;
+  I,j: Integer;
+  field: TdbFieldItem;
+  fieldval: PdbFieldValue;
 begin
-  whereStr := DML_BuilderSql_Where(aRowData);
+  if aRowData.table.UniqueClusteredKeys.Count>0 then
+  begin
+    whereStr := '';
+    for I := 0 to aRowData.table.UniqueClusteredKeys.Count-1 do
+    begin
+      field := TdbFieldItem(aRowData.table.UniqueClusteredKeys[i]);
+      for J := 0 to aRowData.new_data.Fields.Count -1 do
+      begin
+        fieldval := PdbFieldValue(aRowData.new_data.Fields[j]);
+        if fieldval.field.Col_id=field.Col_id then
+        begin
+          whereStr := whereStr + Format('and %s=%s ', [field.getSafeColName, Hvu_GetFieldStrValueWithQuoteIfNeed(field, fieldval.value)]);
+          Break;
+        end;
+      end;
+    end;
+    Delete(whereStr, 1, 4);
+  end else
+    whereStr := DML_BuilderSql_Where(aRowData);
   Result := Format('DELETE FROM %s WHERE %s;', [aRowData.Table.getFullName, whereStr]);
 end;
 
@@ -391,7 +413,7 @@ begin
     TTpi := TTransPkgItem(FTranspkg.Items[I]);
     PriseRowLog(TTpi);
   end;
-Exit;
+
   //分析Sql
   for I := 0 to FRows.Count - 1 do
   begin
@@ -1692,6 +1714,8 @@ var
   TableId: Integer;
   DbTable: TdbTableItem;
   DataRow: Tsql2014Opt;
+  TmpCPnt:UIntPtr;
+  TmpSize:Cardinal;
 begin
   DataRow := nil;
   BinReader := nil;
@@ -1703,6 +1727,7 @@ begin
         begin
           if (Rldo.normalData.FlagBits and 1)>0 then
           begin
+            //Rollback tran
             //COMPENSATION    恢复事务中Delete的数据
             for I := 0 to FRows.Count - 1 do
             begin
@@ -1712,7 +1737,25 @@ begin
                 (DataRow.page.solt = Rldo.pageId.solt) then
               begin
                 //撤销之前的数据
-                FRows.Delete(i);
+                if DataRow.OperaType=Opt_Insert then
+                begin
+                  //insert的数据。delete然后回滚delete
+                  DataRow.deleteFlag := False;
+
+                  TmpCPnt :=  UIntPtr(Rldo)+ SizeOf(TRawLog_DataOpt) ;
+                  TmpSize := PWord(TmpCPnt)^;
+                  TmpCPnt := TmpCPnt + Rldo.NumElements*2;
+                  TmpCPnt := (TmpCPnt + 3) and $FFFFFFFC;
+
+                  //只读第一个块放进buf就是了
+                  if DataRow.R0<>nil then
+                    FreeMemory(DataRow.R0);
+                  DataRow.R0 := GetMemory(TmpSize);
+                  Move(Pointer(TmpCPnt)^, DataRow.R0^, TmpSize);
+
+                end else
+                  DataRow.deleteFlag := True;
+
                 Break;
               end
             end;
@@ -1854,6 +1897,7 @@ begin
         begin
           if (Rldo.normalData.FlagBits and 1)>0 then
           begin
+            //rollback tran
             //COMPENSATION    删除事务中insert的数据
             for I := 0 to FRows.Count - 1 do
             begin
@@ -1863,11 +1907,32 @@ begin
                 (DataRow.page.solt = Rldo.pageId.solt) then
               begin
                 //撤销之前的数据
-                FRows.Delete(i);
+                DataRow.deleteFlag := True;
                 Break;
               end
             end;
           end else begin
+            //删除前，先查找下之前有没有对本行数据的操作（insert或Update，有则取消之前操作
+            for I := 0 to FRows.Count - 1 do
+            begin
+              DataRow := Tsql2014Opt(FRows[i]);
+              if (DataRow.page.PID = Rldo.pageId.PID) and
+                (DataRow.page.FID = Rldo.pageId.FID) and
+                (DataRow.page.solt = Rldo.pageId.solt) then
+              begin
+                //撤销之前的数据
+                DataRow.deleteFlag := True;
+                if DataRow.OperaType = Opt_Insert then
+                begin
+                  //同一个事务中先insert然后再delete(
+                  Exit;
+                end else begin
+                  //同一个事务中先update然后再delete(
+                  Break;
+                end;
+              end
+            end;
+
             SetLength(R_, Rldo.NumElements);
             SetLength(R_Info, Rldo.NumElements);
             BinReader := TbinDataReader.Create(tPkg.Raw);
@@ -2016,14 +2081,14 @@ begin
   begin
     Move(pdata^, Pointer(uintptr(srcData) + offset)^, size_old);
   end
-  else if size_old > size_new then
+  else if size_old < size_new then
   begin
     //数据后移
     tmpLen := datarowCnt - offset;
     tmpdata := AllocMem(tmpLen);
     Move(Pointer(uintptr(srcData) + offset)^, tmpdata^, tmpLen);
-    Move(tmpdata^, Pointer(uintptr(srcData) + offset + (size_old - size_new))^, tmpLen);
-    Move(pdata^, Pointer(uintptr(srcData) + offset)^, size_old);
+    Move(tmpdata^, Pointer(uintptr(srcData) + offset + (size_new - size_old))^, tmpLen);
+    Move(pdata^, Pointer(uintptr(srcData) + offset)^, size_new);
     FreeMem(tmpdata);
   end else begin
     //前移
@@ -2031,7 +2096,7 @@ begin
     tmpdata := AllocMem(tmpLen);
     Move(Pointer(uintptr(srcData) + offset)^, tmpdata^, tmpLen);
     Move(Pointer(uintptr(tmpdata) + (size_new - size_old))^, Pointer(uintptr(srcData) + offset)^, tmpLen);
-    Move(pdata^, Pointer(uintptr(srcData) + offset)^, size_old);
+    Move(pdata^, Pointer(uintptr(srcData) + offset)^, size_new);
     FreeMem(tmpdata);
   end;
 end;
@@ -2079,31 +2144,52 @@ begin
             //COMPENSATION
             for I := 0 to FRows.Count - 1 do
             begin
-              if(FRows[i] is Tsql2014Opt) then
+              DataRow_buf := Tsql2014Opt(FRows[i]);
+              if (DataRow_buf.page.PID = Rldo.pageId.PID) and
+                (DataRow_buf.page.FID = Rldo.pageId.FID) and
+                (DataRow_buf.page.solt = Rldo.pageId.solt) then
               begin
-                DataRow_buf := Tsql2014Opt(FRows[i]);
-                if (DataRow_buf.page.PID = Rldo.pageId.PID) and
-                  (DataRow_buf.page.FID = Rldo.pageId.FID) and
-                  (DataRow_buf.page.solt = Rldo.pageId.solt) then
+                //找到页，修正页数据
+                if DataRow_buf.OperaType = Opt_Update then
                 begin
-                  //找到页，修正页数据
-                  if DataRow_buf.OperaType = Opt_Update then
+                  if (DataRow_buf.R0<>nil) and (not DataRow_buf.UnReliableRData) then
                   begin
-                    if (DataRow_buf.R0<>nil) and (not DataRow_buf.UnReliableRData) then
-                    begin
-                      RawDataLen := PageRowCalcLength(DataRow_buf.R1);
-                      applyChange(DataRow_buf.R1, R_[1], Rldo.OffsetInRow, Rldo.ModifySize, R_Info[1].Length, RawDataLen);
-                    end;
-                  end else if DataRow_buf.OperaType=Opt_Insert then
-                  begin
-                    RawDataLen := PageRowCalcLength(DataRow_buf.R1);
-                    applyChange(DataRow_buf.R1, R_[1], Rldo.OffsetInRow, Rldo.ModifySize, R_Info[1].Length, RawDataLen);
+                    RawDataLen := PageRowCalcLength(DataRow_buf.R0);
+                    applyChange(DataRow_buf.R0, R_[1], Rldo.OffsetInRow, Rldo.ModifySize, R_Info[1].Length, RawDataLen);
                   end;
-                  Break;
-                end
-              end;
+                end else if DataRow_buf.OperaType=Opt_Insert then
+                begin
+                  RawDataLen := PageRowCalcLength(DataRow_buf.R0);
+                  applyChange(DataRow_buf.R0, R_[1], Rldo.OffsetInRow, Rldo.ModifySize, R_Info[1].Length, RawDataLen);
+                end;
+                Break;
+              end
             end;
           end else begin
+            for I := 0 to FRows.Count - 1 do
+            begin
+              DataRow_buf := Tsql2014Opt(FRows[i]);
+              if (DataRow_buf.page.PID = Rldo.pageId.PID) and
+                (DataRow_buf.page.FID = Rldo.pageId.FID) and
+                (DataRow_buf.page.solt = Rldo.pageId.solt) then
+              begin
+                //找到页，修正页数据
+                if DataRow_buf.OperaType = Opt_Update then
+                begin
+                  if (DataRow_buf.R0<>nil) and (not DataRow_buf.UnReliableRData) then
+                  begin
+                    RawDataLen := PageRowCalcLength(DataRow_buf.R0);
+                    applyChange(DataRow_buf.R0, R_[1], Rldo.OffsetInRow, Rldo.ModifySize, R_Info[1].Length, RawDataLen);
+                  end;
+                end else if DataRow_buf.OperaType=Opt_Insert then
+                begin
+                  RawDataLen := PageRowCalcLength(DataRow_buf.R0);
+                  applyChange(DataRow_buf.R0, R_[1], Rldo.OffsetInRow, R_Info[0].Length, R_Info[1].Length, RawDataLen);
+                  exit;
+                end;
+              end
+            end;
+
             BinReader.SetRange(R_Info[3].Offset, R_Info[3].Length);
             BinReader.skip(6);
             TableId := BinReader.readInt;
@@ -2153,11 +2239,11 @@ begin
                 Move(OriginRowData[0], tmpdata^, Length(OriginRowData));
                 RawDataLen := PageRowCalcLength(tmpdata);
                 applyChange(tmpdata, R_[0], Rldo.OffsetInRow, R_Info[0].Length, R_Info[1].Length, RawDataLen);
-                DataRow_buf.R0 := tmpdata;
+                DataRow_buf.R1 := tmpdata;
                 //after
                 tmpdata := AllocMem($2000);
                 Move(OriginRowData[0], tmpdata^, Length(OriginRowData));
-                DataRow_buf.R1 := tmpdata;
+                DataRow_buf.R0 := tmpdata;
               end;
 
               FRows.Add(DataRow_buf);

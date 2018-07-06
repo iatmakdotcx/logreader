@@ -428,9 +428,8 @@ end;
 function getfieldValueAsString(field: TField): string;
 var
   ddSize: Integer;
-  buff: Pointer;
-  Data: OleVariant;
   blobData: TBytes;
+  Buffer: TValueBuffer;
 begin
   if field.IsNull then
   begin
@@ -493,13 +492,13 @@ begin
           Result := 'NULL';
           Exit;
         end;
-        buff := AllocMem(ddSize);
-        if field.GetData(buff) then
+        SetLength(Buffer, ddSize);
+        if field.GetData(Buffer) then
         begin
-          ddSize := Pword(buff)^;
-          Result := '0x' + DumpMemory2Str(pointer(Uintptr(buff) + 2), ddSize);
+          ddSize := Pword(@Buffer[0])^;
+          Result := '0x' + DumpMemory2Str(@Buffer[2], ddSize);
         end;
-        FreeMem(buff);
+        SetLength(Buffer, 0);
       end;
     ftVariant:
       begin
@@ -526,12 +525,12 @@ begin
         Result := 'NULL';
         Exit;
       end;
-      buff := AllocMem(ddSize);
-      if field.GetData(buff) then
+      SetLength(Buffer, ddSize);
+      if field.GetData(Buffer) then
       begin
-        Result := '0x' + DumpMemory2Str(buff, ddSize);
+        Result := '0x' + DumpMemory2Str(@Buffer[0], Length(Buffer));
       end;
-      FreeMem(buff);
+      SetLength(blobData, 0);
     end;
 //     ftUnknown: ;
 //     ftBytes: ;

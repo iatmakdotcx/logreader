@@ -3,8 +3,18 @@ program logReader;
 {$R 'res.res' 'res\res.rc'}
 
 uses
-  FastMM4 in 'H:\Delphi\FastMMnew\FastMM4.pas',
-  FastMM4Messages in 'H:\Delphi\FastMMnew\FastMM4Messages.pas',
+  EMemLeaks,
+  EResLeaks,
+  EDialogWinAPIMSClassic,
+  EDialogWinAPIEurekaLogDetailed,
+  EDialogWinAPIStepsToReproduce,
+  EDebugExports,
+  EFixSafeCallException,
+  EMapWin32,
+  EAppVCL,
+  ExceptionLog7,
+  //FastMM4Messages in 'H:\Delphi\FastMMnew\FastMM4Messages.pas',
+  //FastMM4 in 'H:\Delphi\FastMMnew\FastMM4.pas',
   Forms,
   p_main in 'p_main.pas' {Form1},
   I_logReader in 'logReader\I_logReader.pas',

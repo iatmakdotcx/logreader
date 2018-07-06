@@ -29,6 +29,7 @@ type
     Button6: TButton;
     Button14: TButton;
     Button11: TButton;
+    Edit1: TEdit;
     procedure FormCreate(Sender: TObject);
     procedure Button3Click(Sender: TObject);
     procedure FormDestroy(Sender: TObject);
@@ -119,6 +120,31 @@ begin
 end;
 
 procedure TForm1.Button4Click(Sender: TObject);
+procedure setLsn(tlsObj:TLogSource);
+var
+  TmpLst :TStringList;
+  tmpLsn:Tlog_LSN;
+begin
+  if Edit1.Text<>'' then
+  BEGIN
+    TmpLst := TStringList.Create;
+    try
+      TmpLst.Text := StringReplace(Edit1.Text,':',WIN_EOL,[rfReplaceAll]);
+      if TmpLst.Count<>3 then
+      begin
+        ShowMessage('LSN格式化无效！');
+        Exit;
+      end;
+
+      tmpLsn.LSN_1 := StrToInt('$' + TmpLst[0]);
+      tmpLsn.LSN_2 := StrToInt('$' + TmpLst[1]);
+      tmpLsn.LSN_3 := StrToInt('$' + TmpLst[2]);
+      tlsObj.FProcCurLSN := tmpLsn;
+    finally
+      TmpLst.Free;
+    end;
+  END;
+end;
 var
   ItemIdx:Integer;
   tlsObj:TLogSource;
@@ -127,6 +153,9 @@ begin
   begin
     ItemIdx := StrToInt(ListView1.Selected.Caption) - 1;
     tlsObj := LogSourceList.Get(ItemIdx);
+{$IFDEF DEBUG}
+    setLsn(tlsObj);
+{$ENDIF}
     tlsObj.Create_picker;
   end;
 end;
