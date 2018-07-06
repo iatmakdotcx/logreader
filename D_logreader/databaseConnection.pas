@@ -563,21 +563,36 @@ end;
 var
   rDataset:TCustomADODataSet;
   aSql:string;
-  I: Integer;
+  I,J: Integer;
   fieldsStr:string;
+  tmpbool:Boolean;
+  field:TdbFieldItem;
 begin
   Result := '';
   fieldsStr := '';
   for I := 0 to table.Fields.Count -1 do
   begin
-    case table.Fields[i].type_id of
+    field := table.Fields[i];
+    case field.type_id of
+      //忽略类型
       MsTypes.TIMESTAMP,
       MsTypes.GEOGRAPHY,
       MsTypes.XML,
       MsTypes.SQL_VARIANT:
       Continue;
     else
-      fieldsStr := fieldsStr + ',[' + table.Fields[I].ColName + ']';
+      //忽略聚合(如果更新聚合可能导致行数据重建(DELETE+INSERT)
+      tmpbool := False;
+      for J := 0 to table.UniqueClusteredKeys.Count-1 do
+      begin
+        if field.Col_id=TdbFieldItem(table.UniqueClusteredKeys[j]).Col_id then
+        begin
+          tmpbool := True;
+          Break;
+        end;
+      end;
+      if not tmpbool then
+        fieldsStr := fieldsStr + ',[' + field.ColName + ']';
     end
   end;
   if fieldsStr.Length>2 then

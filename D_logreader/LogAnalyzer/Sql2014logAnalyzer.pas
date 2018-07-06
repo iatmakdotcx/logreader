@@ -64,6 +64,7 @@ type
   private
     FPkgMgr:TTransPkgMgr; //事务队列
 
+    TransId: TTrans_Id;
     TransBeginTime: TDateTime;
     TransCommitTime: TDateTime;
     FLogSource: TLogSource;
@@ -383,13 +384,14 @@ begin
   serializeToBin(FTranspkg, mm);
   PluginsMgr.onTransPkgRev(mm);
   FreeMem(mm.data);
+
   //开始解析数据
   for I := 0 to FTranspkg.Items.Count - 1 do
   begin
     TTpi := TTransPkgItem(FTranspkg.Items[I]);
     PriseRowLog(TTpi);
   end;
-
+Exit;
   //分析Sql
   for I := 0 to FRows.Count - 1 do
   begin
@@ -458,6 +460,7 @@ begin
   ResList := TStringList.Create;
   try
     ResList.Add('--genSql begin--');
+    ResList.Add('TransId:' + TranId2Str(TransId));
     ResList.Add('--TranBeinTime:' + formatdatetime('yyyy-MM-dd HH:nn:ss.zzz', TransBeginTime));
     ResList.Add('--CommitTranTime:' + formatdatetime('yyyy-MM-dd HH:nn:ss.zzz', TransCommitTime));
 
@@ -1996,7 +1999,7 @@ begin
   finally
     for I := 0 to values.Count - 1 do
     begin
-      Dispose(values[I]);
+      Dispose(PdbFieldValue(values[I]));
     end;
     values.Free;
   end;
@@ -2083,8 +2086,15 @@ begin
                   (DataRow_buf.page.FID = Rldo.pageId.FID) and
                   (DataRow_buf.page.solt = Rldo.pageId.solt) then
                 begin
-                  //找到页，修正页数据   (等于nil的在封装的时候直接select表
-                  if (DataRow_buf.R0<>nil) and (not DataRow_buf.UnReliableRData) then
+                  //找到页，修正页数据
+                  if DataRow_buf.OperaType = Opt_Update then
+                  begin
+                    if (DataRow_buf.R0<>nil) and (not DataRow_buf.UnReliableRData) then
+                    begin
+                      RawDataLen := PageRowCalcLength(DataRow_buf.R1);
+                      applyChange(DataRow_buf.R1, R_[1], Rldo.OffsetInRow, Rldo.ModifySize, R_Info[1].Length, RawDataLen);
+                    end;
+                  end else if DataRow_buf.OperaType=Opt_Insert then
                   begin
                     RawDataLen := PageRowCalcLength(DataRow_buf.R1);
                     applyChange(DataRow_buf.R1, R_[1], Rldo.OffsetInRow, Rldo.ModifySize, R_Info[1].Length, RawDataLen);
@@ -2348,6 +2358,7 @@ begin
     begin
       Rlbx := tPkg.Raw.data;
       TransBeginTime := Hvu_Hex2Datetime(Rlbx.Time);
+      TransId := Rlbx.normalData.TransID;
     end
     else if Rl.OpCode = LOP_COMMIT_XACT then
     begin
