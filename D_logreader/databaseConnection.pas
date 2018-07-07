@@ -600,11 +600,14 @@ begin
     aSql := 'select ' + fieldsStr + ' from ' + table.TableNmae + ' where ' + wherekey;
     if ExecSql(aSql, rDataset) then
     begin
-      for I := 0 to rDataset.Fields.Count -1 do
+      if rDataset.RecordCount > 0 then
       begin
-        Result := Result + ',['+rDataset.Fields[i].FieldName+']=' + getfieldValueAsString(rDataset.Fields[i]);
+        for I := 0 to rDataset.Fields.Count -1 do
+        begin
+          Result := Result + ',['+rDataset.Fields[i].FieldName+']=' + getfieldValueAsString(rDataset.Fields[i]);
+        end;
+        Delete(Result,1,1);
       end;
-      Delete(Result,1,1);
       rDataset.Free;
     end;
   end

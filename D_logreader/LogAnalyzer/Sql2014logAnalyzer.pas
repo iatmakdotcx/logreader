@@ -223,15 +223,18 @@ end;
 
 function TSql2014logAnalyzer.DML_BuilderSql(aRowData: Tsql2014Opt): string;
 begin
-  case aRowData.OperaType of
-    Opt_Insert:
-      Result := DML_BuilderSql_Insert(aRowData);
-    Opt_Update:
-      Result := DML_BuilderSql_Update(aRowData);
-    Opt_Delete:
-      Result := DML_BuilderSql_Delete(aRowData);
-  else
-    Loger.Add('尚未定義的SQLBuilder');
+  if not aRowData.deleteFlag then
+  begin
+    case aRowData.OperaType of
+      Opt_Insert:
+        Result := DML_BuilderSql_Insert(aRowData);
+      Opt_Update:
+        Result := DML_BuilderSql_Update(aRowData);
+      Opt_Delete:
+        Result := DML_BuilderSql_Delete(aRowData);
+    else
+      Loger.Add('尚未定義的SQLBuilder');
+    end;
   end;
 end;
 
@@ -253,33 +256,94 @@ var
   I: Integer;
   raw_old,raw_new: PdbFieldValue;
   whereStr: string;
+  fieldval: PdbFieldValue;
+  isUniClustered :Boolean;
+  J: Integer;
 begin
-  if aRowData.old_data<>nil then
+  whereStr := aRowData.UniqueClusteredKeys;
+  if whereStr='' then
   begin
-    whereStr := DML_BuilderSql_Where(aRowData);
-    updateStr := '';
-    for I := 0 to aRowData.Table.Fields.Count - 1 do
+    //没有聚合键
+    if aRowData.old_data<>nil then
     begin
-      raw_old := aRowData.old_data.getField(aRowData.Table.Fields[i].Col_id);
-      raw_new := aRowData.new_data.getField(aRowData.Table.Fields[i].Col_id);
-      if (raw_new=nil)  and (raw_old=nil)then
+      //有old源则通过olddata生成where
+      for I := 0 to aRowData.old_data.Fields.Count - 1 do
       begin
+        fieldval := PdbFieldValue(aRowData.old_data.Fields[I]);
+        whereStr := whereStr + Format('and %s=%s ', [fieldval.field.getSafeColName, Hvu_GetFieldStrValueWithQuoteIfNeed(fieldval.field, fieldval.value)]);
+      end;
+      if whereStr.Length > 0 then
+      begin
+        Delete(whereStr, 1, 4);  //"and "
+      end;
+    end else begin
+      //没有唯一聚合,也没有old源
+      whereStr :=' 1=2 --表不包涵唯一聚合,且无法获取更新源。请为表设置“唯一聚合”或使用数据源提取插件';
+    end
+  end;
 
-      end else
-      if raw_new = nil then
-      begin
-        //var 值 ————>  null
-        updateStr := updateStr + Format(', %s=NULL',[raw_old.field.getSafeColName]);
-      end else if (raw_old = nil) or (not binEquals(raw_new.value, raw_old.value)) then begin
-        updateStr := updateStr + Format(', %s=%s',[raw_new.field.getSafeColName, Hvu_GetFieldStrValueWithQuoteIfNeed(raw_new.field, raw_new.value)]);
-      end
+  if aRowData.new_data = nil then
+  begin
+    //没有新数据。使用select封装
+    updateStr := FLogSource.Fdbc.getUpdateSQLfromSelect(aRowData.Table, whereStr);
+    if updateStr='' then
+    begin
+      Result := '数据行已丢失！'+whereStr;
+      Exit;
     end;
-    if updateStr.Length > 0 then
-      Delete(updateStr, 1, 2);  //", "
   end else begin
-    //使用Select数据作源
-    whereStr := aRowData.UniqueClusteredKeys;
-    updateStr := FLogSource.Fdbc.getUpdateSQLfromSelect(aRowData.Table, whereStr)
+    if aRowData.old_data<>nil then
+    begin
+      //新旧数据都有，则对比差异生成update
+      updateStr := '';
+      for I := 0 to aRowData.Table.Fields.Count - 1 do
+      begin
+        raw_old := aRowData.old_data.getField(aRowData.Table.Fields[i].Col_id);
+        raw_new := aRowData.new_data.getField(aRowData.Table.Fields[i].Col_id);
+        if (raw_new=nil)  and (raw_old=nil)then
+        begin
+
+        end else
+        if raw_new = nil then
+        begin
+          //var 值 ————>  null
+          updateStr := updateStr + Format(', %s=NULL',[raw_old.field.getSafeColName]);
+        end else if (raw_old = nil) or (not binEquals(raw_new.value, raw_old.value)) then begin
+          updateStr := updateStr + Format(', %s=%s',[raw_new.field.getSafeColName, Hvu_GetFieldStrValueWithQuoteIfNeed(raw_new.field, raw_new.value)]);
+        end
+      end;
+      if updateStr.Length > 0 then
+        Delete(updateStr, 1, 2);  //", "
+    end else begin
+      //没有old，根据新的全部字段生成update（除唯一聚合，如果存在
+      updateStr := '';
+      for I := 0 to aRowData.Table.Fields.Count - 1 do
+      begin
+        isUniClustered := False;
+        for J := 0 to aRowData.Table.UniqueClusteredKeys.Count-1 do
+        begin
+          if TdbFieldItem(aRowData.Table.UniqueClusteredKeys[j]).Col_id = aRowData.Table.Fields[i].Col_id then
+          begin
+            isUniClustered := True;
+            Break;
+          end;
+        end;
+
+        if not isUniClustered then
+        begin
+          raw_new := aRowData.new_data.getField(aRowData.Table.Fields[i].Col_id);
+          if raw_new = nil then
+          begin
+            //var 值 ————>  null
+            updateStr := updateStr + Format(', %s=NULL',[raw_new.field.getSafeColName]);
+          end else begin
+            updateStr := updateStr + Format(', %s=%s',[raw_new.field.getSafeColName, Hvu_GetFieldStrValueWithQuoteIfNeed(raw_new.field, raw_new.value)]);
+          end;
+        end;
+      end;
+      if updateStr.Length > 0 then
+        Delete(updateStr, 1, 2);  //", "
+    end
   end;
   Result := Format('UPDATE %s SET %s WHERE %s;', [aRowData.Table.getFullName, updateStr, whereStr]);
 end;
@@ -1887,6 +1951,8 @@ var
   TableId: Integer;
   DbTable: TdbTableItem;
   DataRow: Tsql2014Opt;
+  TmpCPnt:UIntPtr;
+  TmpSize:Cardinal;
 begin
   BinReader := nil;
   DataRow := nil;
@@ -1921,14 +1987,28 @@ begin
                 (DataRow.page.solt = Rldo.pageId.solt) then
               begin
                 //撤销之前的数据
-                DataRow.deleteFlag := True;
                 if DataRow.OperaType = Opt_Insert then
                 begin
+                  DataRow.deleteFlag := True;
                   //同一个事务中先insert然后再delete(
                   Exit;
                 end else begin
                   //同一个事务中先update然后再delete(
-                  Break;
+
+                  //操作性质变更
+                  DataRow.OperaType := Opt_Delete;
+                  //替换R0
+                  TmpCPnt :=  UIntPtr(Rldo)+ SizeOf(TRawLog_DataOpt) ;
+                  TmpSize := PWord(TmpCPnt)^;
+                  TmpCPnt := TmpCPnt + Rldo.NumElements*2;
+                  TmpCPnt := (TmpCPnt + 3) and $FFFFFFFC;
+
+                  //只读第一个块放进buf就是了
+                  if DataRow.R0<>nil then
+                    FreeMemory(DataRow.R0);
+                  DataRow.R0 := GetMemory(TmpSize);
+                  Move(Pointer(TmpCPnt)^, DataRow.R0^, TmpSize);
+                  Exit;
                 end;
               end
             end;
@@ -2095,7 +2175,7 @@ begin
     tmpLen := datarowCnt - offset;
     tmpdata := AllocMem(tmpLen);
     Move(Pointer(uintptr(srcData) + offset)^, tmpdata^, tmpLen);
-    Move(Pointer(uintptr(tmpdata) + (size_new - size_old))^, Pointer(uintptr(srcData) + offset)^, tmpLen);
+    Move(Pointer(uintptr(tmpdata) + (size_old - size_new))^, Pointer(uintptr(srcData) + offset)^, tmpLen);
     Move(pdata^, Pointer(uintptr(srcData) + offset)^, size_new);
     FreeMem(tmpdata);
   end;
@@ -2139,6 +2219,13 @@ begin
               BinReader.alignTo4;
             end;
           end;
+          //一般是 6 块数据
+          //0, 旧数据
+          //1. 新数据
+          //2. 聚合索引信息
+          //3. 表信息
+          //4. 0
+          //5. 0
           if (Rldo.normalData.FlagBits and 1) > 0 then
           begin
             //COMPENSATION
@@ -2185,8 +2272,21 @@ begin
                 begin
                   RawDataLen := PageRowCalcLength(DataRow_buf.R0);
                   applyChange(DataRow_buf.R0, R_[1], Rldo.OffsetInRow, R_Info[0].Length, R_Info[1].Length, RawDataLen);
-                  exit;
+                end else  if DataRow_buf.OperaType=Opt_Delete then
+                begin
+                  //这肯定是删除了数据然后又回滚了的（R0中包含了当前行的完整数据
+                  DataRow_buf.OperaType := Opt_Update;
+                  DataRow_buf.deleteFlag := False;
+                  RawDataLen := PageRowCalcLength(DataRow_buf.R0);
+                  applyChange(DataRow_buf.R0, R_[1], Rldo.OffsetInRow, R_Info[0].Length, R_Info[1].Length, RawDataLen);
+                  //刷新唯一聚合（唯一聚合是不会被update的，当尝试Update聚合=delete+insert
+                  if (DataRow_buf.UniqueClusteredKeys='') and (DataRow_buf.table.UniqueClusteredKeys.Count>0) and (R_Info[2].Length > 0) then
+                  begin
+                    BinReader.SetRange(R_Info[2].Offset, R_Info[2].Length);
+                    DataRow_buf.UniqueClusteredKeys := PriseRowLog_UniqueClusteredKeys(BinReader, DataRow_buf.table);
+                  end;
                 end;
+                exit;
               end
             end;
 
@@ -2636,7 +2736,7 @@ end;
 constructor Tsql2014Opt.Create;
 begin
   R0 := nil;
-  R1 := nil;
+//  R1 := nil;
   UnReliableRData := False;
   old_data := nil;
   new_data := nil;
@@ -2647,8 +2747,8 @@ begin
   if R0<>nil then
     FreeMem(R0);
 
-  if R1<>nil then
-    FreeMem(R1);
+//  if R1<>nil then
+//    FreeMem(R1);
 
   if old_data<>nil then
      old_data.Free;
