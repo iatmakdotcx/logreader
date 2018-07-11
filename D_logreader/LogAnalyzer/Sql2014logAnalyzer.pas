@@ -37,6 +37,8 @@ type
     //
     old_data:Tsql2014RowData;
     new_data:Tsql2014RowData;
+    //特殊变量
+    deleteFromUpdate:Boolean;
   public
     constructor Create;
     destructor Destroy; override;
@@ -1814,11 +1816,16 @@ begin
                   //只读第一个块放进buf就是了
                   if DataRow.R0<>nil then
                     FreeMemory(DataRow.R0);
-                  DataRow.R0 := GetMemory(TmpSize);
+                  DataRow.R0 := GetMemory($2000);
                   Move(Pointer(TmpCPnt)^, DataRow.R0^, TmpSize);
 
+                end else if DataRow.deleteFromUpdate then
+                begin
+                  DataRow.OperaType := Opt_Update;
                 end else
+                begin
                   DataRow.deleteFlag := True;
+                end;
 
                 Break;
               end
@@ -1865,7 +1872,7 @@ begin
             DataRow.OperaType := Opt_Insert;
             DataRow.page := Rldo.pageId;
             DataRow.table := DbTable;
-            DataRow.R0 := GetMemory(R_Info[0].Length);
+            DataRow.R0 := GetMemory($2000);
             Move(Pointer(UIntPtr(Rldo)+R_Info[0].Offset)^, DataRow.R0^, R_Info[0].Length);
             FRows.Add(DataRow);
           end;
@@ -1996,6 +2003,7 @@ begin
                   //同一个事务中先update然后再delete(
 
                   //操作性质变更
+                  DataRow.deleteFromUpdate := True;     //如果此删除回滚，用于还原之前的Update状态
                   DataRow.OperaType := Opt_Delete;
                   //替换R0
                   TmpCPnt :=  UIntPtr(Rldo)+ SizeOf(TRawLog_DataOpt) ;
@@ -2006,7 +2014,7 @@ begin
                   //只读第一个块放进buf就是了
                   if DataRow.R0<>nil then
                     FreeMemory(DataRow.R0);
-                  DataRow.R0 := GetMemory(TmpSize);
+                  DataRow.R0 := GetMemory($2000);
                   Move(Pointer(TmpCPnt)^, DataRow.R0^, TmpSize);
                   Exit;
                 end;
@@ -2048,7 +2056,7 @@ begin
             DataRow.OperaType := Opt_Delete;
             DataRow.page := Rldo.pageId;
             DataRow.table := DbTable;
-            DataRow.R0 := GetMemory(R_Info[0].Length);
+            DataRow.R0 := GetMemory($2000);
             Move(Pointer(UIntPtr(Rldo)+R_Info[0].Offset)^, DataRow.R0^, R_Info[0].Length);
             FRows.Add(DataRow);
           end;
@@ -2335,13 +2343,13 @@ begin
               if OriginRowData <> nil then
               begin
                 //before
-                tmpdata := AllocMem($2000);
+                tmpdata := GetMemory($2000);
                 Move(OriginRowData[0], tmpdata^, Length(OriginRowData));
                 RawDataLen := PageRowCalcLength(tmpdata);
                 applyChange(tmpdata, R_[0], Rldo.OffsetInRow, R_Info[0].Length, R_Info[1].Length, RawDataLen);
                 DataRow_buf.R1 := tmpdata;
                 //after
-                tmpdata := AllocMem($2000);
+                tmpdata := GetMemory($2000);
                 Move(OriginRowData[0], tmpdata^, Length(OriginRowData));
                 DataRow_buf.R0 := tmpdata;
               end;
@@ -2736,19 +2744,21 @@ end;
 constructor Tsql2014Opt.Create;
 begin
   R0 := nil;
-//  R1 := nil;
+  R1 := nil;
   UnReliableRData := False;
   old_data := nil;
   new_data := nil;
+
+  deleteFromUpdate := False;
 end;
 
 destructor Tsql2014Opt.Destroy;
 begin
   if R0<>nil then
-    FreeMem(R0);
+    FreeMemory(R0);
 
-//  if R1<>nil then
-//    FreeMem(R1);
+  if R1<>nil then
+    FreeMemory(R1);
 
   if old_data<>nil then
      old_data.Free;
