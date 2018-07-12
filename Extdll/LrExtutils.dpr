@@ -675,8 +675,8 @@ exports
   {$ENDIF}
   savePageLog2,
   Lr_doo,
-  Lr_roo,
-  Lr_doo_test;
+  Lr_roo
+  ;
 
 begin
   DLLProc := @DLLMainHandler; //动态库地址告诉系统，结束的时候执行卸载
@@ -685,7 +685,7 @@ begin
   dbhelper.init;
   {$IFDEF DEBUG}
   //test code
-  //pageCapture_init('project1.exe');
+  pageCapture_init('project1.exe');
   {$ENDIF}
 end.
 

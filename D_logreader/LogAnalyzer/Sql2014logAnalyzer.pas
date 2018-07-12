@@ -42,8 +42,6 @@ type
   public
     constructor Create;
     destructor Destroy; override;
-
-    procedure Pretreatment;
   end;
 
 
@@ -314,10 +312,15 @@ begin
           updateStr := updateStr + Format(', %s=%s',[raw_new.field.getSafeColName, Hvu_GetFieldStrValueWithQuoteIfNeed(raw_new.field, raw_new.value)]);
         end
       end;
-      if updateStr.Length > 0 then
-        Delete(updateStr, 1, 2);  //", "
+      if updateStr.Length = 0 then
+      begin
+        //如果所有字段一样，肯定就是更新回原始状态了，
+        Result := '';
+        exit;
+      end;
+      Delete(updateStr, 1, 2);  //", "
     end else begin
-      //没有old，根据新的全部字段生成update（除唯一聚合，如果存在
+      //没有old，根据新的全部字段生成update（除唯一聚合
       updateStr := '';
       for I := 0 to aRowData.Table.Fields.Count - 1 do
       begin
@@ -363,10 +366,20 @@ begin
   else
   begin
     whereStr := '';
-    for I := 0 to aRowData.new_data.Fields.Count - 1 do
+    if aRowData.R1<>nil then
     begin
-      fieldval := PdbFieldValue(aRowData.new_data.Fields[I]);
-      whereStr := whereStr + Format('and %s=%s ', [fieldval.field.getSafeColName, Hvu_GetFieldStrValueWithQuoteIfNeed(fieldval.field, fieldval.value)]);
+      //Update再delete
+      for I := 0 to aRowData.old_data.Fields.Count - 1 do
+      begin
+        fieldval := PdbFieldValue(aRowData.old_data.Fields[I]);
+        whereStr := whereStr + Format('and %s=%s ', [fieldval.field.getSafeColName, Hvu_GetFieldStrValueWithQuoteIfNeed(fieldval.field, fieldval.value)]);
+      end;
+    end else begin
+      for I := 0 to aRowData.new_data.Fields.Count - 1 do
+      begin
+        fieldval := PdbFieldValue(aRowData.new_data.Fields[I]);
+        whereStr := whereStr + Format('and %s=%s ', [fieldval.field.getSafeColName, Hvu_GetFieldStrValueWithQuoteIfNeed(fieldval.field, fieldval.value)]);
+      end;
     end;
     if whereStr.Length > 0 then
     begin
@@ -492,7 +505,7 @@ begin
       finally
         TmpBinReader.Free;
       end;
-      if (DataRow_buf.OperaType = Opt_Update) and (DataRow_buf.R1 <> nil) then
+      if DataRow_buf.R1 <> nil then
       begin
         TmpBinReader := TbinDataReader.Create(DataRow_buf.R1, $2000);
         try
@@ -1226,7 +1239,8 @@ begin
   ddlitem := DDL.GetItem(objId);
   if ddlitem=nil then
   begin
-    raise Exception.Create('Error Message:PriseDDLPkg_sysrscols.1');
+    //raise Exception.Create('Error Message:PriseDDLPkg_sysrscols.1');
+    //可能是索引键。
   end else begin
     if ddlitem.xType = 'd' then
     begin
@@ -1795,7 +1809,7 @@ begin
           begin
             //Rollback tran
             //COMPENSATION    恢复事务中Delete的数据
-            for I := 0 to FRows.Count - 1 do
+            for I := FRows.Count - 1 downto 0 do
             begin
               DataRow := Tsql2014Opt(FRows[i]);
               if (DataRow.page.PID = Rldo.pageId.PID) and
@@ -1824,7 +1838,8 @@ begin
                   DataRow.OperaType := Opt_Update;
                 end else
                 begin
-                  DataRow.deleteFlag := True;
+                  FRows.Delete(i);
+                  //DataRow.deleteFlag := True;
                 end;
 
                 Break;
@@ -1972,7 +1987,7 @@ begin
           begin
             //rollback tran
             //COMPENSATION    删除事务中insert的数据
-            for I := 0 to FRows.Count - 1 do
+            for I := FRows.Count - 1 downto 0 do
             begin
               DataRow := Tsql2014Opt(FRows[i]);
               if (DataRow.page.PID = Rldo.pageId.PID) and
@@ -1980,13 +1995,13 @@ begin
                 (DataRow.page.solt = Rldo.pageId.solt) then
               begin
                 //撤销之前的数据
-                DataRow.deleteFlag := True;
+                FRows.Delete(i);
                 Break;
               end
             end;
           end else begin
             //删除前，先查找下之前有没有对本行数据的操作（insert或Update，有则取消之前操作
-            for I := 0 to FRows.Count - 1 do
+            for I := FRows.Count - 1 downto 0 do
             begin
               DataRow := Tsql2014Opt(FRows[i]);
               if (DataRow.page.PID = Rldo.pageId.PID) and
@@ -1996,6 +2011,8 @@ begin
                 //撤销之前的数据
                 if DataRow.OperaType = Opt_Insert then
                 begin
+//                  if DataRow.deleteFlag then
+//                    continue;
                   DataRow.deleteFlag := True;
                   //同一个事务中先insert然后再delete(
                   Exit;
@@ -2183,7 +2200,7 @@ begin
     tmpLen := datarowCnt - offset;
     tmpdata := AllocMem(tmpLen);
     Move(Pointer(uintptr(srcData) + offset)^, tmpdata^, tmpLen);
-    Move(Pointer(uintptr(tmpdata) + (size_old - size_new))^, Pointer(uintptr(srcData) + offset)^, tmpLen);
+    Move(Pointer(uintptr(tmpdata) + (size_old - size_new))^, Pointer(uintptr(srcData) + offset)^, tmpLen - (size_old - size_new));
     Move(pdata^, Pointer(uintptr(srcData) + offset)^, size_new);
     FreeMem(tmpdata);
   end;
@@ -2237,7 +2254,7 @@ begin
           if (Rldo.normalData.FlagBits and 1) > 0 then
           begin
             //COMPENSATION
-            for I := 0 to FRows.Count - 1 do
+            for I := FRows.Count - 1 downto 0 do
             begin
               DataRow_buf := Tsql2014Opt(FRows[i]);
               if (DataRow_buf.page.PID = Rldo.pageId.PID) and
@@ -2261,7 +2278,7 @@ begin
               end
             end;
           end else begin
-            for I := 0 to FRows.Count - 1 do
+            for I := FRows.Count - 1 downto 0 do
             begin
               DataRow_buf := Tsql2014Opt(FRows[i]);
               if (DataRow_buf.page.PID = Rldo.pageId.PID) and
@@ -2320,17 +2337,24 @@ begin
               OriginRowData := getUpdateSoltData(FLogSource.Fdbc, Rldo.normalData.PreviousLSN);
               if OriginRowData = nil then
               begin
-                Loger.Add('获取行原始数据失败！' + lsn2str(tPkg.LSN) + ',pLSN:' + lsn2str(Rldo.normalData.PreviousLSN), LOG_WARNING or LOG_IMPORTANT);
-                if (DataRow_buf.UniqueClusteredKeys = '') or (DbTable.Owner='sys') then
+                //Loger.Add('获取行原始数据失败！' + lsn2str(tPkg.LSN) + ',pLSN:' + lsn2str(Rldo.normalData.PreviousLSN), LOG_WARNING or LOG_IMPORTANT);
+                if (DataRow_buf.UniqueClusteredKeys = '') or (DbTable.Owner='sys') then   //sys表可能没有select权限，所以直接读page
                 begin
-                  //如果没有聚合索引，从dbcc page获取原始行数据。因为不会出现重建聚合，所以page页相内容不容易发生变动，数据相对可靠。
+                  Loger.Add('表[%s]没有唯一聚合,对此表的Update操作将被忽略！如您不希望Update被忽略，请启用数据库插件.');
+                  DataRow_buf.Free;
+                  Exit;
+                  //TODO:极不靠谱，不能保证page数据与当前lsn之间产生了哪些变化
+                  //如果没有聚合索引，从dbcc page获取原始行数据
+                  {
                   OriginRowData := getUpdateSoltFromDbccPage(FLogSource.Fdbc, Rldo.pageId);
                   if OriginRowData = nil then
                   begin
+                    //数据已被删除！！！！！！
                     Loger.Add('获取行原始数据失败！'+lsn2str(tPkg.LSN), LOG_ERROR or LOG_IMPORTANT);
                     DataRow_buf.Free;
                     Exit;
                   end;
+                  }
                   DataRow_buf.UnReliableRData := true;
                 end else begin
                   //如果没有OriginRowData但是有 UniqueClusteredKeys则可以通过直接查询整行数据封装
@@ -2346,7 +2370,7 @@ begin
                 tmpdata := GetMemory($2000);
                 Move(OriginRowData[0], tmpdata^, Length(OriginRowData));
                 RawDataLen := PageRowCalcLength(tmpdata);
-                applyChange(tmpdata, R_[0], Rldo.OffsetInRow, R_Info[0].Length, R_Info[1].Length, RawDataLen);
+                applyChange(tmpdata, R_[0], Rldo.OffsetInRow, R_Info[1].Length, R_Info[0].Length, RawDataLen);
                 DataRow_buf.R1 := tmpdata;
                 //after
                 tmpdata := GetMemory($2000);
@@ -2766,11 +2790,6 @@ begin
      new_data.Free;
 
   inherited;
-end;
-
-procedure Tsql2014Opt.Pretreatment;
-begin
-
 end;
 
 end.

@@ -216,7 +216,7 @@ object Form1: TForm1
     Width = 281
     Height = 21
     TabOrder = 9
-    Text = '00000039:000000b0:0001'
+    Text = '0000003a:00000280:0001'
   end
   object ImageList1: TImageList
     Left = 400
