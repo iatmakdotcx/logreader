@@ -2405,22 +2405,22 @@ begin
   begin
     Move(pdata^, Pointer(uintptr(srcData) + offset)^, size_old);
   end
-  else if size_old > size_new then
+  else if size_old < size_new then
   begin
     //数据后移
     tmpLen := datarowCnt - offset;
     tmpdata := AllocMem(tmpLen);
     Move(Pointer(uintptr(srcData) + offset)^, tmpdata^, tmpLen);
-    Move(tmpdata^, Pointer(uintptr(srcData) + offset + (size_old - size_new))^, tmpLen);
-    Move(pdata^, Pointer(uintptr(srcData) + offset)^, size_old);
+    Move(tmpdata^, Pointer(uintptr(srcData) + offset + (size_new - size_old))^, tmpLen);
+    Move(pdata^, Pointer(uintptr(srcData) + offset)^, size_new);
     FreeMem(tmpdata);
   end else begin
     //前移
     tmpLen := datarowCnt - offset;
     tmpdata := AllocMem(tmpLen);
     Move(Pointer(uintptr(srcData) + offset)^, tmpdata^, tmpLen);
-    Move(Pointer(uintptr(tmpdata) + (size_new - size_old))^, Pointer(uintptr(srcData) + offset)^, tmpLen);
-    Move(pdata^, Pointer(uintptr(srcData) + offset)^, size_old);
+    Move(Pointer(uintptr(tmpdata) + (size_old - size_new))^, Pointer(uintptr(srcData) + offset)^, tmpLen - (size_old - size_new));
+    Move(pdata^, Pointer(uintptr(srcData) + offset)^, size_new);
     FreeMem(tmpdata);
   end;
 end;
@@ -2430,117 +2430,215 @@ var
   R_: array of TBytes;
   R_Info: array of TRawElement;
   BinReader: TbinDataReader;
-  I:Integer;
+  I, J:Integer;
   OriginRowData:TBytes;
   OffsetInRow:Word;
   TableId: Integer;
   DbTable: TdbTableItem;
-  TmpBinReader: TbinDataReader;
-  tmpdata_bef:Pointer;
-  DataRow_bef,DataRow_aft: Tsql2014RowData;
+  DataRow_buf: Tsql2014Opt;
+  tmpdata:Pointer;
+  RawDataLen:Integer;
+  tmpLen:Word;
+procedure applyChangeAll(P:Pointer);
 begin
-  Loger.Add('===========================PriseRowLog_MODIFY_COLUMNS============================');
+  RawDataLen := PageRowCalcLength(P);
+  applyChange(P, R_[1], Rldo.OffsetInRow, Rldo.ModifySize, R_Info[1].Length, RawDataLen);
+end;
+begin
   BinReader := nil;
-  DataRow_bef := nil;
   Rldo := tPkg.Raw.data;
   try
-    try
-      case Rldo.normalData.ContextCode of
-        LCX_HEAP, //堆表写入
-        LCX_CLUSTERED: //聚合写入
+    case Rldo.normalData.ContextCode of
+      LCX_HEAP, //堆表写入
+      LCX_CLUSTERED: //聚合写入
+        begin
+          SetLength(R_, Rldo.NumElements);
+          SetLength(R_Info, Rldo.NumElements);
+          BinReader := TbinDataReader.Create(tPkg.Raw);
+          BinReader.seek(SizeOf(TRawLog_DataOpt), soBeginning);
+          for I := 0 to Rldo.NumElements - 1 do
           begin
-            SetLength(R_, Rldo.NumElements);
-            SetLength(R_Info, Rldo.NumElements);
-            BinReader := TbinDataReader.Create(tPkg.Raw);
-            BinReader.seek(SizeOf(TRawLog_DataOpt), soBeginning);
-            for I := 0 to Rldo.NumElements - 1 do
+            R_Info[I].Length := BinReader.readWord;
+          end;
+          BinReader.alignTo4;
+          for I := 0 to Rldo.NumElements - 1 do
+          begin
+            if R_Info[I].Length > 0 then
             begin
-              R_Info[I].Length := BinReader.readWord;
-            end;
-            BinReader.alignTo4;
-            for I := 0 to Rldo.NumElements - 1 do
-            begin
-              if R_Info[I].Length > 0 then
-              begin
-                R_Info[I].Offset := BinReader.Position;
-                R_[I] := BinReader.readBytes(R_Info[I].Length);
-                BinReader.alignTo4;
-              end;
-            end;
-            (*
-            0:更新的Offset
-            1:更新的大小
-            2:聚集索引信息
-            3:锁信息，object_id和 lock_key
-            --之后是修改的内容，类似Log_MODIFY_ROW的r0和r1
-            每2个为一组，至少有2组
-            *)
-            OriginRowData := getUpdateSoltData(FLogSource.Fdbc, Rldo.normalData.PreviousLSN);
-            if OriginRowData = nil then
-            begin
-              Loger.Add('获取行原始数据失败！' + lsn2str(tPkg.LSN) + ',pLSN:' + lsn2str(Rldo.normalData.PreviousLSN), LOG_WARNING or LOG_IMPORTANT);
-              //备用方案，从dbcc page获取原始行数据（数据可能不准确
-              OriginRowData := getUpdateSoltFromDbccPage(FLogSource.Fdbc, Rldo.pageId);
-              if OriginRowData = nil then
-              begin
-                Loger.Add('获取行原始数据失败！'+lsn2str(tPkg.LSN),LOG_ERROR or LOG_IMPORTANT);
-                Exit;
-              end;
-            end;
-            BinReader.SetRange(R_Info[3].Offset, R_Info[3].Length);
-            BinReader.skip(6);
-            TableId := BinReader.readInt;
-            DbTable := FLogSource.Fdbc.dict.tables.GetItemById(TableId);
-            if DbTable = nil then
-            begin
-              //忽略的表
-              Exit;
-            end;
-
-            //OriginRowData 是修改后的行数据
-            tmpdata_bef := AllocMem($2000);
-            try
-              Move(OriginRowData[0], tmpdata_bef^, Length(OriginRowData));
-
-              for I := 0 to ((Rldo.NumElements - 4) div 2) - 1 do
-              begin
-                OffsetInRow := Pword(UIntPtr(R_[0]) + i*4)^;
-                applyChange(tmpdata_bef, R_[4 + I * 2], OffsetInRow, R_Info[4 + I * 2].Length, R_Info[4 + I * 2 + 1].Length, Length(OriginRowData));
-              end;
-
-              //before update
-              TmpBinReader := TbinDataReader.Create(tmpdata_bef, $2000);
-              try
-                DataRow_bef := PriseRowLog_InsertDeleteRowData(DbTable, TmpBinReader);
-              finally
-                TmpBinReader.Free;
-              end;
-              //after update
-              TmpBinReader := TbinDataReader.Create(@OriginRowData[0], $2000);
-              try
-                DataRow_aft := PriseRowLog_InsertDeleteRowData(DbTable, TmpBinReader);
-              finally
-                TmpBinReader.Free;
-              end;
-
-
-            finally
-              FreeMem(tmpdata_bef);
+              R_Info[I].Offset := BinReader.Position;
+              R_[I] := BinReader.readBytes(R_Info[I].Length);
+              BinReader.alignTo4;
             end;
           end;
-      else
-        Loger.Add('PriseRowLog_MODIFY_COLUMNS 遇到尚未处理的 ContextCode :' + contextCodeToStr(Rldo.normalData.ContextCode));
-      end;
-      if DataRow_bef <> nil then
-      begin
+          (*
+          0:更新的Offset
+          1:更新的大小
+          2:聚集索引信息
+          3:锁信息，object_id和 lock_key
+          --之后是修改的内容，类似Log_MODIFY_ROW的r0和r1
+          每2个为一组，至少有2组
+          *)
 
-        FRows.Add(DataRow_bef);
-      end;
-    except
-      on eexx: Exception do
-      begin
-        raise eexx;
-      end;
+          if (Rldo.normalData.FlagBits and 1) > 0 then
+          begin
+            //COMPENSATION
+            for I := FRows.Count - 1 downto 0 do
+            begin
+              DataRow_buf := Tsql2014Opt(FRows[i]);
+              if (DataRow_buf.page.PID = Rldo.pageId.PID) and
+                (DataRow_buf.page.FID = Rldo.pageId.FID) and
+                (DataRow_buf.page.solt = Rldo.pageId.solt) then
+              begin
+                //找到页，修正页数据
+                if DataRow_buf.OperaType = Opt_Update then
+                begin
+                  if (DataRow_buf.R0<>nil) and (not DataRow_buf.UnReliableRData) then
+                  begin
+                    RawDataLen := PageRowCalcLength(DataRow_buf.R0);
+                    for J := 0 to ((Rldo.NumElements - 4) div 2) - 1 do
+                    begin
+                      OffsetInRow := Pword(UIntPtr(R_[0]) + J*4 + 2)^;
+                      tmpLen := Pword(UIntPtr(R_[1]) + J*2)^;
+                      applyChange(DataRow_buf.R0, R_[4 + J * 2 + 1], OffsetInRow,
+                         tmpLen, R_Info[4 + J * 2 + 1].Length,RawDataLen);
+                      RawDataLen := RawDataLen + (R_Info[4 + J * 2 + 1].Length - tmpLen);
+                    end;
+                  end;
+                end else if DataRow_buf.OperaType=Opt_Insert then
+                begin
+                  RawDataLen := PageRowCalcLength(DataRow_buf.R0);
+                  for J := 0 to ((Rldo.NumElements - 4) div 2) - 1 do
+                  begin
+                    OffsetInRow := Pword(UIntPtr(R_[0]) + J*4)^;
+                    applyChange(DataRow_buf.R0, R_[4 + J * 2 + 1], OffsetInRow,
+                      R_Info[4 + J * 2].Length, R_Info[4 + J * 2 + 1].Length, RawDataLen);
+                  end;
+//                  RawDataLen := PageRowCalcLength(DataRow_buf.R0);
+//                  applyChange(DataRow_buf.R0, R_[1], Rldo.OffsetInRow, Rldo.ModifySize, R_Info[1].Length, RawDataLen);
+                end;
+                Break;
+              end
+            end;
+          end else begin
+            for I := FRows.Count - 1 downto 0 do
+            begin
+              DataRow_buf := Tsql2014Opt(FRows[i]);
+              if (DataRow_buf.page.PID = Rldo.pageId.PID) and
+                (DataRow_buf.page.FID = Rldo.pageId.FID) and
+                (DataRow_buf.page.solt = Rldo.pageId.solt) then
+              begin
+                //找到页，修正页数据
+                if DataRow_buf.OperaType = Opt_Update then
+                begin
+                  if (DataRow_buf.R0<>nil) and (not DataRow_buf.UnReliableRData) then
+                  begin
+                    RawDataLen := PageRowCalcLength(DataRow_buf.R0);
+                    for J := 0 to ((Rldo.NumElements - 4) div 2) - 1 do
+                    begin
+                      OffsetInRow := Pword(UIntPtr(R_[0]) + J*4)^;
+                      applyChange(DataRow_buf.R0, R_[4 + J * 2 + 1], OffsetInRow,
+                        R_Info[4 + J * 2].Length, R_Info[4 + J * 2 + 1].Length, RawDataLen);
+                    end;
+                  //applyChangeAll(DataRow_buf.R0);
+//                    RawDataLen := PageRowCalcLength(DataRow_buf.R0);
+//                    applyChange(DataRow_buf.R0, R_[1], Rldo.OffsetInRow, Rldo.ModifySize, R_Info[1].Length, RawDataLen);
+                  end;
+                end else if DataRow_buf.OperaType=Opt_Insert then
+                begin
+                  RawDataLen := PageRowCalcLength(DataRow_buf.R0);
+                  for J := 0 to ((Rldo.NumElements - 4) div 2) - 1 do
+                  begin
+                    OffsetInRow := Pword(UIntPtr(R_[0]) + J*4)^;
+                    applyChange(DataRow_buf.R0, R_[4 + J * 2 + 1], OffsetInRow,
+                      R_Info[4 + J * 2].Length, R_Info[4 + J * 2 + 1].Length, RawDataLen);
+                  end;
+//                  RawDataLen := PageRowCalcLength(DataRow_buf.R0);
+//                  applyChange(DataRow_buf.R0, R_[1], Rldo.OffsetInRow, R_Info[0].Length, R_Info[1].Length, RawDataLen);
+                end else  if DataRow_buf.OperaType=Opt_Delete then
+                begin
+                  //这肯定是删除了数据然后又回滚了的（R0中包含了当前行的完整数据
+                  DataRow_buf.OperaType := Opt_Update;
+                  DataRow_buf.deleteFlag := False;
+                  RawDataLen := PageRowCalcLength(DataRow_buf.R0);
+                  for J := 0 to ((Rldo.NumElements - 4) div 2) - 1 do
+                  begin
+                    OffsetInRow := Pword(UIntPtr(R_[0]) + J*4)^;
+                    applyChange(DataRow_buf.R0, R_[4 + J * 2 + 1], OffsetInRow,
+                      R_Info[4 + J * 2].Length, R_Info[4 + J * 2 + 1].Length, RawDataLen);
+                  end;
+//                  RawDataLen := PageRowCalcLength(DataRow_buf.R0);
+//                  applyChange(DataRow_buf.R0, R_[1], Rldo.OffsetInRow, R_Info[0].Length, R_Info[1].Length, RawDataLen);
+                  //刷新唯一聚合（唯一聚合是不会被update的，当尝试Update聚合=delete+insert
+                  if (DataRow_buf.UniqueClusteredKeys='') and (DataRow_buf.table.UniqueClusteredKeys.Count>0) and (R_Info[2].Length > 0) then
+                  begin
+                    BinReader.SetRange(R_Info[2].Offset, R_Info[2].Length);
+                    DataRow_buf.UniqueClusteredKeys := PriseRowLog_UniqueClusteredKeys(BinReader, DataRow_buf.table);
+                  end;
+                end;
+                exit;
+              end
+            end;
+
+             DataRow_buf := Tsql2014Opt.Create;
+            try
+              BinReader.SetRange(R_Info[3].Offset, R_Info[3].Length);
+              BinReader.skip(6);
+              TableId := BinReader.readInt;
+              DbTable := FLogSource.Fdbc.dict.tables.GetItemById(TableId);
+              if DbTable = nil then
+              begin
+                //忽略的表
+                Exit;
+              end;
+              OriginRowData := getUpdateSoltData(FLogSource.Fdbc, Rldo.normalData.PreviousLSN);
+              if OriginRowData = nil then
+              begin
+                //Loger.Add('获取行原始数据失败！' + lsn2str(tPkg.LSN) + ',pLSN:' + lsn2str(Rldo.normalData.PreviousLSN), LOG_WARNING or LOG_IMPORTANT);
+                if (DataRow_buf.UniqueClusteredKeys = '') or (DbTable.Owner='sys') then   //sys表可能没有select权限，所以直接读page
+                begin
+                  Loger.Add('表[%s]没有唯一聚合,对此表的Update操作将被忽略！如您不希望Update被忽略，请启用数据库插件.');
+                  DataRow_buf.Free;
+                  Exit;
+                end else begin
+                  //如果没有OriginRowData但是有 UniqueClusteredKeys则可以通过直接查询整行数据封装
+                end
+              end;
+
+              //OriginRowData 是修改后的行数据
+              DataRow_buf.OperaType := Opt_Update;
+              DataRow_buf.page := Rldo.pageId;
+              DataRow_buf.table := DbTable;
+              if OriginRowData <> nil then
+              begin
+                //after
+                tmpdata := GetMemory($2000);
+                Move(OriginRowData[0], tmpdata^, Length(OriginRowData));
+                DataRow_buf.R0 := tmpdata;
+
+                //before、回滚到修改之前的状态
+                tmpdata := GetMemory($2000);
+                Move(OriginRowData[0], tmpdata^, Length(OriginRowData));
+                RawDataLen := PageRowCalcLength(tmpdata);
+                for I := 0 to ((Rldo.NumElements - 4) div 2) - 1 do
+                begin
+                  OffsetInRow := Pword(UIntPtr(R_[0]) + i*4)^;
+                  applyChange(tmpdata, R_[4 + I * 2], OffsetInRow,
+                    R_Info[4 + I * 2 + 1].Length, R_Info[4 + I * 2].Length,  RawDataLen);
+                  RawDataLen := RawDataLen + (R_Info[4 + I * 2].Length - R_Info[4 + I * 2 + 1].Length);
+                end;
+
+//                applyChange(tmpdata, R_[0], Rldo.OffsetInRow, R_Info[1].Length, R_Info[0].Length, RawDataLen);
+                DataRow_buf.R1 := tmpdata;
+              end;
+
+              FRows.Add(DataRow_buf);
+            except
+              DataRow_buf.Free;
+            end;
+          end;
+        end;
+    else
+      Loger.Add('PriseRowLog_MODIFY_COLUMNS 遇到尚未处理的 ContextCode :' + contextCodeToStr(Rldo.normalData.ContextCode));
     end;
   finally
     if BinReader <> nil then
