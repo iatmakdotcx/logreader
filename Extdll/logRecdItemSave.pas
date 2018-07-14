@@ -71,6 +71,7 @@ type
     var
       f_path: string;
       dbids: TDbidCustomBucketList;
+      dbidsCS:TCriticalSection;
     procedure dbidsObjAction(AItem, AData: Pointer; out AContinue: Boolean);
     procedure VlfMgrObjAction(AItem, AData: Pointer; out AContinue: Boolean);
   public
@@ -78,6 +79,8 @@ type
     destructor Destroy; override;
     function LogDataSaveToFile(dbid: Word; lsn1: DWORD; lsn2: DWORD; logs: TList; data: TMemoryStream): Boolean;
     function LogDataGetData(dbid: Word; lsn1: DWORD; lsn2: DWORD; lsn3: WORD; var data: TMemoryStream): Boolean;
+
+    procedure Clear;
   end;
 
   TloopSaveMgr = class(TThread)
@@ -193,6 +196,17 @@ end;
 
 { TPagelogFileMgr }
 
+procedure TPagelogFileMgr.Clear;
+begin
+  dbidsCS.Enter;
+  try
+    dbids.ForEach(dbidsObjAction);
+    dbids.Clear;
+  finally
+    dbidsCS.Leave;
+  end;
+end;
+
 constructor TPagelogFileMgr.Create;
 var
   Pathbuf: array[0..MAX_PATH + 2] of Char;
@@ -202,13 +216,14 @@ begin
   f_path := ExtractFilePath(string(Pathbuf)) + SsPath;
   ForceDirectories(f_path);
   dbids := TDbidCustomBucketList.Create;
+  dbidsCS:=TCriticalSection.Create;
 end;
 
 destructor TPagelogFileMgr.Destroy;
 begin
-  dbids.ForEach(dbidsObjAction);
-  dbids.Clear;
+  Clear;
   dbids.Free;
+  dbidsCS.Free;
   inherited;
 end;
 
@@ -232,19 +247,24 @@ begin
   try
     if (dbid > 0) and (lsn1 > 0) then
     begin
-      DB := dbids[dbid];
-      if DB = nil then
-      begin
-        DB := TDbidCustomBucketList.Create;
-        dbids.Add(dbid, DB);
+      dbidsCS.Enter;
+      try
+        DB := dbids[dbid];
+        if DB = nil then
+        begin
+          DB := TDbidCustomBucketList.Create;
+          dbids.Add(dbid, DB);
+        end;
+        ReqNo := DB[lsn1];
+        if ReqNo = nil then
+        begin
+          ReqNo := TVlfMgr.Create(dbid, lsn1, f_path);
+          DB.Add(lsn1, ReqNo)
+        end;
+        Result := ReqNo.Get(lsn2, lsn3, data);
+      finally
+        dbidsCS.Leave;
       end;
-      ReqNo := DB[lsn1];
-      if ReqNo = nil then
-      begin
-        ReqNo := TVlfMgr.Create(dbid, lsn1, f_path);
-        DB.Add(lsn1, ReqNo)
-      end;
-      Result := ReqNo.Get(lsn2, lsn3, data);
     end;
   except
     on dd:Exception do

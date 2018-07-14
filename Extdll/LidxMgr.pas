@@ -53,7 +53,7 @@ type
       _FileHandle: THandle;
       dl1: TList;
       dictPnt:Pointer;
-      memoIdx:TmemoIdx;
+      memoIdx:TmemoIdx;     //最近写入的日志
       MaxItem: Pointer;     //最大的项目
       MaxItemOffset: Dword; //最大项目的offset
 
@@ -327,11 +327,51 @@ begin
           for I := memoIdx.Count - 1 downto 0 do
           begin
             tptp := TmemoIdx.PItem(memoIdx.Get(i));
-            if lsn2 = tptp.lsn2 then
+            if lsn2 = (tptp.lsn2 and $7FFFFFFF) then
             begin
-              dOffset := tptp.Offset;
-              Result := True;
-              Exit;
+              isX64Addr := (tptp.lsn2 and $80000000) > 0;
+              BlockSize := $1000;  //先随便读1000，之后不够重新读
+              while True do
+              begin
+                buf := GetMemory(BlockSize);
+                try
+                  SetFilePointer(_FileHandle, tptp.Offset, nil, soFromBeginning);
+                  if ReadFile(_FileHandle, buf^, BlockSize, nSize, nil) and (nSize>0) then
+                  begin
+                    tmplsn3Cnt := PWord(UINT_PTR(buf) + 4)^;
+                    if isX64Addr then
+                    begin
+                      dlEPosi := 4 + 2 + (2+8)*tmplsn3Cnt;
+                    end else begin
+                      dlEPosi := 4 + 2 + (2+4)*tmplsn3Cnt;
+                    end;
+                    if dlEPosi>BlockSize then
+                    begin
+                      BlockSize := dlEPosi;
+                      Continue;
+                    end;
+
+                    for J := 0 to tmpLsn3Cnt-1 do
+                    begin
+                      if PWORD(UINT_PTR(buf) + 6 + J * 2)^ = lsn3 then
+                      begin
+                        if isX64Addr then
+                        begin
+                          //x64
+                          dOffset := PUint64(UINT_PTR(buf) + 6 + tmpLsn3Cnt * 2 + J * 8)^
+                        end else begin
+                          //x86
+                          dOffset := PDword(UINT_PTR(buf) + 6 + tmpLsn3Cnt * 2 + J * 4)^
+                        end;
+                        Result := True;
+                      end;
+                    end;
+                  end;
+                finally
+                  FreeMemory(buf);
+                end;
+                Exit;
+              end;
             end;
           end;
         end;
@@ -343,7 +383,6 @@ begin
     //search
     dl1Cs.Enter;
     try
-
       for I := dl1.Count-1 Downto 0 do
       begin
         tmpDictItem := dl1[i];

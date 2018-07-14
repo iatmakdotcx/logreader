@@ -2075,7 +2075,12 @@ begin
             DataRow.table := DbTable;
             DataRow.R0 := GetMemory($2000);
             Move(Pointer(UIntPtr(Rldo)+R_Info[0].Offset)^, DataRow.R0^, R_Info[0].Length);
-            FRows.Add(DataRow);
+            if (Pbyte(DataRow.R0)^ and $F) > 0 then
+            begin
+              //not primary record
+              DataRow.free;
+            end else
+              FRows.Add(DataRow);
           end;
         end;
       LCX_TEXT_MIX:
@@ -2439,11 +2444,6 @@ var
   tmpdata:Pointer;
   RawDataLen:Integer;
   tmpLen:Word;
-procedure applyChangeAll(P:Pointer);
-begin
-  RawDataLen := PageRowCalcLength(P);
-  applyChange(P, R_[1], Rldo.OffsetInRow, Rldo.ModifySize, R_Info[1].Length, RawDataLen);
-end;
 begin
   BinReader := nil;
   Rldo := tPkg.Raw.data;
@@ -2497,7 +2497,7 @@ begin
                     RawDataLen := PageRowCalcLength(DataRow_buf.R0);
                     for J := 0 to ((Rldo.NumElements - 4) div 2) - 1 do
                     begin
-                      OffsetInRow := Pword(UIntPtr(R_[0]) + J*4 + 2)^;
+                      OffsetInRow := Pword(UIntPtr(R_[0]) + J*4)^;
                       tmpLen := Pword(UIntPtr(R_[1]) + J*2)^;
                       applyChange(DataRow_buf.R0, R_[4 + J * 2 + 1], OffsetInRow,
                          tmpLen, R_Info[4 + J * 2 + 1].Length,RawDataLen);
@@ -2510,8 +2510,10 @@ begin
                   for J := 0 to ((Rldo.NumElements - 4) div 2) - 1 do
                   begin
                     OffsetInRow := Pword(UIntPtr(R_[0]) + J*4)^;
+                    tmpLen := Pword(UIntPtr(R_[1]) + J*2)^;
                     applyChange(DataRow_buf.R0, R_[4 + J * 2 + 1], OffsetInRow,
-                      R_Info[4 + J * 2].Length, R_Info[4 + J * 2 + 1].Length, RawDataLen);
+                       tmpLen, R_Info[4 + J * 2 + 1].Length,RawDataLen);
+                    RawDataLen := RawDataLen + (R_Info[4 + J * 2 + 1].Length - tmpLen);
                   end;
 //                  RawDataLen := PageRowCalcLength(DataRow_buf.R0);
 //                  applyChange(DataRow_buf.R0, R_[1], Rldo.OffsetInRow, Rldo.ModifySize, R_Info[1].Length, RawDataLen);
@@ -2535,9 +2537,10 @@ begin
                     RawDataLen := PageRowCalcLength(DataRow_buf.R0);
                     for J := 0 to ((Rldo.NumElements - 4) div 2) - 1 do
                     begin
-                      OffsetInRow := Pword(UIntPtr(R_[0]) + J*4)^;
+                      OffsetInRow := Pword(UIntPtr(R_[0]) + J*4 + 2)^;
                       applyChange(DataRow_buf.R0, R_[4 + J * 2 + 1], OffsetInRow,
                         R_Info[4 + J * 2].Length, R_Info[4 + J * 2 + 1].Length, RawDataLen);
+                        RawDataLen := RawDataLen + (R_Info[4 + J * 2 + 1].Length - R_Info[4 + J * 2].Length);
                     end;
                   //applyChangeAll(DataRow_buf.R0);
 //                    RawDataLen := PageRowCalcLength(DataRow_buf.R0);
@@ -2548,9 +2551,10 @@ begin
                   RawDataLen := PageRowCalcLength(DataRow_buf.R0);
                   for J := 0 to ((Rldo.NumElements - 4) div 2) - 1 do
                   begin
-                    OffsetInRow := Pword(UIntPtr(R_[0]) + J*4)^;
+                    OffsetInRow := Pword(UIntPtr(R_[0]) + J*4 + 2)^;
                     applyChange(DataRow_buf.R0, R_[4 + J * 2 + 1], OffsetInRow,
                       R_Info[4 + J * 2].Length, R_Info[4 + J * 2 + 1].Length, RawDataLen);
+                    RawDataLen := RawDataLen + (R_Info[4 + J * 2 + 1].Length - R_Info[4 + J * 2].Length);
                   end;
 //                  RawDataLen := PageRowCalcLength(DataRow_buf.R0);
 //                  applyChange(DataRow_buf.R0, R_[1], Rldo.OffsetInRow, R_Info[0].Length, R_Info[1].Length, RawDataLen);
@@ -2562,9 +2566,10 @@ begin
                   RawDataLen := PageRowCalcLength(DataRow_buf.R0);
                   for J := 0 to ((Rldo.NumElements - 4) div 2) - 1 do
                   begin
-                    OffsetInRow := Pword(UIntPtr(R_[0]) + J*4)^;
+                    OffsetInRow := Pword(UIntPtr(R_[0]) + J*4 + 2)^;
                     applyChange(DataRow_buf.R0, R_[4 + J * 2 + 1], OffsetInRow,
                       R_Info[4 + J * 2].Length, R_Info[4 + J * 2 + 1].Length, RawDataLen);
+                    RawDataLen := RawDataLen + (R_Info[4 + J * 2 + 1].Length - R_Info[4 + J * 2].Length);
                   end;
 //                  RawDataLen := PageRowCalcLength(DataRow_buf.R0);
 //                  applyChange(DataRow_buf.R0, R_[1], Rldo.OffsetInRow, R_Info[0].Length, R_Info[1].Length, RawDataLen);
