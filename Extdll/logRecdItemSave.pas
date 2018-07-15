@@ -281,19 +281,24 @@ var
 begin
   if (dbid > 0) and (lsn1 > 0) then
   begin
-    DB := dbids[dbid];
-    if DB = nil then
-    begin
-      DB := TDbidCustomBucketList.Create;
-      dbids.Add(dbid, DB);
+    dbidsCS.Enter;
+    try
+      DB := dbids[dbid];
+      if DB = nil then
+      begin
+        DB := TDbidCustomBucketList.Create;
+        dbids.Add(dbid, DB);
+      end;
+      ReqNo := DB[lsn1];
+      if ReqNo = nil then
+      begin
+        ReqNo := TVlfMgr.Create(dbid, lsn1, f_path);
+        DB.Add(lsn1, ReqNo)
+      end;
+      Result := ReqNo.Save(lsn2, logs, data);
+    finally
+      dbidsCS.Leave;
     end;
-    ReqNo := DB[lsn1];
-    if ReqNo = nil then
-    begin
-      ReqNo := TVlfMgr.Create(dbid, lsn1, f_path);
-      DB.Add(lsn1, ReqNo)
-    end;
-    Result := ReqNo.Save(lsn2, logs, data);
   end else begin
     Result := false;
   end;

@@ -75,21 +75,28 @@ type
     DDL: TDDLMgr;
     AllocUnitMgr: TAllocUnitMgr;
     IDXs:TDDL_Idxs_ColsMgr;
+    function binEquals(v1, v2: TBytes): Boolean;
     procedure serializeToBin(FTranspkg: TTransPkg; var mm: TMemory_data);
     procedure PriseRowLog(tPkg: TTransPkgItem);
     procedure PriseRowLog_Insert(tPkg: TTransPkgItem);
     function getDataFrom_TEXT_MIX(idx: TBytes): TBytes;
+    function GenSql: string;
     function DML_BuilderSql(aRowData: Tsql2014Opt): string;
     function DML_BuilderSql_Insert(aRowData: Tsql2014Opt): string;
     function DML_BuilderSql_Update(aRowData: Tsql2014Opt): string;
     function DML_BuilderSql_Delete(aRowData: Tsql2014Opt): string;
     function DML_BuilderSql_Where(aRowData: Tsql2014Opt): string;
+    function GenXML: string;
+    function DML_BuilderXML(aRowData: Tsql2014Opt): string;
+    function DML_BuilderXML_SafeStr(aVal:string): string;
+    function DML_BuilderXML_Insert(aRowData: Tsql2014Opt): string;
+    function DML_BuilderXML_Update(aRowData: Tsql2014Opt): string;
+    function DML_BuilderXML_Delete(aRowData: Tsql2014Opt): string;
     function Read_LCX_TEXT_MIX_DATA(tPkg: TTransPkgItem; BinReader: TbinDataReader): TBytes;
     procedure PriseDDLPkg(DataRow: Tsql2014Opt);
     procedure PriseDDLPkg_sysrscols(DataRow: Tsql2014Opt);
     procedure PriseDDLPkg_sysschobjs(DataRow: Tsql2014Opt);
     procedure PriseDDLPkg_sysobjvalues(DataRow: Tsql2014Opt);
-    function GenSql: string;
     function GenSql_CreateDefault(ddlitem: TDDLItem): string;
     function GenSql_CreateTable(ddlitem: TDDLItem): string;
     procedure PriseRowLog_Delete(tPkg: TTransPkgItem);
@@ -142,6 +149,18 @@ type
   end;
 
 { TSql2014logAnalyzer }
+
+function TSql2014logAnalyzer.binEquals(v1, v2: TBytes): Boolean;
+begin
+  if v1 = v2 then
+  begin
+    Result := True;
+  end else if Length(v1) <> Length(v2) then begin
+    Result := False;
+  end else begin
+    Result := CompareMem(@v1[0], @v2[0], Length(v1));
+  end;
+end;
 
 constructor TSql2014logAnalyzer.Create(PkgMgr:TTransPkgMgr;LogSource: TLogSource);
 begin
@@ -233,24 +252,12 @@ begin
       Opt_Delete:
         Result := DML_BuilderSql_Delete(aRowData);
     else
-      Loger.Add('尚未定義的SQLBuilder');
+      Loger.Add('尚未定义的SQLBuilder：%d', [Integer(aRowData.OperaType)], log_error or LOG_IMPORTANT);
     end;
   end;
 end;
 
 function TSql2014logAnalyzer.DML_BuilderSql_Update(aRowData: Tsql2014Opt): string;
-function binEquals(v1, v2: TBytes): Boolean;
-begin
-  if v1 = v2 then
-  begin
-    Result := True;
-  end else if Length(v1) <> Length(v2) then begin
-    Result := False;
-  end else begin
-    Result := CompareMem(@v1[0], @v2[0], Length(v1));
-  end;
-end;
-
 var
   updateStr:string;
   I: Integer;
@@ -389,6 +396,235 @@ begin
   end;
 end;
 
+function TSql2014logAnalyzer.DML_BuilderXML(aRowData: Tsql2014Opt): string;
+begin
+  if not aRowData.deleteFlag then
+  begin
+    case aRowData.OperaType of
+      Opt_Insert:
+        Result := DML_BuilderXML_Insert(aRowData);
+      Opt_Update:
+        Result := DML_BuilderXML_Update(aRowData);
+      Opt_Delete:
+        Result := DML_BuilderXML_Delete(aRowData);
+    else
+      Loger.Add('尚未定义的XMLBuilder：%d', [Integer(aRowData.OperaType)], log_error or LOG_IMPORTANT);
+    end;
+  end;
+end;
+
+function TSql2014logAnalyzer.DML_BuilderXML_SafeStr(aVal: string): string;
+begin
+  if aVal <> '' then
+  begin
+    result := aVal.Replace('<','').Replace('>','').Replace('&','').Replace('''','').Replace('"','');
+  end else begin
+    Result := ''
+  end;
+end;
+
+function TSql2014logAnalyzer.DML_BuilderXML_Delete(aRowData: Tsql2014Opt): string;
+var
+  I,j: Integer;
+  field: TdbFieldItem;
+  fieldval: PdbFieldValue;
+  StrVal: string;
+begin
+  Result := '<OPT TYPE="DELETE" table="'+aRowData.Table.getFullName+'">';
+  Result := Result + '<DATA>';
+  if aRowData.R1<>nil then
+  begin
+    //Update再delete
+    for I := 0 to aRowData.old_data.Fields.Count - 1 do
+    begin
+      fieldval := PdbFieldValue(aRowData.old_data.Fields[I]);
+      StrVal := Hvu_GetFieldStrValue(fieldval.field, fieldval.value);
+      StrVal := DML_BuilderXML_SafeStr(StrVal);
+      Result := Result + Format('<%s>%s</%s>', [fieldval.field.ColName,StrVal,fieldval.field.ColName]);
+    end;
+  end else begin
+    for I := 0 to aRowData.new_data.Fields.Count - 1 do
+    begin
+      fieldval := PdbFieldValue(aRowData.new_data.Fields[I]);
+      StrVal := Hvu_GetFieldStrValue(fieldval.field, fieldval.value);
+      StrVal := DML_BuilderXML_SafeStr(StrVal);
+      Result := Result + Format('<%s>%s</%s>', [fieldval.field.ColName,StrVal,fieldval.field.ColName]);
+    end;
+  end;
+  Result := Result + '</DATA>';
+  Result := Result + '<KEY>';
+  if aRowData.table.UniqueClusteredKeys.Count>0 then
+  begin
+    for I := 0 to aRowData.table.UniqueClusteredKeys.Count-1 do
+    begin
+      field := TdbFieldItem(aRowData.table.UniqueClusteredKeys[i]);
+      for J := 0 to aRowData.new_data.Fields.Count -1 do
+      begin
+        fieldval := PdbFieldValue(aRowData.new_data.Fields[j]);
+        if fieldval.field.Col_id=field.Col_id then
+        begin
+          StrVal := Hvu_GetFieldStrValue(fieldval.field, fieldval.value);
+          StrVal := DML_BuilderXML_SafeStr(StrVal);
+          Result := Result + Format('<%s>%s</%s>', [fieldval.field.ColName,StrVal,fieldval.field.ColName]);
+          Break;
+        end;
+      end;
+    end;
+  end;
+  Result := Result + '</KEY>';
+  Result := Result + '</OPT>';
+end;
+
+function TSql2014logAnalyzer.DML_BuilderXML_Insert(aRowData: Tsql2014Opt): string;
+var
+  StrVal: string;
+  I: Integer;
+  fieldval: PdbFieldValue;
+begin
+  Result := '<OPT TYPE="INSERT" table="'+aRowData.Table.getFullName+'">';
+  for I := 0 to aRowData.new_data.Fields.Count - 1 do
+  begin
+    fieldval := PdbFieldValue(aRowData.new_data.Fields[I]);
+    StrVal := Hvu_GetFieldStrValue(fieldval.field, fieldval.value);
+    StrVal := DML_BuilderXML_SafeStr(StrVal);
+    Result := Result + Format('<%s>%s</%s>', [fieldval.field.ColName,StrVal,fieldval.field.ColName]);
+  end;
+  Result := Result + '</OPT>';
+end;
+
+function TSql2014logAnalyzer.DML_BuilderXML_Update(aRowData: Tsql2014Opt): string;
+var
+  StrVal: string;
+  I,J: Integer;
+  isUniClustered:Boolean;
+  raw_old,raw_new: PdbFieldValue;
+
+  field: TdbFieldItem;
+begin
+  Result := '<OPT TYPE="UPDATE" table="'+aRowData.Table.getFullName+'">';
+  Result := Result + '<DATA>';
+  if aRowData.new_data = nil then
+  begin
+    //没有新数据。使用select封装
+//    updateStr := FLogSource.Fdbc.getUpdateSQLfromSelect(aRowData.Table, whereStr);
+//    if updateStr='' then
+//    begin
+//      Result := '数据行已丢失！'+whereStr;
+//      Exit;
+//    end;
+  end else begin
+    if aRowData.old_data<>nil then
+    begin
+      //新旧数据都有，则对比差异生成update
+      for I := 0 to aRowData.Table.Fields.Count - 1 do
+      begin
+        raw_old := aRowData.old_data.getField(aRowData.Table.Fields[i].Col_id);
+        raw_new := aRowData.new_data.getField(aRowData.Table.Fields[i].Col_id);
+        if (raw_new=nil) and (raw_old=nil)then
+        begin
+
+        end else
+        if raw_new = nil then
+        begin
+          //var 值 ————>  null
+          StrVal := Hvu_GetFieldStrValue(raw_old.field, raw_old.value);
+          StrVal := DML_BuilderXML_SafeStr(StrVal);
+          Result := Result + '<'+raw_old.field.ColName+'>';
+          if StrVal='NULL' then
+          begin
+            Result := Result +'<OLD null="1"></OLD>';
+          end else begin
+            Result := Result + Format('<OLD>%s</OLD>', [StrVal]);
+          end;
+          Result := Result +'<NEW null="1"></NEW>';
+          Result := Result + '</'+raw_old.field.ColName+'>';
+        end else if (raw_old = nil) or (not binEquals(raw_new.value, raw_old.value)) then begin
+          Result := Result + '<'+raw_old.field.ColName+'>';
+          if raw_old = nil then
+          begin
+            Result := Result +'<OLD null="1"></OLD>';
+          end else begin
+            StrVal := Hvu_GetFieldStrValue(raw_old.field, raw_old.value);
+            StrVal := DML_BuilderXML_SafeStr(StrVal);
+            if StrVal='NULL' then
+            begin
+              Result := Result +'<OLD null="1"></OLD>';
+            end else begin
+              Result := Result + Format('<OLD>%s</OLD>', [StrVal]);
+            end;
+          end;
+          StrVal := Hvu_GetFieldStrValue(raw_new.field, raw_new.value);
+          StrVal := DML_BuilderXML_SafeStr(StrVal);
+          if StrVal='NULL' then
+          begin
+            Result := Result +'<NEW null="1"></NEW>';
+          end else begin
+            Result := Result + Format('<NEW>%s</NEW>', [StrVal]);
+          end;
+          Result := Result + '</'+raw_old.field.ColName+'>';
+        end
+      end;
+    end else begin
+      //没有old，根据新的全部字段生成update（除唯一聚合
+      for I := 0 to aRowData.Table.Fields.Count - 1 do
+      begin
+        isUniClustered := False;
+        for J := 0 to aRowData.Table.UniqueClusteredKeys.Count-1 do
+        begin
+          if TdbFieldItem(aRowData.Table.UniqueClusteredKeys[j]).Col_id = aRowData.Table.Fields[i].Col_id then
+          begin
+            isUniClustered := True;
+            Break;
+          end;
+        end;
+
+        if not isUniClustered then
+        begin
+          raw_new := aRowData.new_data.getField(aRowData.Table.Fields[i].Col_id);
+          Result := Result + '<'+aRowData.Table.Fields[i].ColName+'>';
+          if raw_new = nil then
+          begin
+            //var 值 ————>  null
+            Result := Result +'<NEW null="1"></NEW>';
+          end else begin
+            StrVal := Hvu_GetFieldStrValue(raw_new.field, raw_new.value);
+            StrVal := DML_BuilderXML_SafeStr(StrVal);
+            if StrVal='NULL' then
+            begin
+              Result := Result +'<NEW null="1"></NEW>';
+            end else begin
+              Result := Result + Format('<NEW>%s</NEW>', [StrVal]);
+            end;
+          end;
+          Result := Result + '</'+aRowData.Table.Fields[i].ColName+'>';
+        end;
+      end;
+    end
+  end;
+  Result := Result + '</DATA>';
+  Result := Result + '<KEY>';
+  if aRowData.table.UniqueClusteredKeys.Count>0 then
+  begin
+    for I := 0 to aRowData.table.UniqueClusteredKeys.Count-1 do
+    begin
+      field := TdbFieldItem(aRowData.table.UniqueClusteredKeys[i]);
+      for J := 0 to aRowData.new_data.Fields.Count -1 do
+      begin
+        raw_old := PdbFieldValue(aRowData.new_data.Fields[j]);
+        if raw_old.field.Col_id=field.Col_id then
+        begin
+          StrVal := Hvu_GetFieldStrValue(raw_old.field, raw_old.value);
+          StrVal := DML_BuilderXML_SafeStr(StrVal);
+          Result := Result + Format('<%s>%s</%s>', [raw_old.field.ColName,StrVal,raw_old.field.ColName]);
+          Break;
+        end;
+      end;
+    end;
+  end;
+  Result := Result + '</KEY>';
+  Result := Result + '</OPT>';
+end;
+
 function TSql2014logAnalyzer.DML_BuilderSql_Insert(aRowData: Tsql2014Opt): string;
 var
   fields: string;
@@ -480,7 +716,7 @@ var
   DMLitem: TDMLItem;
   TmpBinReader: TbinDataReader;
 begin
-  Loger.Add('TSql2014logAnalyzer.Execute ==> transId:%s, MinLsn:%s', [TranId2Str(FTranspkg.Ftransid),LSN2Str(TTransPkgItem(FTranspkg.Items[0]).lsn)]);
+  Loger.Add('TSql2014logAnalyzer.Execute ==> transId:%s, MinLsn:%s', [TranId2Str(FTranspkg.Ftransid),LSN2Str(TTransPkgItem(FTranspkg.Items[0]).lsn)],LOG_DEBUG);
   //通知插件
   serializeToBin(FTranspkg, mm);
   PluginsMgr.onTransPkgRev(mm);
@@ -516,7 +752,7 @@ begin
       end;
     end;
 
-    Loger.Add('-->' + DML_BuilderSql(DataRow_buf));
+    Loger.Add('-->' + DML_BuilderSql(DataRow_buf), LOG_DEBUG);
     //continue;
     if DataRow_buf.Table.Owner = 'sys' then
     begin
@@ -533,7 +769,6 @@ begin
       begin
         PriseDDLPkg_U(DataRow_buf);
       end;
-
     end
     else
     begin
@@ -544,11 +779,9 @@ begin
     end;
 
   end;
-  if DDL.FItems.Count>0 then
-  begin
-    ApplySysDDLChange;
-  end;
   Loger.Add(GenSql);
+  Loger.Add(GenXML);
+  ApplySysDDLChange;
 end;
 
 function TSql2014logAnalyzer.GenSql: string;
@@ -561,7 +794,7 @@ begin
   ResList := TStringList.Create;
   try
     ResList.Add('--genSql begin--');
-    ResList.Add('TransId:' + TranId2Str(TransId));
+    ResList.Add('--TransId:' + TranId2Str(TransId));
     ResList.Add('--TranBeinTime:' + formatdatetime('yyyy-MM-dd HH:nn:ss.zzz', TransBeginTime));
     ResList.Add('--CommitTranTime:' + formatdatetime('yyyy-MM-dd HH:nn:ss.zzz', TransCommitTime));
 
@@ -590,6 +823,55 @@ begin
     ResList.Free;
   end;
 end;
+
+function TSql2014logAnalyzer.GenXML: string;
+var
+  ddlitem: TDDLItem;
+  I: Integer;
+  ResList: TStringList;
+  Tmpstr:string;
+begin
+  ResList := TStringList.Create;
+  try
+    ResList.Add('<?xml version="1.0" encoding="gb2312"?>');
+    ResList.Add('<root>');
+    ResList.Add('<TransId>' + TranId2Str(TransId)+'</TransId>');
+    ResList.Add('<TranBeinTime>' + formatdatetime('yyyy-MM-dd HH:nn:ss.zzz', TransBeginTime)+'</TranBeinTime>');
+    ResList.Add('<CommitTranTime>' + formatdatetime('yyyy-MM-dd HH:nn:ss.zzz', TransCommitTime)+'</CommitTranTime>');
+    ResList.Add('<details>');
+    for I := 0 to DDL.FItems.Count - 1 do
+    begin
+      Tmpstr := '';
+      ddlitem := TDDLItem(DDL.FItems[I]);
+      case ddlitem.OpType of
+        Opt_Insert:
+          begin
+            Tmpstr := '<row id="'+IntToStr(I)+'" type="ddl">'+GenSql_DDL_Insert(TDDLItem_Insert(ddlitem))+'</row>';
+          end;
+        Opt_Update:
+          begin
+            Tmpstr := '<row id="'+IntToStr(I)+'" type="ddl">'+GenSql_DDL_Update(TDDLItem_Update(ddlitem))+'</row>';
+          end;
+        Opt_Delete:
+          begin
+            Tmpstr := '<row id="'+IntToStr(I)+'" type="ddl">'+GenSql_DDL_Delete(TDDLItem_Delete(ddlitem))+'</row>';
+          end;
+        Opt_DML:
+          begin
+            Tmpstr := '<row id="'+IntToStr(I)+'" type="dml">'+DML_BuilderXML(TDMLItem(DDL.FItems[I]).data)+'</row>';
+          end;
+      end;
+      if Tmpstr <> '' then
+        ResList.Add(Tmpstr);
+    end;
+    ResList.Add('</details>');
+    ResList.Add('</root>');
+    Result := ResList.Text;
+  finally
+    ResList.Free;
+  end;
+end;
+
 
 function TSql2014logAnalyzer.GenSql_DDL_Insert(ddlitem: TDDLItem_Insert): string;
 begin

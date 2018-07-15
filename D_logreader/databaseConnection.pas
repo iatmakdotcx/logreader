@@ -90,7 +90,7 @@ implementation
 
 uses
   Windows, SysUtils, dbHelper, comm_func, MakCommonfuncs, loglog,
-  Winapi.ADOInt, System.Variants, Data.DB, dbFieldTypes;
+  Winapi.ADOInt, System.Variants, Data.DB, dbFieldTypes, Memory_Common;
 
 function CloneRecordset(const Data: _Recordset): _Recordset;
 var
@@ -415,16 +415,7 @@ begin
 end;
 
 function TdatabaseConnection.getUpdateSQLfromSelect(table:TdbTableItem; wherekey:string): string;
-function DumpMemory2Str(data:Pointer; dataSize:Integer): string;
-var
-  I: Integer;
-begin
-  Result := '';
-  for I := 0 to dataSize-1 do
-  begin
-    Result := Result + IntToHex(Pbyte(uintptr(data)+I)^,2);
-  end;
-end;
+
 function getfieldValueAsString(field: TField): string;
 var
   ddSize: Integer;
@@ -618,8 +609,8 @@ var
   rDataset:TCustomADODataSet;
   aSql:string;
 begin
-  aSql := Format('SELECT COLLATIONPROPERTYFROMID(%d,''Name'')', [id]);
-  if ExecSql(aSql, rDataset) then
+  aSql := Format('SELECT cast(COLLATIONPROPERTYFROMID(%d,''Name'') as varchar(100))', [id]);
+  if (id >0) and ExecSql(aSql, rDataset) then
   begin
     Result := rDataset.Fields[0].AsString;
     rDataset.Free;
@@ -633,8 +624,8 @@ var
   rDataset:TCustomADODataSet;
   aSql:string;
 begin
-  aSql := Format('SELECT COLLATIONPROPERTY(''%s'',''CodePage'')', [cName]);
-  if ExecSql(aSql, rDataset) then
+  aSql := Format('SELECT cast(COLLATIONPROPERTY(''%s'',''CodePage'') as varchar(100))', [cName]);
+  if (cName<>'') and ExecSql(aSql, rDataset) then
   begin
     Result := rDataset.Fields[0].AsString;
     rDataset.Free;
