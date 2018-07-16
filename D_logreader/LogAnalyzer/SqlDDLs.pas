@@ -14,6 +14,7 @@ type
   TDDLItem = class(TObject)
     OpType: TOperationType;
     xType: string; //v,u,s,d
+    isSkip:Boolean;
     function getObjId: Integer; virtual; abstract;
   end;
 

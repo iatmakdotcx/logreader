@@ -121,6 +121,7 @@ type
     procedure PriseRowLog_MODIFY_ROW(tPkg: TTransPkgItem);
     procedure PriseRowLog_MODIFY_COLUMNS(tPkg: TTransPkgItem);
     function PriseRowLog_UniqueClusteredKeys(BinReader: TbinDataReader; DbTable: TdbTableItem): string;
+    procedure DDLClear;
   public
     /// <summary>
     ///
@@ -187,6 +188,33 @@ begin
   AllocUnitMgr.Free;
   IDXs.Free;
   inherited;
+end;
+
+procedure TSql2014logAnalyzer.DDLClear;
+var
+  I,J:Integer;
+  ddlitem :TDDLItem;
+  ddlitem_J: TDDLItem;
+begin
+  //清除drop table引发的drop column,drop index等。。。。
+  for I := 0 to DDL.FItems.Count - 1 do
+  begin
+    ddlitem := TDDLItem(DDL.FItems[I]);
+    if (ddlitem.OpType = Opt_Delete) and (ddlitem.xType = 'u') then
+    begin
+      for J := DDl.FItems.Count - 1 downto 0 do
+      begin
+        ddlitem_J := TDDLItem(DDl.FItems[J]);
+        if ddlitem_J.OpType = Opt_Delete then
+        begin
+          if TDDLItem_Delete(ddlitem_J).ParentId = ddlitem.getObjId then
+          begin
+            ddlitem_J.isSkip := True;
+          end;
+        end;
+      end;
+    end;
+  end;
 end;
 
 procedure TSql2014logAnalyzer.ApplySysDDLChange;
@@ -777,8 +805,8 @@ begin
       DMLitem.data := DataRow_buf;
       DDL.Add(DMLitem);
     end;
-
   end;
+  DDLClear;
   Loger.Add(GenSql);
   Loger.Add(GenXML);
   ApplySysDDLChange;
@@ -800,22 +828,25 @@ begin
 
     for I := 0 to DDL.FItems.Count - 1 do
     begin
-      Tmpstr := '';
       ddlitem := TDDLItem(DDL.FItems[I]);
-      case ddlitem.OpType of
-        Opt_Insert:
-          Tmpstr := GenSql_DDL_Insert(TDDLItem_Insert(ddlitem));
-        Opt_Update:
-          Tmpstr := GenSql_DDL_Update(TDDLItem_Update(ddlitem));
-        Opt_Delete:
-          Tmpstr := GenSql_DDL_Delete(TDDLItem_Delete(ddlitem));
-        Opt_DML:
-          begin
-            Tmpstr := DML_BuilderSql(TDMLItem(DDL.FItems[I]).data)
-          end;
+      if not ddlitem.isSkip then
+      begin
+        Tmpstr := '';
+        case ddlitem.OpType of
+          Opt_Insert:
+            Tmpstr := GenSql_DDL_Insert(TDDLItem_Insert(ddlitem));
+          Opt_Update:
+            Tmpstr := GenSql_DDL_Update(TDDLItem_Update(ddlitem));
+          Opt_Delete:
+            Tmpstr := GenSql_DDL_Delete(TDDLItem_Delete(ddlitem));
+          Opt_DML:
+            begin
+              Tmpstr := DML_BuilderSql(TDMLItem(DDL.FItems[I]).data)
+            end;
+        end;
+        if Tmpstr <> '' then
+          ResList.Add(Tmpstr);
       end;
-      if Tmpstr <> '' then
-        ResList.Add(Tmpstr);
     end;
     ResList.Add('--genSql end--');
     Result := ResList.Text;
@@ -841,28 +872,31 @@ begin
     ResList.Add('<details>');
     for I := 0 to DDL.FItems.Count - 1 do
     begin
-      Tmpstr := '';
       ddlitem := TDDLItem(DDL.FItems[I]);
-      case ddlitem.OpType of
-        Opt_Insert:
-          begin
-            Tmpstr := '<row id="'+IntToStr(I)+'" type="ddl">'+GenSql_DDL_Insert(TDDLItem_Insert(ddlitem))+'</row>';
-          end;
-        Opt_Update:
-          begin
-            Tmpstr := '<row id="'+IntToStr(I)+'" type="ddl">'+GenSql_DDL_Update(TDDLItem_Update(ddlitem))+'</row>';
-          end;
-        Opt_Delete:
-          begin
-            Tmpstr := '<row id="'+IntToStr(I)+'" type="ddl">'+GenSql_DDL_Delete(TDDLItem_Delete(ddlitem))+'</row>';
-          end;
-        Opt_DML:
-          begin
-            Tmpstr := '<row id="'+IntToStr(I)+'" type="dml">'+DML_BuilderXML(TDMLItem(DDL.FItems[I]).data)+'</row>';
-          end;
+      if not ddlitem.isSkip then
+      begin
+        Tmpstr := '';
+        case ddlitem.OpType of
+          Opt_Insert:
+            begin
+              Tmpstr := '<row id="' + IntToStr(I) + '" type="ddl">' + GenSql_DDL_Insert(TDDLItem_Insert(ddlitem)) + '</row>';
+            end;
+          Opt_Update:
+            begin
+              Tmpstr := '<row id="' + IntToStr(I) + '" type="ddl">' + GenSql_DDL_Update(TDDLItem_Update(ddlitem)) + '</row>';
+            end;
+          Opt_Delete:
+            begin
+              Tmpstr := '<row id="' + IntToStr(I) + '" type="ddl">' + GenSql_DDL_Delete(TDDLItem_Delete(ddlitem)) + '</row>';
+            end;
+          Opt_DML:
+            begin
+              Tmpstr := '<row id="' + IntToStr(I) + '" type="dml">' + DML_BuilderXML(TDMLItem(DDL.FItems[I]).data) + '</row>';
+            end;
+        end;
+        if Tmpstr <> '' then
+          ResList.Add(Tmpstr);
       end;
-      if Tmpstr <> '' then
-        ResList.Add(Tmpstr);
     end;
     ResList.Add('</details>');
     ResList.Add('</root>');
@@ -930,7 +964,7 @@ begin
   Result := '--drop Column table id:'+IntToStr(ddlitem.TableId);
 
   DDLtable := ddl.GetItem(ddlitem.TableId);
-  if DDLtable <> nil then
+  if (DDLtable <> nil) and (DDLtable.OpType = Opt_Insert) then
   begin
     Table := TDDL_Create_Table(DDLtable).TableObj;
   end
@@ -1539,28 +1573,6 @@ begin
 end;
 
 procedure TSql2014logAnalyzer.PriseDDLPkg_D_sysschobjs(DataRow: Tsql2014Opt);
-
-  procedure DeleteTablesSubObj(tableId: Integer);
-  var
-    I: Integer;
-    ddlitem: TDDLItem_Delete;
-  begin
-    //删除表中的子元素，
-    //删除表的时候，日志是一列一列删除，最后再删除表对象的，
-    //而语句，只用删除表，子对象自动全部删除
-    for I := DDl.FItems.Count - 1 downto 0 do
-    begin
-      if TDDLItem(DDl.FItems[I]).OpType = Opt_Delete then
-      begin
-        ddlitem := TDDLItem_Delete(DDl.FItems[i]);
-        if ddlitem.ParentId = tableId then
-        begin
-          DDl.FItems.Delete(I);
-        end;
-      end;
-    end;
-  end;
-
 var
   I: Integer;
   pdd: PdbFieldValue;
@@ -1621,8 +1633,6 @@ begin
     table.objName := ObjName;
     table.Owner := FLogSource.Fdbc.GetSchemasName(nsid);
     DDL.Add(table);
-    //如果删除表，这里要处理掉删除字段，删除默认值等对象数据
-    DeleteTablesSubObj(ObjId);
   end
   else if ObjType = 'v' then
   begin
@@ -2627,7 +2637,7 @@ begin
                 //Loger.Add('获取行原始数据失败！' + lsn2str(tPkg.LSN) + ',pLSN:' + lsn2str(Rldo.normalData.PreviousLSN), LOG_WARNING or LOG_IMPORTANT);
                 if (DataRow_buf.UniqueClusteredKeys = '') or (DbTable.Owner='sys') then   //sys表可能没有select权限，所以直接读page
                 begin
-                  Loger.Add('表[%s]没有唯一聚合,对此表的Update操作将被忽略！如您不希望Update被忽略，请启用数据库插件.');
+                  Loger.Add('表[%s]没有唯一聚合,对此表的Update操作将被忽略！如您不希望Update被忽略，请启用数据库插件.',[DbTable.getFullName]);
                   DataRow_buf.Free;
                   Exit;
                   //TODO:极不靠谱，不能保证page数据与当前lsn之间产生了哪些变化
@@ -2883,7 +2893,7 @@ begin
                 //Loger.Add('获取行原始数据失败！' + lsn2str(tPkg.LSN) + ',pLSN:' + lsn2str(Rldo.normalData.PreviousLSN), LOG_WARNING or LOG_IMPORTANT);
                 if (DataRow_buf.UniqueClusteredKeys = '') or (DbTable.Owner='sys') then   //sys表可能没有select权限，所以直接读page
                 begin
-                  Loger.Add('表[%s]没有唯一聚合,对此表的Update操作将被忽略！如您不希望Update被忽略，请启用数据库插件.');
+                  Loger.Add('表[%s]没有唯一聚合,对此表的Update操作将被忽略！如您不希望Update被忽略，请启用数据库插件.',[DbTable.getFullName]);
                   DataRow_buf.Free;
                   Exit;
                 end else begin
