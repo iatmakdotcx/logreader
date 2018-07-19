@@ -83,6 +83,27 @@ type
     function getObjId: Integer; override;
   end;
 
+  TDDL_Create_UniqueKey = class(TDDLItem_Insert)
+    objId: Integer;
+    objName: string;
+    tableid: Integer;
+    colid: Integer;
+    value: string;
+    isCLUSTERED: Boolean;
+    isUnique:Boolean;
+    constructor Create;
+    function getObjId: Integer; override;
+  end;
+
+   TDDL_Create_Check = class(TDDLItem_Insert)
+    objId: Integer;
+    objName: string;
+    tableid: Integer;
+    value: string;
+    constructor Create;
+    function getObjId: Integer; override;
+  end;
+
 {$ENDREGION 'Insert'}
 
 {$REGION 'Delete'}
@@ -95,7 +116,8 @@ type
     function getObjId: Integer; override;
   end;
 
-  TDDL_Delete_Def = class(TDDLItem_Delete)
+  TDDL_Delete_Constraint = class(TDDLItem_Delete)
+    subType:string;
     objId: Integer;
     objName: string;
     tableid: Integer;
@@ -111,9 +133,19 @@ type
     function getObjId: Integer; override;
     function ParentId: Integer; override;
   end;
+
 {$ENDREGION 'Delete'}
 
 {$REGION 'Update'}
+
+  TDDL_Update_Column = class(TDDLItem_Update)
+    Table: TdbTableItem;
+    field: TdbFieldItem;
+    constructor Create;
+    destructor Destroy; override;
+    function getObjId: Integer; override;
+  end;
+
 
 {$ENDREGION 'Update'}
   //这个数据在索引之前创建，所以只能先记录，再关联了
@@ -323,18 +355,18 @@ end;
 
 { TDDL_Delete_Def }
 
-constructor TDDL_Delete_Def.Create;
+constructor TDDL_Delete_Constraint.Create;
 begin
   inherited;
-  xType := 'd';
+  xType := 'constraint';
 end;
 
-function TDDL_Delete_Def.getObjId: Integer;
+function TDDL_Delete_Constraint.getObjId: Integer;
 begin
   Result := ObjId;
 end;
 
-function TDDL_Delete_Def.ParentId: Integer;
+function TDDL_Delete_Constraint.ParentId: Integer;
 begin
   Result := tableid;
 end;
@@ -460,6 +492,52 @@ end;
 function TDDL_Create_Column.getObjId: Integer;
 begin
   Result := 0;
+end;
+
+{ TDDL_Update_Column }
+
+constructor TDDL_Update_Column.Create;
+begin
+  inherited;
+  xType := 'column'
+end;
+
+destructor TDDL_Update_Column.Destroy;
+begin
+  if field<>nil then
+    field.Free;
+  inherited;
+end;
+
+function TDDL_Update_Column.getObjId: Integer;
+begin
+  Result := 0;
+end;
+
+{ TDDL_Create_UniqueKey }
+
+constructor TDDL_Create_UniqueKey.Create;
+begin
+  inherited;
+  xType := 'uq';
+end;
+
+function TDDL_Create_UniqueKey.getObjId: Integer;
+begin
+  Result := objId;
+end;
+
+{ TDDL_Create_Check }
+
+constructor TDDL_Create_Check.Create;
+begin
+  inherited;
+  xType := 'c';
+end;
+
+function TDDL_Create_Check.getObjId: Integer;
+begin
+  Result := objId;
 end;
 
 end.

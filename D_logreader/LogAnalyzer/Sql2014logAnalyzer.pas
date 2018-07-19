@@ -61,6 +61,14 @@ type
     destructor Destroy; override;
   end;
 
+
+  TDDL_IDX_stats = class(TObject)
+    tableId:Integer;
+    idxName:string;
+    isCLUSTERED:Boolean;
+    isUnique:Boolean;
+  end;
+
   TSql2014logAnalyzer = class(TlogAnalyzer)
   private
     FPkgMgr:TTransPkgMgr; //事务队列
@@ -75,6 +83,7 @@ type
     DDL: TDDLMgr;
     AllocUnitMgr: TAllocUnitMgr;
     IDXs:TDDL_Idxs_ColsMgr;
+    IDXstats:TObjectList;
     function binEquals(v1, v2: TBytes): Boolean;
     procedure serializeToBin(FTranspkg: TTransPkg; var mm: TMemory_data);
     procedure PriseRowLog(tPkg: TTransPkgItem);
@@ -102,16 +111,17 @@ type
     procedure PriseRowLog_Delete(tPkg: TTransPkgItem);
     function PriseRowLog_InsertDeleteRowData(DbTable: TdbTableItem; BinReader: TbinDataReader): Tsql2014RowData;
     procedure PriseDDLPkg_D(DataRow: Tsql2014Opt);
-    procedure PriseDDLPkg_U(DataRow: Tsql2014Opt);
     procedure PriseDDLPkg_D_sysschobjs(DataRow: Tsql2014Opt);
     procedure PriseDDLPkg_D_syscolpars(DataRow: Tsql2014Opt);
+    procedure PriseDDLPkg_U(DataRow: Tsql2014Opt);
+    procedure PriseDDLPkg_U_sysschobjs(DataRow: Tsql2014Opt);
+    procedure PriseDDLPkg_U_syscolpars(DataRow: Tsql2014Opt);
     function GenSql_DDL_Insert(ddlitem: TDDLItem_Insert): string;
     function GenSql_DDL_Delete(ddlitem: TDDLItem_Delete): string;
     function GenSql_DDL_Update(ddlitem: TDDLItem_Update): string;
-    function GenSql_DropDefault(ddlitem: TDDL_Delete_Def): string;
+    function GenSql_DropConstraint(ddlitem: TDDL_Delete_Constraint): string;
     function GenSql_DropTable(ddlitem: TDDL_Delete_Table): string;
     procedure PriseDDLPkg_sysiscols(DataRow: Tsql2014Opt);
-    procedure PriseDDLPkg_syssingleobjrefs(DataRow: Tsql2014Opt);
     function GenSql_CreatePrimaryKey(ddlitem: TDDL_Create_PrimaryKey): string;
     procedure Execute2(FTranspkg: TTransPkg);
     procedure PriseDDLPkg_syscolpars(DataRow: Tsql2014Opt);
@@ -122,6 +132,11 @@ type
     procedure PriseRowLog_MODIFY_COLUMNS(tPkg: TTransPkgItem);
     function PriseRowLog_UniqueClusteredKeys(BinReader: TbinDataReader; DbTable: TdbTableItem): string;
     procedure DDLClear;
+    function GenSql_UpdateColumn(ddlitem: TDDL_Update_Column): string;
+    function GenSql_CreateUniqueKey(ddlitem: TDDL_Create_UniqueKey): string;
+    procedure PriseDDLPkg_sysidxstats(DataRow: Tsql2014Opt);
+    function GenSql_CreateCheck(ddlitem: TDDL_Create_Check): string;
+
   public
     /// <summary>
     ///
@@ -141,7 +156,7 @@ implementation
 
 uses
   loglog, plugins, OpCode, hexValUtils, contextCode, dbFieldTypes,
-  Memory_Common, sqlextendedprocHelper;
+  Memory_Common, sqlextendedprocHelper, Windows;
 
 type
   TRawElement = packed record
@@ -175,6 +190,7 @@ begin
   DDL := TDDLMgr.Create;
   AllocUnitMgr := TAllocUnitMgr.Create;
   IDXs:=TDDL_Idxs_ColsMgr.Create;
+  IDXstats:=TObjectList.create;
 
   Self.NameThreadForDebugging('TSql2014logAnalyzer', Self.ThreadID);
 end;
@@ -187,6 +203,7 @@ begin
   DDL.Free;
   AllocUnitMgr.Free;
   IDXs.Free;
+  IDXstats.free;
   inherited;
 end;
 
@@ -232,6 +249,9 @@ begin
   for I := 0 to DDL.FItems.Count - 1 do
   begin
     ddlitem := TDDLItem(DDL.FItems[I]);
+    if ddlitem.isSkip then
+      Continue;
+
     if (ddlitem.OpType=Opt_Insert) then
     begin
       if ddlitem.xType = 'u' then
@@ -919,6 +939,12 @@ begin
   end else if ddlitem.xType = 'pk' then
   begin
     Result := GenSql_CreatePrimaryKey(TDDL_Create_PrimaryKey(ddlitem));
+  end else if ddlitem.xType = 'uq' then
+  begin
+    Result := GenSql_CreateUniqueKey(TDDL_Create_UniqueKey(ddlitem));
+  end else if ddlitem.xType = 'c' then
+  begin
+    Result := GenSql_CreateCheck(TDDL_Create_Check(ddlitem));
   end else if ddlitem.xType = 'column' then
   begin
     Result := GenSql_CreateColumn(TDDL_Create_Column(ddlitem));
@@ -935,9 +961,9 @@ begin
   begin
     Result := GenSql_DropTable(TDDL_Delete_Table(ddlitem));
   end
-  else if ddlitem.xType = 'd' then
+  else if ddlitem.xType = 'constraint' then
   begin
-    Result := GenSql_DropDefault(TDDL_Delete_Def(ddlitem));
+    Result := GenSql_DropConstraint(TDDL_Delete_Constraint(ddlitem));
   end else if ddlitem.xType = 'column' then
   begin
     Result := GenSql_DropColumn(TDDL_Delete_Column(ddlitem));
@@ -951,7 +977,39 @@ end;
 
 function TSql2014logAnalyzer.GenSql_DDL_Update(ddlitem: TDDLItem_Update): string;
 begin
+  if ddlitem.xType = 'u' then
+  begin
+    //Result := GenSql_UpdateTable(TDDL_Update_Table(ddlitem));
+  end else if ddlitem.xType = 'column' then
+  begin
+    Result := GenSql_UpdateColumn(TDDL_Update_Column(ddlitem));
+  end
+  else
+  begin
+
+  end;
   //TODO:GenSql_DDL_Update
+end;
+
+function TSql2014logAnalyzer.GenSql_UpdateColumn(ddlitem: TDDL_Update_Column): string;
+const
+  SQLTEMPLATE = 'ALTER TABLE %s alter column %s';
+var
+  tmpStr:string;
+begin
+  Result := '--drop Column table id:'+IntToStr(ddlitem.Table.TableId);
+  tmpStr := ddlitem.field.getSafeColName + ' ';
+  tmpStr := tmpStr + getColsTypeStr(ddlitem.field) + ' ';
+  if ddlitem.field.collation_name<>'' then
+  begin
+    tmpStr := tmpStr + 'COLLATE '+ ddlitem.field.collation_name + ' ';
+  end;
+  if ddlitem.field.is_nullable then
+    tmpStr := tmpStr + 'NULL'
+  else
+     tmpStr := tmpStr + 'NOT NULL';
+
+  Result := Result + #$D#$A + Format(SQLTEMPLATE, [ddlitem.Table.getFullName, tmpStr]);
 end;
 
 function TSql2014logAnalyzer.GenSql_DropColumn(ddlitem: TDDL_Delete_Column): string;
@@ -988,14 +1046,15 @@ begin
   Result := Result + #$D#$A + Format('DROP TABLE [%s].[%s]',[ddlitem.Owner,ddlitem.objName]);
 end;
 
-function TSql2014logAnalyzer.GenSql_DropDefault(ddlitem: TDDL_Delete_Def): string;
+function TSql2014logAnalyzer.GenSql_DropConstraint(ddlitem: TDDL_Delete_Constraint): string;
 var
   Table:TdbTableItem;
   resStr:Tstringlist;
 begin
   resStr := Tstringlist.Create;
   try
-    resStr.Add('--drop default constraint');
+    resStr.Add('--drop constraint');
+    resStr.Add('--subType:'+ddlitem.subType);
     resStr.Add('--TableId:'+IntToStr(ddlitem.ParentId));
     resStr.Add('--ObjId:'+IntToStr(ddlitem.objId));
     resStr.Add('--objName:'+ddlitem.objName);
@@ -1027,6 +1086,10 @@ begin
     resStr.Add('--Tableid:'+inttostr(ddlitem.Table.TableId));
     resStr.Add('--columnName:'+ddlitem.field.ColName);
     tmpStr := getColsTypeStr(ddlitem.field) + ' ';
+    if ddlitem.field.collation_name<>'' then
+    begin
+      tmpStr := tmpStr + 'COLLATE '+ ddlitem.field.collation_name + ' ';
+    end;
     if ddlitem.field.is_nullable then
     begin
       tmpStr := tmpStr + 'NULL';
@@ -1035,8 +1098,136 @@ begin
     begin
       tmpStr := tmpStr + 'NOT NULL';
     end;
-
     resStr.Add(Format(SQLTEMPLATE, [ddlitem.Table.getFullName, ddlitem.field.ColName, tmpStr]));
+    Result := resStr.Text;
+  finally
+    resStr.Free;
+  end;
+end;
+
+function TSql2014logAnalyzer.GenSql_CreateCheck(ddlitem: TDDL_Create_Check): string;
+const
+  SQLTEMPLATE = 'ALTER TABLE %s ADD CONSTRAINT [%s] CHECK(%s) ';
+var
+  DDLtable: TDDLItem;
+  tableL: TdbTableItem;
+  resStr:Tstringlist;
+  TmpStr:string;
+begin
+  Result := '';
+  DDLtable := ddl.GetItem(ddlitem.tableid);
+  if DDLtable <> nil then
+  begin
+    tableL := TDDL_Create_Table(DDLtable).TableObj;
+  end
+  else
+  begin
+    tableL := FLogSource.Fdbc.dict.tables.GetItemById(ddlitem.tableid);
+  end;
+
+  if tableL = nil then
+  begin
+    TmpStr := 'objId:'+ IntToStr(ddlitem.objId) + WIN_EOL;
+    TmpStr := TmpStr +'objName:'+ ddlitem.objName+ WIN_EOL;
+    TmpStr := TmpStr +'tableid:'+ IntToStr(ddlitem.tableid)+ WIN_EOL;
+    TmpStr := TmpStr +'value:'+ ddlitem.value+ WIN_EOL;
+    Loger.Add('GenSql_CreateCheck fail! ->' + TmpStr, LOG_ERROR or LOG_IMPORTANT);
+
+    Exit;
+  end;
+
+  resStr:=Tstringlist.Create;
+  try
+    resStr.Add('--Create Check key');
+    resStr.Add('--Tableid:'+inttostr(ddlitem.tableid));
+    resStr.Add('--id:'+inttostr(ddlitem.objId));
+    resStr.Add('--Name:'+ddlitem.objName);
+    resStr.Add(Format(SQLTEMPLATE, [tableL.getFullName, ddlitem.objName, ddlitem.value]));
+    Result := resStr.Text;
+  finally
+    resStr.Free;
+  end;
+end;
+
+function TSql2014logAnalyzer.GenSql_CreateUniqueKey(ddlitem: TDDL_Create_UniqueKey): string;
+const
+  SQLTEMPLATE = 'ALTER TABLE %s ADD CONSTRAINT [%s] UNIQUE %s (%s) ';
+var
+  DDLtable: TDDLItem;
+  tableL: TdbTableItem;
+  colName: string;
+  CLUSTEREDType:string;
+  cols:TObjectList;
+  I: Integer;
+  TempItem:TDDL_Idxs_ColsItem;
+  dbfield:TdbFieldItem;
+  resStr:Tstringlist;
+  TmpStr:string;
+  idxObj :TDDL_IDX_stats;
+begin
+  Result := '';
+  DDLtable := ddl.GetItem(ddlitem.tableid);
+  if DDLtable <> nil then
+  begin
+    tableL := TDDL_Create_Table(DDLtable).TableObj;
+  end
+  else
+  begin
+    tableL := FLogSource.Fdbc.dict.tables.GetItemById(ddlitem.tableid);
+  end;
+
+  if tableL = nil then
+  begin
+    TmpStr := 'objId:'+ IntToStr(ddlitem.objId) + WIN_EOL;
+    TmpStr := TmpStr +'objName:'+ ddlitem.objName+ WIN_EOL;
+    TmpStr := TmpStr +'tableid:'+ IntToStr(ddlitem.tableid)+ WIN_EOL;
+    TmpStr := TmpStr +'colid:'+ IntToStr(ddlitem.colid)+ WIN_EOL;
+    TmpStr := TmpStr +'value:'+ ddlitem.value+ WIN_EOL;
+    TmpStr := TmpStr +'isCLUSTERED:'+ BoolToStr(ddlitem.isCLUSTERED,True)+ WIN_EOL;
+    Loger.Add('GenSql_CreateUniqueKey fail! ->' + TmpStr, LOG_ERROR or LOG_IMPORTANT);
+
+    Exit;
+  end;
+
+  for I := 0 to IDXstats.Count-1 do
+  begin
+    idxObj := TDDL_IDX_stats(IDXstats[i]);
+    if (ddlitem.tableid = idxObj.tableId) and (ddlitem.objName=idxObj.idxName) then
+    begin
+      ddlitem.isCLUSTERED := idxObj.isCLUSTERED;
+      ddlitem.isUnique := idxObj.isUnique;
+    end;
+  end;
+
+  cols := IDXs.GetById(ddlitem.tableid);
+  if (cols <> nil) and (cols.Count > 0) then
+  begin
+    colName := '';
+    for I := 0 to cols.Count - 1 do
+    begin
+      TempItem := TDDL_Idxs_ColsItem(cols[I]);
+      dbfield := tableL.Fields.GetItemById(TempItem.ColId);
+      if dbfield <> nil then
+      begin
+        colName := colName + ',' + dbfield.ColName + ' ' + TempItem.orderType;
+      end;
+    end;
+    if colName<>'' then
+      Delete(colName, 1, 1);
+  end;
+
+  if ddlitem.isCLUSTERED then
+    CLUSTEREDType := 'CLUSTERED'
+  else
+    CLUSTEREDType := 'NONCLUSTERED';
+
+  resStr:=Tstringlist.Create;
+  try
+    resStr.Add('--Create Unique key');
+    resStr.Add('--Tableid:'+inttostr(ddlitem.tableid));
+    resStr.Add('--id:'+inttostr(ddlitem.objId));
+    resStr.Add('--Name:'+ddlitem.objName);
+    resStr.Add(Format(SQLTEMPLATE, [tableL.getFullName, ddlitem.objName, CLUSTEREDType, colName]));
     Result := resStr.Text;
   finally
     resStr.Free;
@@ -1059,6 +1250,7 @@ var
   resStr:Tstringlist;
 
   hasError:Boolean;
+  idxObj :TDDL_IDX_stats;
 begin
   hasError := False;
   DDLtable := ddl.GetItem(ddlitem.tableid);
@@ -1070,6 +1262,17 @@ begin
   begin
     tableL := FLogSource.Fdbc.dict.tables.GetItemById(ddlitem.tableid);
   end;
+
+
+  for I := 0 to IDXstats.Count-1 do
+  begin
+    idxObj := TDDL_IDX_stats(IDXstats[i]);
+    if (ddlitem.tableid = idxObj.tableId) and (ddlitem.objName=idxObj.idxName) then
+    begin
+      ddlitem.isCLUSTERED := idxObj.isCLUSTERED;
+    end;
+  end;
+
 
   cols := IDXs.GetById(ddlitem.tableid);
   if (cols = nil) or (cols.Count = 0) then
@@ -1145,67 +1348,97 @@ function TSql2014logAnalyzer.getColsTypeStr(col: TdbFieldItem): string;
 begin
   case col.type_id of
     MsTypes.IMAGE:
-      Result := 'IMAGE';
+      Result := '[IMAGE]';
     MsTypes.TEXT:
-      Result := 'TEXT';
+      Result := '[TEXT]';
     MsTypes.UNIQUEIDENTIFIER:
-      Result := 'UNIQUEIDENTIFIER';
+      Result := '[UNIQUEIDENTIFIER]';
     MsTypes.DATE:
-      Result := 'DATE';
+      Result := '[DATE]';
     MsTypes.TIME:
-      Result := Format('TIME(%d)', [col.scale]);
+      Result := Format('[TIME](%d)', [col.scale]);
     MsTypes.DATETIME2:
-      Result := Format('DATETIME2(%d)', [col.scale]);
+      Result := Format('[DATETIME2](%d)', [col.scale]);
     MsTypes.DATETIMEOFFSET:
-      Result := Format('DATETIMEOFFSET(%d)', [col.scale]);
+      Result := Format('[DATETIMEOFFSET](%d)', [col.scale]);
     MsTypes.TINYINT:
-      Result := 'TINYINT';
+      Result := '[TINYINT]';
     MsTypes.SMALLINT:
-      Result := 'SMALLINT';
+      Result := '[SMALLINT]';
     MsTypes.INT:
-      Result := 'INT';
+      Result := '[INT]';
     MsTypes.SMALLDATETIME:
-      Result := 'SMALLDATETIME';
+      Result := '[SMALLDATETIME]';
     MsTypes.REAL:
-      Result := 'REAL';
+      Result := '[REAL]';
     MsTypes.MONEY:
-      Result := 'MONEY';
+      Result := '[MONEY]';
     MsTypes.DATETIME:
-      Result := 'DATETIME';
+      Result := '[DATETIME]';
     MsTypes.FLOAT:
-      Result := 'FLOAT';
+      Result := '[FLOAT]';
     MsTypes.SQL_VARIANT:
-      Result := 'SQL_VARIANT';
+      Result := '[SQL_VARIANT]';
     MsTypes.NTEXT:
-      Result := 'NTEXT';
+      Result := '[NTEXT]';
     MsTypes.BIT:
-      Result := 'BIT';
+      Result := '[BIT]';
     MsTypes.DECIMAL:
-      Result := Format('DECIMAL(%d,%d)', [col.procision, col.scale]);
+      Result := Format('[DECIMAL](%d,%d)', [col.procision, col.scale]);
     MsTypes.NUMERIC:
-      Result := Format('NUMERIC(%d,%d)', [col.procision, col.scale]);
+      Result := Format('[NUMERIC](%d,%d)', [col.procision, col.scale]);
     MsTypes.SMALLMONEY:
-      Result := 'SMALLMONEY';
+      Result := '[SMALLMONEY]';
     MsTypes.BIGINT:
-      Result := 'BIGINT';
+      Result := '[BIGINT]';
     MsTypes.VARBINARY:
-      Result := Format('VARBINARY(%d)', [col.Max_length]);
+      if col.Max_length = $FFFF then
+      begin
+        Result := '[VARBINARY](MAX)';
+      end
+      else
+        Result := Format('[VARBINARY](%d)', [col.Max_length]);
     MsTypes.VARCHAR:
-      Result := Format('VARCHAR(%d)', [col.Max_length]);
+      if col.Max_length = $FFFF then
+      begin
+        Result := '[VARCHAR](MAX)';
+      end
+      else
+        Result := Format('[VARCHAR](%d)', [col.Max_length]);
     MsTypes.BINARY:
-      Result := Format('BINARY(%d)', [col.Max_length]);
+      if col.Max_length = $FFFF then
+      begin
+        Result := '[BINARY](MAX)';
+      end
+      else
+        Result := Format('[BINARY](%d)', [col.Max_length]);
     MsTypes.CHAR:
-      Result := Format('CHAR(%d)', [col.Max_length]);
+      if col.Max_length = $FFFF then
+      begin
+        Result := '[CHAR](MAX)';
+      end
+      else
+        Result := Format('[CHAR](%d)', [col.Max_length]);
     MsTypes.TIMESTAMP:
-      Result := 'TIMESTAMP';
+      Result := '[TIMESTAMP]';
     MsTypes.NVARCHAR:
-      Result := Format('NVARCHAR(%d)', [col.Max_length]);
+      if col.Max_length = $FFFF then
+      begin
+        Result := '[NVARCHAR](MAX)';
+      end
+      else
+        Result := Format('[NVARCHAR](%d)', [col.Max_length]);
     MsTypes.NCHAR:
-      Result := Format('NCHAR(%d)', [col.Max_length]);
+      if col.Max_length = $FFFF then
+      begin
+        Result := '[NCHAR](MAX)';
+      end
+      else
+        Result := Format('[NCHAR](%d)', [col.Max_length]);
     MsTypes.XML:
-      Result := 'XML';
+      Result := '[XML]';
     MsTypes.GEOGRAPHY:
-      Result := 'GEOGRAPHY';
+      Result := '[GEOGRAPHY]';
   else
     Result := '';
   end;
@@ -1219,6 +1452,7 @@ var
   colsStr: TStringList;
   I: Integer;
   tmpStr: string;
+  FieldItem: TdbFieldItem;
 begin
   table := TDDL_Create_Table(ddlitem);
   colsStr := TStringList.Create;
@@ -1227,15 +1461,28 @@ begin
     colsStr.Add(Format('CREATE TABLE %s(', [table.TableObj.getFullName]));
     for I := 0 to table.TableObj.Fields.Count - 1 do
     begin
-      tmpStr := table.TableObj.Fields[I].ColName + ' ';
-      tmpStr := tmpStr + getColsTypeStr(table.TableObj.Fields[I]) + ' ';
-      if table.TableObj.Fields[I].is_nullable then
+      FieldItem:=TdbFieldItem(table.TableObj.Fields[I]);
+      tmpStr := '['+FieldItem.ColName + '] ';
+      tmpStr := tmpStr + getColsTypeStr(FieldItem) + ' ';
+      if FieldItem.collation_name<>'' then
       begin
-        tmpStr := tmpStr + 'NULL, ';
+        tmpStr := tmpStr + 'COLLATE '+ FieldItem.collation_name + ' ';
+      end;
+      if FieldItem.is_nullable then
+      begin
+        tmpStr := tmpStr + 'NULL';
       end
       else
       begin
-        tmpStr := tmpStr + 'NOT NULL, ';
+        tmpStr := tmpStr + 'NOT NULL';
+      end;
+      if (FieldItem.Idt_seed>0) and (FieldItem.Idt_increment>0) then
+      begin
+        tmpStr := tmpStr + Format(' IDENTITY(%d,%d)',[FieldItem.Idt_seed, FieldItem.Idt_increment]);
+      end;
+      if I <> table.TableObj.Fields.Count - 1 then
+      begin
+        tmpStr := tmpStr + ', '
       end;
       colsStr.Add(tmpStr);
     end;
@@ -1342,13 +1589,126 @@ end;
 
 procedure TSql2014logAnalyzer.PriseDDLPkg_U(DataRow: Tsql2014Opt);
 begin
-  //todo:PriseDDLPkg_U
+  if DataRow.Table.TableNmae = 'sysschobjs' then
+  begin
+    PriseDDLPkg_U_sysschobjs(DataRow);
+  end
+  else if DataRow.Table.TableNmae = 'syscolpars' then
+  begin
+    //修改列
+    PriseDDLPkg_U_syscolpars(DataRow);
+  end
+end;
+
+procedure TSql2014logAnalyzer.PriseDDLPkg_U_sysschobjs(DataRow: Tsql2014Opt);
+var
+  ObjId: Integer;
+begin
+  if TryStrToInt(DataRow.new_data.getFieldStrValue('id'), ObjId) then
+  begin
+
+
+
+
+
+  end;
+end;
+
+procedure TSql2014logAnalyzer.PriseDDLPkg_U_syscolpars(DataRow: Tsql2014Opt);
+var
+  ddlitem: TDDLItem;
+  FieldItem: TdbFieldItem;
+  table:TdbTableItem;
+  //tmpVar
+  collation_id: Integer;
+  TmpStr: string;
+  ObjId: Integer;
+  ddl_col:TDDL_Update_Column;
+  I:Integer;
+  pdd: PdbFieldValue;
+  OldCol:TdbFieldItem;
+begin
+  if TryStrToInt(DataRow.new_data.getFieldStrValue('id'), ObjId) then
+  begin
+    FieldItem := TdbFieldItem.Create;
+    FieldItem.Col_id := StrToInt(DataRow.new_data.getFieldStrValue('colid'));
+    FieldItem.ColName := DataRow.new_data.getFieldStrValue('name');
+    FieldItem.type_id := StrToInt(DataRow.new_data.getFieldStrValue('xtype'));
+    FieldItem.Max_length := StrToInt(DataRow.new_data.getFieldStrValue('length'));
+    FieldItem.procision := StrToInt(DataRow.new_data.getFieldStrValue('prec'));
+    FieldItem.scale := StrToInt(DataRow.new_data.getFieldStrValue('scale'));
+    FieldItem.is_nullable := (StrToInt(DataRow.new_data.getFieldStrValue('status')) and 1) = 0;
+    collation_id := StrToInt(DataRow.new_data.getFieldStrValue('collationid'));
+    FieldItem.collation_name := FLogSource.Fdbc.GetCollationPropertyFromId(collation_id);
+    if FieldItem.collation_name <> '' then
+    begin
+      TmpStr := FLogSource.Fdbc.GetCodePageFromCollationName(FieldItem.collation_name);
+      if TmpStr <> '' then
+      begin
+        FieldItem.CodePage := StrToIntDef(TmpStr, -1);
+      end
+      else
+      begin
+        FieldItem.CodePage := -1;
+      end;
+    end;
+
+    for I := DataRow.new_data.fields.Count - 1 downto 0 do
+    begin
+      pdd := PdbFieldValue(DataRow.new_data.fields[I]);
+      if LowerCase(pdd.field.ColName) = 'idtval' then
+      begin
+        FieldItem.Idt_seed := PDWORD(@pdd.value[0])^;
+        FieldItem.Idt_increment := PDWORD(@pdd.value[4])^;
+        Break;
+      end;
+    end;
+
+    ddlitem := DDL.GetItem(ObjId);
+    if (ddlitem <> nil) and (ddlitem.xType = 'u') then
+    begin
+      //表修改字段
+      OldCol := TDDL_Create_Table(ddlitem).TableObj.Fields.GetItemById(FieldItem.Col_id);
+      if OldCol<>nil then
+      begin
+        OldCol.ColName := FieldItem.ColName;
+        OldCol.type_id := FieldItem.type_id;
+        OldCol.Max_length := FieldItem.Max_length;
+
+        OldCol.procision := FieldItem.procision;
+        OldCol.scale := FieldItem.scale;
+        OldCol.collation_name := FieldItem.collation_name;
+
+        OldCol.CodePage := FieldItem.CodePage;
+        OldCol.Idt_seed := FieldItem.Idt_seed;
+        OldCol.Idt_increment := FieldItem.Idt_increment;
+      end;
+      FieldItem.free;
+    end
+    else
+    begin
+      table := FLogSource.Fdbc.dict.tables.GetItemById(ObjId);
+      if table<>nil then
+      begin
+        ddl_col := TDDL_Update_Column.Create;
+        ddl_col.Table := table;
+        ddl_col.field := FieldItem;
+        DDL.Add(ddl_col);
+      end else begin
+        FieldItem.Free;
+        //不是表不存在
+        Loger.Add('Error Message:PriseDDLPkg_U_syscolpars table not exists!tableid:%d',[ObjId]);
+      end;
+    end;
+  end;
+
 end;
 
 procedure TSql2014logAnalyzer.PriseDDLPkg(DataRow: Tsql2014Opt);
 var
   rowsetid: int64;
   ObjId: Integer;
+  idminor:Integer;
 begin
   if DataRow.Table.TableNmae = 'sysschobjs' then
   begin
@@ -1361,9 +1721,13 @@ begin
   end
   else if DataRow.Table.TableNmae = 'sysrowsets' then
   begin
-    rowsetid := StrToInt64(DataRow.new_data.getFieldStrValue('rowsetid'));
-    ObjId := StrToInt(DataRow.new_data.getFieldStrValue('idmajor'));
-    AllocUnitMgr.Add(rowsetid, ObjId);
+    idminor := StrToInt64(DataRow.new_data.getFieldStrValue('idminor'));
+    if idminor <= 1 then  //Composite ID
+    begin
+      rowsetid := StrToInt64(DataRow.new_data.getFieldStrValue('rowsetid'));
+      ObjId := StrToInt(DataRow.new_data.getFieldStrValue('idmajor'));
+      AllocUnitMgr.Add(rowsetid, ObjId);
+    end;
   end
   else if DataRow.Table.TableNmae = 'sysrscols' then
   begin
@@ -1377,10 +1741,10 @@ begin
   begin
     //index fields
     PriseDDLPkg_sysiscols(DataRow);
-  end else if DataRow.Table.TableNmae = 'syssingleobjrefs' then
+  end else if DataRow.Table.TableNmae = 'sysidxstats' then
   begin
-    //index 信息 (是否集合索引)
-    PriseDDLPkg_syssingleobjrefs(DataRow);
+    //index 信息
+    PriseDDLPkg_sysidxstats(DataRow);
   end;
 
 end;
@@ -1395,6 +1759,8 @@ var
   TmpStr: string;
   ObjId: Integer;
   ddl_col:TDDL_Create_Column;
+  I:Integer;
+  pdd: PdbFieldValue;
 begin
   if TryStrToInt(DataRow.new_data.getFieldStrValue('id'), ObjId) then
   begin
@@ -1406,6 +1772,7 @@ begin
     FieldItem.Max_length := StrToInt(DataRow.new_data.getFieldStrValue('length'));
     FieldItem.procision := StrToInt(DataRow.new_data.getFieldStrValue('prec'));
     FieldItem.scale := StrToInt(DataRow.new_data.getFieldStrValue('scale'));
+    FieldItem.is_nullable := (StrToInt(DataRow.new_data.getFieldStrValue('status')) and 1) = 0;
     collation_id := StrToInt(DataRow.new_data.getFieldStrValue('collationid'));
     FieldItem.collation_name := FLogSource.Fdbc.GetCollationPropertyFromId(collation_id);
     if FieldItem.collation_name <> '' then
@@ -1418,6 +1785,18 @@ begin
       else
       begin
         FieldItem.CodePage := -1;
+      end;
+    end;
+
+
+    for I := DataRow.new_data.fields.Count - 1 downto 0 do
+    begin
+      pdd := PdbFieldValue(DataRow.new_data.fields[I]);
+      if LowerCase(pdd.field.ColName) = 'idtval' then
+      begin
+        FieldItem.Idt_seed := PDWORD(@pdd.value[0])^;
+        FieldItem.Idt_increment := PDWORD(@pdd.value[4])^;
+        Break;
       end;
     end;
 
@@ -1445,47 +1824,47 @@ begin
 
 end;
 
-procedure TSql2014logAnalyzer.PriseDDLPkg_syssingleobjrefs(DataRow: Tsql2014Opt);
+procedure TSql2014logAnalyzer.PriseDDLPkg_sysidxstats(DataRow: Tsql2014Opt);
 var
   I: Integer;
   pdd: PdbFieldValue;
   pdd_field_ColName: string;
   objId: Integer;
-  indepid:Integer;
+  idxName:string;
+  status:integer;
+  idxtype:integer;
 
-  ddlitem:TDDLItem;
-  pkObj:TDDL_Create_PrimaryKey;
+  idxObj:TDDL_IDX_stats;
 begin
   objId := 0;
-  indepid := 0;
-
+  idxName := '';
+  status := 0;
+  idxtype := 0;
   for I := 0 to DataRow.new_data.Fields.Count - 1 do
   begin
     pdd := PdbFieldValue(DataRow.new_data.Fields[I]);
     pdd_field_ColName := LowerCase(pdd.field.ColName);
-    if pdd_field_ColName = 'depid' then
+    if pdd_field_ColName = 'id' then
     begin
       objId := StrToInt(Hvu_GetFieldStrValue(pdd.field, pdd.value));
-    end else if pdd_field_ColName = 'indepid' then
+    end else if pdd_field_ColName = 'name' then
     begin
-      indepid := StrToInt(Hvu_GetFieldStrValue(pdd.field, pdd.value));
+      idxName := Hvu_GetFieldStrValue(pdd.field, pdd.value);
+    end else if pdd_field_ColName = 'status' then
+    begin
+      status := StrToInt(Hvu_GetFieldStrValue(pdd.field, pdd.value));
+    end else if pdd_field_ColName = 'type' then
+    begin
+      idxtype := StrToInt(Hvu_GetFieldStrValue(pdd.field, pdd.value));
     end;
   end;
 
-  ddlitem := DDL.GetItem(objId);
-  if (ddlitem = nil) or (ddlitem.OpType <> Opt_Insert) then
-  begin
-    raise Exception.Create('pkValue No found!');
-  end else begin
-    if ddlitem.xType = 'pk' then
-    begin
-      pkObj:=TDDL_Create_PrimaryKey(ddlitem);
-      pkObj.isCLUSTERED := indepid = 1;
-    end else
-    begin
-      raise Exception.Create('Error Message:PriseDDLPkg_syssingleobjrefs Error Xtype!');
-    end;
-  end;
+  idxObj := TDDL_IDX_stats.Create;
+  idxObj.tableId := objId;
+  idxObj.idxName := idxName;
+  idxObj.isUnique := (status and $8) > 0;
+  idxObj.isCLUSTERED := idxtype = 1;
+  IDXstats.Add(idxObj);
 end;
 
 procedure TSql2014logAnalyzer.PriseDDLPkg_sysiscols(DataRow: Tsql2014Opt);
@@ -1530,10 +1909,11 @@ var
   I: Integer;
   pdd: PdbFieldValue;
   pdd_field_ColName: string;
-  objId: Integer;
+  valClass,objId: Integer;
   value: string;
   ddlitem: TDDLItem;
   DefObj: TDDL_Create_Def;
+  chkObj :TDDL_Create_Check;
 begin
   objId := 0;
   value := '';
@@ -1542,6 +1922,11 @@ begin
   begin
     pdd := PdbFieldValue(DataRow.new_data.Fields[I]);
     pdd_field_ColName := LowerCase(pdd.field.ColName);
+    if pdd_field_ColName = 'valClass' then
+    begin
+      //1 default val
+      valClass := SmallInt(pdd.value[0]);
+    end else
     if pdd_field_ColName = 'objid' then
     begin
       objId := StrToInt(Hvu_GetFieldStrValue(pdd.field, pdd.value));
@@ -1562,6 +1947,11 @@ begin
     begin
       DefObj := TDDL_Create_Def(ddlitem);
       DefObj.value := hexToAnsiiData(value);
+    end else if ddlitem.xType = 'c' then
+    begin
+      //check
+      chkObj := TDDL_Create_Check(ddlitem);
+      chkObj.value := hexToAnsiiData(value);
     end
     else if ddlitem.xType = 'u' then begin
 
@@ -1585,7 +1975,7 @@ var
 //  initprop: Integer; //如果对象是表值为表总列数，如果是默认值为列id
 
   table: TDDL_Delete_Table;
-  DefObj: TDDL_Delete_Def;
+  DefObj: TDDL_Delete_Constraint;
 begin
   ObjId := 0;
   ObjName := '';
@@ -1645,40 +2035,19 @@ begin
 
 
   end
-  else if ObjType = 'c' then
+  else if (ObjType = 'd') or (ObjType = 'pk') or (ObjType = 'uq') or (ObjType = 'c') or (ObjType = 'fk') then
   begin
-  //todo:check
-
-  end
-  else if ObjType = 'd' then
-  begin
-  //default
-    DefObj := TDDL_Delete_Def.Create;
+    //default   ,primary key   ,unique key    ,check   ,FOREIGN key
+    DefObj := TDDL_Delete_Constraint.Create;
+    DefObj.subType := ObjType;
     DefObj.objId := ObjId;
     DefObj.objName := ObjName;
     DefObj.tableid := pid;
     DDL.Add(DefObj);
   end
-  else if ObjType = 'pk' then
-  begin
-  //todo:primary key
-
-  end
   else if ObjType = 'tr' then
   begin
   //todo:Trigger
-
-  end
-  else if ObjType = 'uq' then
-  begin
-  //todo:unique key
-
-
-  end
-  else if ObjType = 'fk' then
-  begin
-  //todo:FOREIGN key
-
 
   end
   else
@@ -1704,6 +2073,8 @@ var
   table: TDDL_Create_Table;
   DefObj: TDDL_Create_Def;
   pkObj:TDDL_Create_PrimaryKey;
+  uqObj : TDDL_Create_UniqueKey;
+  chkObj :TDDL_Create_Check;
 begin
   ObjId := 0;
   ObjName := '';
@@ -1765,8 +2136,12 @@ begin
   end
   else if ObjType = 'c' then
   begin
-  //todo:check
-
+    //todo:check
+    chkObj := TDDL_Create_Check.Create;
+    chkObj.objId := ObjId;
+    chkObj.objName := ObjName;
+    chkObj.tableid := pid;
+    DDL.Add(chkObj);
   end
   else if ObjType = 'd' then
   begin
@@ -1794,9 +2169,12 @@ begin
   end
   else if ObjType = 'uq' then
   begin
-  //todo:unique key
-
-
+    //Unique key
+    uqObj := TDDL_Create_UniqueKey.Create;
+    uqObj.objId := ObjId;
+    uqObj.objName := ObjName;
+    uqObj.tableid := pid;
+    DDL.Add(uqObj);
   end
   else if ObjType = 'fk' then
   begin
@@ -1850,11 +2228,11 @@ begin
     end
     else if pdd_field_ColName = 'offset' then
     begin
-      DataOffset := StrToInt(Hvu_GetFieldStrValue(pdd.field, pdd.value));
+      DataOffset := Hvu_getShort(pdd.value, 0, 2);
     end
     else if pdd_field_ColName = 'nullbit' then
     begin
-      Nullbit := StrToInt(Hvu_GetFieldStrValue(pdd.field, pdd.value));
+      Nullbit := Hvu_getShort(pdd.value, 0, 2);
     end;
   end;
   ObjId := AllocUnitMgr.GetObjId(rowsetid);
@@ -1864,14 +2242,13 @@ begin
     if (ddlitem <> nil) and (ddlitem.xType = 'u') then
     begin
       table := TDDL_Create_Table(ddlitem);
-      FieldItem := table.TableObj.Fields.Items[ColId - 1];
-      FieldItem.nullMap := Nullbit - 1;
-      FieldItem.is_nullable := (statusCode and $80) = 0;
-      FieldItem.leaf_pos := DataOffset;
-    end
-    else
-    begin
-      raise Exception.Create('Error Message:PriseDDLPkg_sysrscols.2');
+      FieldItem := table.TableObj.Fields.GetItemById(ColId);
+      if FieldItem <> nil then
+      begin
+        FieldItem.nullMap := Nullbit - 1;
+        FieldItem.is_nullable := (statusCode and $80) = 0;
+        FieldItem.leaf_pos := DataOffset;
+      end;
     end;
   end
   else
@@ -1894,9 +2271,8 @@ begin
         end;
       end;
     end else begin
-      raise Exception.CreateFmt('Error Message:PriseDDLPkg_sysrscols.无法解析的 Partitionid:%d',[rowsetid]);
+      //忽略的partition
     end;
-
   end;
 end;
 

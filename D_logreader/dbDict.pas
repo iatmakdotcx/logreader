@@ -18,6 +18,9 @@ type
     leaf_pos: Integer;
     collation_name: string;  //×Ö·û¼¯
     CodePage: Integer;
+    //identify
+    Idt_seed:Integer;
+    Idt_increment:Integer;
     function isLogSkipCol: Boolean;
     function getSafeColName: string;
     constructor Create;
@@ -641,6 +644,8 @@ end;
 constructor TdbFieldItem.Create;
 begin
   CodePage := -1;
+  Idt_seed := 0;
+  Idt_increment := 0;
 end;
 
 function TdbFieldItem.getSafeColName: string;

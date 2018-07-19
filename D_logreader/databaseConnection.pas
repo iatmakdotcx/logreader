@@ -687,7 +687,7 @@ var
   aSql:string;
 begin
   Result := 0;
-  aSql := Format('select object_id from sys.partitions where partition_id=%d', [partition_id]);
+  aSql := Format('select object_id from sys.partitions where index_id<=1 and partition_id=%d', [partition_id]);
   if ExecSql(aSql, rDataset) then
   begin
     if not rDataset.Eof then

@@ -12,11 +12,17 @@ function Hvu_GetFieldStrValue(Field: TdbFieldItem; Value: TBytes): string; overl
 function Hvu_GetFieldStrValue(Field: TdbFieldItem; Value: TBytes; out needQuote: Boolean): string; overload;
 function Hvu_GetFieldStrValueWithQuoteIfNeed(Field: TdbFieldItem; Value: TBytes): string;
 
-function getShort(Value: TBytes; idx: Integer; len: Integer = 2): word;
+function Hvu_getWord(Value: TBytes; idx: Integer; len: Integer = 2): Word;
 
-function getInt(Value: TBytes; idx: Integer; len: Integer = 4): DWORD;
+function Hvu_getDWORD(Value: TBytes; idx: Integer; len: Integer = 4): DWORD;
 
-function getInt64(Value: TBytes; idx: Integer; len: Integer = 8): QWORD;
+function Hvu_getQWORD(Value: TBytes; idx: Integer; len: Integer = 8): QWORD;
+
+function Hvu_getShort(Value: TBytes; idx: Integer; len: Integer = 2): SHORT;
+
+function Hvu_getInt(Value: TBytes; idx: Integer; len: Integer = 4): Integer;
+
+function Hvu_getInt64(Value: TBytes; idx: Integer; len: Integer = 8): Int64;
 
 implementation
 
@@ -34,7 +40,7 @@ begin
   Result := IncMilliSecond(Result, (ldate mod 300) * 1000 div 300);
 end;
 
-function getShort(Value: TBytes; idx, len: Integer): Word;
+function Hvu_getWord(Value: TBytes; idx, len: Integer): Word;
 var
   I: Integer;
   NeedReadByteCnt: Integer;
@@ -47,7 +53,7 @@ begin
   end;
 end;
 
-function getInt(Value: TBytes; idx, len: Integer): DWORD;
+function Hvu_getDWORD(Value: TBytes; idx, len: Integer): DWORD;
 var
   I: Integer;
   NeedReadByteCnt: Integer;
@@ -60,7 +66,7 @@ begin
   end;
 end;
 
-function getInt64(Value: TBytes; idx, len: Integer): QWORD;
+function Hvu_getQWORD(Value: TBytes; idx, len: Integer): QWORD;
 var
   I: Integer;
   NeedReadByteCnt: Integer;
@@ -73,12 +79,42 @@ begin
   end;
 end;
 
+function Hvu_getShort(Value: TBytes; idx: Integer; len: Integer = 2): SHORT;
+begin
+  if Length(Value) < idx+2 then
+  begin
+    Result := Value[idx];
+  end else begin
+    Result := PSHORT(@Value[idx])^;
+  end;
+end;
+
+function Hvu_getInt(Value: TBytes; idx: Integer; len: Integer = 4): Integer;
+begin
+  if Length(Value) < idx+4 then
+  begin
+    Result := Hvu_getDWORD(Value, idx, len);
+  end else begin
+    Result := PINT(@Value[idx])^;
+  end;
+end;
+
+function Hvu_getInt64(Value: TBytes; idx: Integer; len: Integer = 8): Int64;
+begin
+  if Length(Value) < idx+4 then
+  begin
+    Result := Hvu_getQWORD(Value, idx, len);
+  end else begin
+    Result := PINT64(@Value[idx])^;
+  end;
+end;
+
 function Hvu_Bytes2DateStr(Value: TBytes): string;
 var
   dayCnt: Integer;
   TmpDate: TDate;
 begin
-  dayCnt := getInt(Value, 0, 3);
+  dayCnt := Hvu_getDWORD(Value, 0, 3);
   TmpDate := EncodeDateTime(0001, 1, 1, 0, 0, 0, 0);
   TmpDate := TmpDate + dayCnt;
   Result := FormatDateTime('yyyy-MM-dd', TmpDate);
@@ -91,7 +127,7 @@ var
   scaleCardinal: Integer;
   TotalSrcond: Cardinal;
 begin
-  MisCnt := getInt64(Value, 0, 5);
+  MisCnt := Hvu_getQWORD(Value, 0, 5);
   scaleCardinal := Trunc(Power(10, scale));
   TotalSrcond := MisCnt div scaleCardinal;
   seconds := TotalSrcond mod 60;
@@ -105,7 +141,7 @@ function Hvu_Bytes2DateTimeStr(Value: TBytes): string;
 var
   tmpLong: QWORD;
 begin
-  tmpLong := getInt64(Value, 0);
+  tmpLong := Hvu_getQWORD(Value, 0);
   Result := FormatDateTime('yyyy-MM-dd HH:nn:ss.zzz', Hvu_Hex2Datetime(tmpLong));
 end;
 
@@ -119,12 +155,12 @@ var
   TmpDate: TDate;
 begin
   //Ìì”µ
-  dayCnt := getInt(Value, 5, 3);
+  dayCnt := Hvu_getDWORD(Value, 5, 3);
   TmpDate := EncodeDateTime(0001, 1, 1, 0, 0, 0, 0);
   TmpDate := TmpDate + dayCnt;
   Result := FormatDateTime('yyyy-MM-dd', TmpDate);
   //Ãë”µ
-  MisCnt := getInt64(Value, 0, 5);
+  MisCnt := Hvu_getQWORD(Value, 0, 5);
   scaleCardinal := Trunc(Power(10, scale));
   TotalSrcond := MisCnt div scaleCardinal;
   seconds := TotalSrcond mod 60;
@@ -146,7 +182,7 @@ var
   TimeZoneStr: string;
   zoneHours, zonMinutes: integer;
 begin
-  fixVal := getShort(Value, 8);
+  fixVal := Hvu_getWord(Value, 8);
   zoneHours := abs(fixVal) div 60;
   zonMinutes := abs(fixVal) mod 60;
   if fixVal < 0 then
@@ -158,13 +194,13 @@ begin
     TimeZoneStr := Format('+%.2d:%.2d', [zoneHours, zonMinutes]);
   end;
   //Ìì”µ
-  dayCnt := getInt(Value, 5, 3);
+  dayCnt := Hvu_getDWORD(Value, 5, 3);
   TmpDate := EncodeDateTime(0001, 1, 1, 0, 0, 0, 0);
   TmpDate := TmpDate + dayCnt;
   Result := FormatDateTime('yyyy-MM-dd', TmpDate);
   //Ãë”µ
   scaleCardinal := Trunc(Power(10, scale));
-  MisCnt := getInt64(Value, 0, 5) + int64(fixVal) * scaleCardinal * 60;
+  MisCnt := Hvu_getQWORD(Value, 0, 5) + int64(fixVal) * scaleCardinal * 60;
   TotalSrcond := MisCnt div scaleCardinal;
   seconds := TotalSrcond mod 60;
   minutes := (TotalSrcond div 60) mod 60;
@@ -178,8 +214,8 @@ var
   ldate, hdate: Integer;
   TmpDate: TDateTime;
 begin
-  ldate := getShort(Value, 0, 2);
-  hdate := getShort(Value, 2, 2);
+  ldate := Hvu_getWord(Value, 0, 2);
+  hdate := Hvu_getWord(Value, 2, 2);
   TmpDate := EncodeDateTime(1900, 1, 1, 0, 0, 0, 0);
   TmpDate := TmpDate + hdate;
   TmpDate := IncMinute(TmpDate, ldate);
@@ -190,7 +226,7 @@ function Hvu_Bytes2SingleStr(Value: TBytes): string;
 var
   tmpSingle: Single;
 begin
-  PDWORD(@tmpSingle)^ := getInt(Value, 0);
+  PDWORD(@tmpSingle)^ := Hvu_getDWORD(Value, 0);
   Result := FloatToStr(tmpSingle);
 end;
 
@@ -198,7 +234,7 @@ function Hvu_Bytes2DoubleStr(Value: TBytes): string;
 var
   tmpSingle: Double;
 begin
-  PQWORD(@tmpSingle)^ := getInt64(Value, 0);
+  PQWORD(@tmpSingle)^ := Hvu_getQWORD(Value, 0);
   Result := FloatToStr(tmpSingle);
 end;
 
@@ -207,7 +243,7 @@ var
   tmplong: Int64;
   TmPdouble: Double;
 begin
-  tmplong := getInt64(Value, 1);
+  tmplong := Hvu_getQWORD(Value, 1);
   TmPdouble := tmplong / Power(10, scale);
   if (Value[0] <> 1) then
   begin
@@ -224,12 +260,12 @@ begin
   if Length(Value) = 4 then
   begin
     // smallMoney
-    tmplong := getInt(Value, 0);
+    tmplong := Hvu_getDWORD(Value, 0);
   end
   else
   begin
     //Money
-    tmplong := getInt64(Value, 0);
+    tmplong := Hvu_getQWORD(Value, 0);
   end;
   TmPdouble := tmplong / Power(10, scale);
   Result := FloatToStr(TmPdouble);
@@ -301,13 +337,13 @@ begin
         needQuote := True;
       end;
     MsTypes.TINYINT:
-      Result := IntToStr(Value[0]);
+      Result := IntToStr(ShortInt(Value[0]));
     MsTypes.SMALLINT:
-      Result := IntToStr(getShort(Value, 0));
+      Result := IntToStr(Hvu_getShort(Value, 0));
     MsTypes.INT:
-      Result := IntToStr(getInt(Value, 0));
+      Result := IntToStr(Hvu_getInt(Value, 0));
     MsTypes.BIGINT:
-      Result := IntToStr(getInt64(Value, 0));
+      Result := IntToStr(Hvu_getInt64(Value, 0));
     MsTypes.SMALLDATETIME:
       begin
         Result := Hvu_Bytes2smallDatetimeStr(Value);
@@ -385,6 +421,7 @@ begin
   Result := Hvu_GetFieldStrValue(Field, Value, needQuote);
   if needQuote then
   begin
+    Result := Result.Replace('''','''''');
     Result := QuotedStr(Result);
   end;
 end;
