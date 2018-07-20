@@ -121,22 +121,22 @@ type
     function GenSql_DDL_Update(ddlitem: TDDLItem_Update): string;
     function GenSql_DropConstraint(ddlitem: TDDL_Delete_Constraint): string;
     function GenSql_DropTable(ddlitem: TDDL_Delete_Table): string;
-    procedure PriseDDLPkg_sysiscols(DataRow: Tsql2014Opt);
+    function GenSql_DropColumn(ddlitem: TDDL_Delete_Column): string;
     function GenSql_CreatePrimaryKey(ddlitem: TDDL_Create_PrimaryKey): string;
+    function GenSql_CreateUniqueKey(ddlitem: TDDL_Create_UniqueKey): string;
+    function GenSql_CreateCheck(ddlitem: TDDL_Create_Check): string;
+    function GenSql_CreateColumn(ddlitem: TDDL_Create_Column): string;
+    function GenSql_UpdateColumn(ddlitem: TDDL_Update_Column): string;
+    function GenSql_UpdateRenameObj(ddlitem: TDDL_Update_RenameObj): string;
+    procedure PriseDDLPkg_sysiscols(DataRow: Tsql2014Opt);
     procedure Execute2(FTranspkg: TTransPkg);
     procedure PriseDDLPkg_syscolpars(DataRow: Tsql2014Opt);
-    function GenSql_CreateColumn(ddlitem: TDDL_Create_Column): string;
     function getColsTypeStr(col: TdbFieldItem): string;
-    function GenSql_DropColumn(ddlitem: TDDL_Delete_Column): string;
     procedure PriseRowLog_MODIFY_ROW(tPkg: TTransPkgItem);
     procedure PriseRowLog_MODIFY_COLUMNS(tPkg: TTransPkgItem);
     function PriseRowLog_UniqueClusteredKeys(BinReader: TbinDataReader; DbTable: TdbTableItem): string;
     procedure DDLClear;
-    function GenSql_UpdateColumn(ddlitem: TDDL_Update_Column): string;
-    function GenSql_CreateUniqueKey(ddlitem: TDDL_Create_UniqueKey): string;
     procedure PriseDDLPkg_sysidxstats(DataRow: Tsql2014Opt);
-    function GenSql_CreateCheck(ddlitem: TDDL_Create_Check): string;
-
   public
     /// <summary>
     ///
@@ -951,7 +951,7 @@ begin
   end
   else
   begin
-    //TODO:GenSql_DDL_Insert
+
   end;
 end;
 
@@ -972,7 +972,6 @@ begin
   begin
 
   end;
-  //TODO:GenSql_DDL_Delete
 end;
 
 function TSql2014logAnalyzer.GenSql_DDL_Update(ddlitem: TDDLItem_Update): string;
@@ -980,6 +979,9 @@ begin
   if ddlitem.xType = 'u' then
   begin
     //Result := GenSql_UpdateTable(TDDL_Update_Table(ddlitem));
+  end else if ddlitem.xType = 'rename' then
+  begin
+    Result := GenSql_UpdateRenameObj(TDDL_Update_RenameObj(ddlitem));
   end else if ddlitem.xType = 'column' then
   begin
     Result := GenSql_UpdateColumn(TDDL_Update_Column(ddlitem));
@@ -988,7 +990,14 @@ begin
   begin
 
   end;
-  //TODO:GenSql_DDL_Update
+end;
+
+function TSql2014logAnalyzer.GenSql_UpdateRenameObj(ddlitem: TDDL_Update_RenameObj): string;
+const
+  SQLTEMPLATE = 'exec sp_rename ''%s'',''%s'';';
+begin
+  Result := '--sp_rename Obj id:'+IntToStr(ddlitem.ObjId);
+  Result := Result + #$D#$A + Format(SQLTEMPLATE, [ddlitem.oldName, ddlitem.newName ]);
 end;
 
 function TSql2014logAnalyzer.GenSql_UpdateColumn(ddlitem: TDDL_Update_Column): string;
@@ -997,7 +1006,7 @@ const
 var
   tmpStr:string;
 begin
-  Result := '--drop Column table id:'+IntToStr(ddlitem.Table.TableId);
+  Result := '--alter Column table id:'+IntToStr(ddlitem.Table.TableId);
   tmpStr := ddlitem.field.getSafeColName + ' ';
   tmpStr := tmpStr + getColsTypeStr(ddlitem.field) + ' ';
   if ddlitem.field.collation_name<>'' then
@@ -1098,7 +1107,7 @@ begin
     begin
       tmpStr := tmpStr + 'NOT NULL';
     end;
-    resStr.Add(Format(SQLTEMPLATE, [ddlitem.Table.getFullName, ddlitem.field.ColName, tmpStr]));
+    resStr.Add(Format(SQLTEMPLATE, [ddlitem.Table.getFullName, ddlitem.field.getSafeColName, tmpStr]));
     Result := resStr.Text;
   finally
     resStr.Free;
@@ -1209,7 +1218,7 @@ begin
       dbfield := tableL.Fields.GetItemById(TempItem.ColId);
       if dbfield <> nil then
       begin
-        colName := colName + ',' + dbfield.ColName + ' ' + TempItem.orderType;
+        colName := colName + ',' + dbfield.getSafeColName + ' ' + TempItem.orderType;
       end;
     end;
     if colName<>'' then
@@ -1304,7 +1313,7 @@ begin
         end
         else
         begin
-          colName := colName + ',' + dbfield.ColName + ' ' + TempItem.orderType;
+          colName := colName + ',' + dbfield.getSafeColName + ' ' + TempItem.orderType;
         end;
       end;
       Delete(colName, 1, 1);
@@ -1462,7 +1471,7 @@ begin
     for I := 0 to table.TableObj.Fields.Count - 1 do
     begin
       FieldItem:=TdbFieldItem(table.TableObj.Fields[I]);
-      tmpStr := '['+FieldItem.ColName + '] ';
+      tmpStr := FieldItem.getSafeColName + ' ';
       tmpStr := tmpStr + getColsTypeStr(FieldItem) + ' ';
       if FieldItem.collation_name<>'' then
       begin
@@ -1532,7 +1541,7 @@ begin
     begin
       ResStr.Add(Format('-- Constraint id :%d', [DefObj.objId]));
       tableName := tableL.getFullName;
-      colName := tableL.Fields.GetItemById(DefObj.colid).colName;
+      colName := tableL.Fields.GetItemById(DefObj.colid).getSafeColName;
       ResStr.Add(Format(SQLTEMPLATE, [tableName, DefObj.objName, DefObj.value, colName]));
     end;
     Result := ResStr.Text;
@@ -1603,14 +1612,34 @@ end;
 procedure TSql2014logAnalyzer.PriseDDLPkg_U_sysschobjs(DataRow: Tsql2014Opt);
 var
   ObjId: Integer;
+  oldName,newName:string;
+  renameObj:TDDL_Update_RenameObj;
+  DDLtable: TDDLItem;
+  table: TdbTableItem;
 begin
   if TryStrToInt(DataRow.new_data.getFieldStrValue('id'), ObjId) then
   begin
+    newName := DataRow.new_data.getFieldStrValue('name');
+    oldName := DataRow.old_data.getFieldStrValue('name');
+    if oldName <> newName then
+    begin
+      //ObjReName
+      DDLtable := ddl.GetItem(ObjId);
+      if DDLtable <> nil then
+      begin
+        table := TDDL_Create_Table(DDLtable).TableObj;
+      end
+      else
+      begin
+        table := FLogSource.Fdbc.dict.tables.GetItemById(ObjId);
+      end;
 
-
-
-
-
+      renameObj := TDDL_Update_RenameObj.Create;
+      renameObj.oldName := '[' + table.Owner + '].[' + oldName.Replace(']', ']]') + ']';
+      renameObj.newName := newName;
+      renameObj.ObjId := ObjId;
+      DDL.Add(renameObj);
+    end;
   end;
 end;
 
@@ -1627,9 +1656,34 @@ var
   I:Integer;
   pdd: PdbFieldValue;
   OldCol:TdbFieldItem;
+  oldName,newName:string;
+  renameObj:TDDL_Update_RenameObj;
 begin
   if TryStrToInt(DataRow.new_data.getFieldStrValue('id'), ObjId) then
   begin
+    newName := DataRow.new_data.getFieldStrValue('name');
+    oldName := DataRow.old_data.getFieldStrValue('name');
+    if oldName <> newName then
+    begin
+      //ObjReName
+      ddlitem := ddl.GetItem(ObjId);
+      if ddlitem <> nil then
+      begin
+        table := TDDL_Create_Table(ddlitem).TableObj;
+      end
+      else
+      begin
+        table := FLogSource.Fdbc.dict.tables.GetItemById(ObjId);
+      end;
+
+      renameObj := TDDL_Update_RenameObj.Create;
+      renameObj.oldName := table.getFullName+'.['+oldName.Replace(']',']]')+']';
+      renameObj.newName := newName;
+      renameObj.ObjId := ObjId;
+      DDL.Add(renameObj);
+      exit;
+    end;
+
     FieldItem := TdbFieldItem.Create;
     FieldItem.Col_id := StrToInt(DataRow.new_data.getFieldStrValue('colid'));
     FieldItem.ColName := DataRow.new_data.getFieldStrValue('name');

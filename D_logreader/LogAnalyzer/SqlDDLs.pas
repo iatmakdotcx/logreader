@@ -146,6 +146,16 @@ type
     function getObjId: Integer; override;
   end;
 
+  TDDL_Update_RenameObj = class(TDDLItem_Update)
+    ObjId:Integer;
+    oldName:string;
+    newName:string;
+    constructor Create;
+    function getObjId: Integer; override;
+  end;
+
+
+
 
 {$ENDREGION 'Update'}
   //这个数据在索引之前创建，所以只能先记录，再关联了
@@ -538,6 +548,19 @@ end;
 function TDDL_Create_Check.getObjId: Integer;
 begin
   Result := objId;
+end;
+
+{ TDDL_Update_RenameObj }
+
+constructor TDDL_Update_RenameObj.Create;
+begin
+  inherited;
+  xType := 'rename';
+end;
+
+function TDDL_Update_RenameObj.getObjId: Integer;
+begin
+  Result := ObjId;
 end;
 
 end.

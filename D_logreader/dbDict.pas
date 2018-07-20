@@ -553,7 +553,7 @@ end;
 
 function TdbTableItem.getFullName: string;
 begin
-  Result := '[' + Owner + '].[' + TableNmae + ']';
+  Result := '[' + Owner.Replace(']',']]') + '].[' + TableNmae.Replace(']',']]') + ']';
 end;
 
 function TdbTableItem.getNullMapLength: Integer;
@@ -650,7 +650,7 @@ end;
 
 function TdbFieldItem.getSafeColName: string;
 begin
-  Result := '[' + ColName + ']';
+  Result := '[' + ColName.Replace(']',']]') + ']';
 end;
 
 function TdbFieldItem.isLogSkipCol: Boolean;

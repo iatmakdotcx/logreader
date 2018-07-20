@@ -88,10 +88,24 @@ ALTER TABLE [dbo].[tc_heap] ADD CONSTRAINT [ck_dm] CHECK(([dm]<>'123'))
 Alter table [tc_heap] drop constraint [CK_dm] 
 
 
-exec sp_rename '[dbo].[tc_heap]','[dbo].[tc_heap_R]'
-exec sp_rename '[表名].[列名]','[表名].[新列名]'
+exec sp_rename '[dbo].[tc_heap_R]','[dbo].[tc_heap]';
+exec sp_rename '[dbo].[tc_heap]','tc_heap_R';
+exec sp_rename '[dbo].[[dbo]].[tc_heap]]]','tc_heap';
+
+
+exec sp_rename 'tc_heap','[dbo].[tc_heap_R]';
+exec sp_rename '[dbo].[tc_heap_R]','[dbo].[tc_heap]';
+exec sp_rename '[dbo].[tc_heap]','[dbo].[tc_heap].[mc1]','column'
+EXEC sp_rename 'dbo.tc_heap.[[dbo]].[tc_heap]].[mc1]]]', 'mc2', 'COLUMN' 
 
 
 
+exec sp_rename '[dbo].[tc_heap].[mc301]','mc32';
+exec sp_rename '[dbo].[tc_heap].[mc32]','mc301';
 
+
+
+select object_id('dbo.tc_heap.[[dbo]].[tc_heap]].[mc1]]]')
 select OBJECT_NAME(350624292)
+
+ 
