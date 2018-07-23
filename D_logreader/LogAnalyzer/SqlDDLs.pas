@@ -147,7 +147,9 @@ type
   end;
 
   TDDL_Update_RenameObj = class(TDDLItem_Update)
+    subType:string;
     ObjId:Integer;
+    colId:Integer;   //only used in rename column
     oldName:string;
     newName:string;
     constructor Create;

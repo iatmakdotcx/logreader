@@ -44,6 +44,7 @@ type
     procedure Button4Click(Sender: TObject);
     procedure Button6Click(Sender: TObject);
     procedure Button11Click(Sender: TObject);
+    procedure Button14Click(Sender: TObject);
   private
     { Private declarations }
   public
@@ -88,6 +89,20 @@ end;
 procedure TForm1.Button13Click(Sender: TObject);
 begin
   logsource.loadFromFile('d:\1.bin');
+end;
+
+procedure TForm1.Button14Click(Sender: TObject);
+var
+  ItemIdx:Integer;
+  tlsObj:TLogSource;
+begin
+  if ListView1.Selected <> nil then
+  begin
+    ItemIdx := StrToInt(ListView1.Selected.Caption) - 1;
+    tlsObj := LogSourceList.Get(ItemIdx);
+
+
+  end;
 end;
 
 procedure TForm1.Button3Click(Sender: TObject);

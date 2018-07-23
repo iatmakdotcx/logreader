@@ -49,6 +49,7 @@ type
   end;
 
   TdbTableItem = class(TObject)
+    partition_id:int64;
     TableId: Integer;
     TableNmae: string;
     Owner: string;
@@ -71,7 +72,7 @@ type
   private
     FItems: TObjectList;
     FItems_s_Id: array of TdbTableItem; //根据id排序的内容
-    FItems_s_Name: TStringHash;    //根据名称排序的
+    FItems_s_Name: TStringHash;         //根据名称排序的
     fSorted: Boolean;
     function GetItem(idx: Integer): TdbTableItem;
     function GetItemsCount: Integer;
@@ -85,6 +86,7 @@ type
     property Items[idx: Integer]: TdbTableItem read GetItem; default;
     function GetItemById(TableId: Integer): TdbTableItem;
     function GetItemByName(TableName: string): TdbTableItem;
+    function GetItemByPartitionId(PartitionId: Int64): TdbTableItem;
   end;
 
   TDbDict = class(TObject)
@@ -137,6 +139,7 @@ begin
     tti.Owner := Qry.Fields[0].AsString;
     tti.TableId := Qry.Fields[1].AsInteger;
     tti.TableNmae := LowerCase(Qry.Fields[2].AsString);
+    tti.partition_id := Qry.Fields[3].AsLargeInt;
     tables.addTable(tti);
     Qry.Next;
   end;
@@ -503,12 +506,27 @@ begin
   end;
 end;
 
+function TdbTables.GetItemByPartitionId(PartitionId: Int64): TdbTableItem;
+var
+  I: Integer;
+  tmpItm: TdbTableItem;
+begin
+  for I := 0 to count - 1 do
+  begin
+    tmpItm := TdbTableItem(FItems[i]);
+    if tmpItm.partition_id = PartitionId then
+    begin
+      Result := tmpItm;
+      Exit;
+    end;
+  end;
+  Result := nil;
+end;
+
 function TdbTables.GetItemsCount: Integer;
 begin
   Result := FItems.Count;
 end;
-
-
 
 procedure TdbTables.Sort;
 var
@@ -569,6 +587,7 @@ var
 begin
   Result := TMemoryStream.Create;
   wter := TWriter.Create(Result, 1);
+  wter.WriteInteger(partition_id);
   wter.WriteInteger(TableId);
   wter.WriteString(TableNmae);
   wter.WriteString(Owner);
@@ -607,6 +626,7 @@ var
 begin
   Rter := TReader.Create(data, 1);
   try
+    partition_id := Rter.ReadInt64;
     TableId := Rter.ReadInteger;
     TableNmae := Rter.ReadString;
     Owner := Rter.ReadString;

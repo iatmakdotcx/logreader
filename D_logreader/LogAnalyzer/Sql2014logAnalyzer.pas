@@ -69,6 +69,16 @@ type
     isUnique:Boolean;
   end;
 
+  TDDL_RsCols = class(TObject)
+    rowsetid: int64;
+    ColId: Integer;
+    statusCode: Integer;
+    DataOffset: Integer;
+    Nullbit: Integer;
+    TableObj:TdbTableItem;
+    ColObj: TdbFieldItem;
+  end;
+
   TSql2014logAnalyzer = class(TlogAnalyzer)
   private
     FPkgMgr:TTransPkgMgr; //事务队列
@@ -84,6 +94,7 @@ type
     AllocUnitMgr: TAllocUnitMgr;
     IDXs:TDDL_Idxs_ColsMgr;
     IDXstats:TObjectList;
+    Rscols:TObjectList;
     function binEquals(v1, v2: TBytes): Boolean;
     procedure serializeToBin(FTranspkg: TTransPkg; var mm: TMemory_data);
     procedure PriseRowLog(tPkg: TTransPkgItem);
@@ -191,12 +202,14 @@ begin
   AllocUnitMgr := TAllocUnitMgr.Create;
   IDXs:=TDDL_Idxs_ColsMgr.Create;
   IDXstats:=TObjectList.create;
+  Rscols := TObjectList.create;
 
   Self.NameThreadForDebugging('TSql2014logAnalyzer', Self.ThreadID);
 end;
 
 destructor TSql2014logAnalyzer.Destroy;
 begin
+  Rscols.Free;
   FRows.Clear;
   FRows.Free;
   MIX_DATAs.Free;
@@ -244,7 +257,11 @@ var
   cColumn:TDDL_Create_Column;
   dColumn:TDDL_Delete_Column;
 
+  uColumn:TDDL_Update_Column;
+
   TableObj: TdbTableItem;
+  FieldObj:TdbFieldItem;
+  renameObj:TDDL_Update_RenameObj;
 begin
   for I := 0 to DDL.FItems.Count - 1 do
   begin
@@ -275,15 +292,54 @@ begin
       begin
         dColumn := TDDL_Delete_Column(ddlitem);
         TableObj := FLogSource.Fdbc.dict.tables.GetItemById(dColumn.TableId);
-        if TableObj<>nil then
+        if TableObj <> nil then
         begin
           TableObj.Fields.RemoveField(dColumn.objName);
         end;
       end;
 
     end else if (ddlitem.OpType = Opt_Update) then begin
-      //todo:修改
+      if ddlitem.xType = 'rename' then
+      begin
+        renameObj := TDDL_Update_RenameObj(ddlitem);
+        if renameObj.subType='u' then
+        begin
+          //table
+          TableObj := FLogSource.Fdbc.dict.tables.GetItemById(renameObj.ObjId);
+          if TableObj <> nil then
+          begin
+            TableObj.TableNmae := renameObj.newName
+          end;
+        end else if renameObj.subType='column' then
+        begin
+          //column
+          TableObj := FLogSource.Fdbc.dict.tables.GetItemById(renameObj.ObjId);
+          if TableObj <> nil then
+          begin
+            FieldObj := TableObj.Fields.GetItemById(renameObj.colId);
+            FieldObj.ColName := renameObj.newName;
+          end;
+        end;
+      end else if ddlitem.xType = 'column' then
+      begin
+        uColumn := TDDL_Update_Column(ddlitem);
+        FieldObj := uColumn.Table.Fields.GetItemById(uColumn.field.Col_id);
+        if FieldObj<>nil then
+        begin
+          FieldObj.ColName := uColumn.field.ColName;
+          FieldObj.type_id := uColumn.field.type_id;
+          FieldObj.Max_length := uColumn.field.Max_length;
 
+          FieldObj.procision := uColumn.field.procision;
+          FieldObj.scale := uColumn.field.scale;
+          FieldObj.collation_name := uColumn.field.collation_name;
+          FieldObj.CodePage := uColumn.field.CodePage;
+
+          FieldObj.nullMap := uColumn.field.nullMap;
+          FieldObj.is_nullable := uColumn.field.is_nullable;
+          FieldObj.leaf_pos := uColumn.field.leaf_pos;
+        end;
+      end;
     end;
   end;
 end;
@@ -741,6 +797,8 @@ begin
         DDL.FItems.Clear;
         AllocUnitMgr.FItems.Clear;
         IDXs.FItems.Clear;
+        IDXstats.Clear;
+        Rscols.Clear;
         Execute2(TTsPkg);
       except
         on ee:Exception do
@@ -1005,7 +1063,21 @@ const
   SQLTEMPLATE = 'ALTER TABLE %s alter column %s';
 var
   tmpStr:string;
+  I:Integer;
+  rsC :TDDL_RsCols;
 begin
+  for I := 0 to Rscols.Count-1 do
+  begin
+    rsC := TDDL_RsCols(Rscols[0]);
+    if (rsC.TableObj.TableId = ddlitem.Table.TableId) and (rsC.ColObj.Col_id = ddlitem.field.Col_id) then
+    begin
+      ddlitem.field.nullMap := rsC.Nullbit - 1;
+      ddlitem.field.is_nullable := (rsC.statusCode and $80) = 0;
+      ddlitem.field.leaf_pos := rsC.DataOffset;
+      Break;
+    end;
+  end;
+
   Result := '--alter Column table id:'+IntToStr(ddlitem.Table.TableId);
   tmpStr := ddlitem.field.getSafeColName + ' ';
   tmpStr := tmpStr + getColsTypeStr(ddlitem.field) + ' ';
@@ -1084,13 +1156,27 @@ end;
 
 function TSql2014logAnalyzer.GenSql_CreateColumn(ddlitem: TDDL_Create_Column): string;
 const
-  SQLTEMPLATE = 'ALTER TABLE %s ADD [%s] %s; ';
+  SQLTEMPLATE = 'ALTER TABLE %s ADD %s %s; ';
 var
   resStr:Tstringlist;
   tmpStr:string;
+  I: Integer;
+  rsC:TDDL_RsCols;
 begin
   resStr:=Tstringlist.Create;
   try
+    for I := 0 to Rscols.Count-1 do
+    begin
+      rsC := TDDL_RsCols(Rscols[0]);
+      if (rsC.TableObj.TableId = ddlitem.Table.TableId) and (rsC.ColObj.Col_id = ddlitem.field.Col_id) then
+      begin
+        ddlitem.field.nullMap := rsC.Nullbit - 1;
+        ddlitem.field.is_nullable := (rsC.statusCode and $80) = 0;
+        ddlitem.field.leaf_pos := rsC.DataOffset;
+        Break;
+      end;
+    end;
+
     resStr.Add('--ALTER TABLE Add Column');
     resStr.Add('--Tableid:'+inttostr(ddlitem.Table.TableId));
     resStr.Add('--columnName:'+ddlitem.field.ColName);
@@ -1473,7 +1559,7 @@ begin
       FieldItem:=TdbFieldItem(table.TableObj.Fields[I]);
       tmpStr := FieldItem.getSafeColName + ' ';
       tmpStr := tmpStr + getColsTypeStr(FieldItem) + ' ';
-      if FieldItem.collation_name<>'' then
+      if (FieldItem.collation_name<>'') then
       begin
         tmpStr := tmpStr + 'COLLATE '+ FieldItem.collation_name + ' ';
       end;
@@ -1638,6 +1724,7 @@ begin
       renameObj.oldName := '[' + table.Owner + '].[' + oldName.Replace(']', ']]') + ']';
       renameObj.newName := newName;
       renameObj.ObjId := ObjId;
+      renameObj.subType := DataRow.new_data.getFieldStrValue('type');
       DDL.Add(renameObj);
     end;
   end;
@@ -1679,15 +1766,17 @@ begin
       renameObj := TDDL_Update_RenameObj.Create;
       renameObj.oldName := table.getFullName+'.['+oldName.Replace(']',']]')+']';
       renameObj.newName := newName;
-      renameObj.ObjId := ObjId;
+      renameObj.ObjId := table.TableId;
+      renameObj.colId := ObjId;
+      renameObj.subType := 'column';
       DDL.Add(renameObj);
       exit;
     end;
 
     FieldItem := TdbFieldItem.Create;
     FieldItem.Col_id := StrToInt(DataRow.new_data.getFieldStrValue('colid'));
-    FieldItem.ColName := DataRow.new_data.getFieldStrValue('name');
-    FieldItem.type_id := StrToInt(DataRow.new_data.getFieldStrValue('xtype'));
+    FieldItem.ColName := newName;
+    FieldItem.type_id := StrToInt(DataRow.new_data.getFieldStrValue('xtype')) and $FF;
     FieldItem.Max_length := StrToInt(DataRow.new_data.getFieldStrValue('length'));
     FieldItem.procision := StrToInt(DataRow.new_data.getFieldStrValue('prec'));
     FieldItem.scale := StrToInt(DataRow.new_data.getFieldStrValue('scale'));
@@ -1755,7 +1844,6 @@ begin
       end;
     end;
   end;
-
 end;
 
 procedure TSql2014logAnalyzer.PriseDDLPkg(DataRow: Tsql2014Opt);
@@ -1763,6 +1851,8 @@ var
   rowsetid: int64;
   ObjId: Integer;
   idminor:Integer;
+  I:Integer;
+  cTable :TDDL_Create_Table;
 begin
   if DataRow.Table.TableNmae = 'sysschobjs' then
   begin
@@ -1781,6 +1871,19 @@ begin
       rowsetid := StrToInt64(DataRow.new_data.getFieldStrValue('rowsetid'));
       ObjId := StrToInt(DataRow.new_data.getFieldStrValue('idmajor'));
       AllocUnitMgr.Add(rowsetid, ObjId);
+
+      for I := 0 to DDL.FItems.Count -1 do
+      begin
+        if DDL.FItems[i] is TDDL_Create_Table then
+        begin
+          cTable := TDDL_Create_Table(DDL.FItems[I]);
+          if cTable.TableObj.TableId=ObjId then
+          begin
+            cTable.TableObj.partition_id := rowsetid;
+            Break;
+          end;
+        end;
+      end;
     end;
   end
   else if DataRow.Table.TableNmae = 'sysrscols' then
@@ -1822,7 +1925,7 @@ begin
     FieldItem := TdbFieldItem.Create;
     FieldItem.Col_id := StrToInt(DataRow.new_data.getFieldStrValue('colid'));
     FieldItem.ColName := DataRow.new_data.getFieldStrValue('name');
-    FieldItem.type_id := StrToInt(DataRow.new_data.getFieldStrValue('xtype'));
+    FieldItem.type_id := StrToInt(DataRow.new_data.getFieldStrValue('xtype')) and $FF;
     FieldItem.Max_length := StrToInt(DataRow.new_data.getFieldStrValue('length'));
     FieldItem.procision := StrToInt(DataRow.new_data.getFieldStrValue('prec'));
     FieldItem.scale := StrToInt(DataRow.new_data.getFieldStrValue('scale'));
@@ -2255,9 +2358,10 @@ var
   DataOffset: Integer;
   Nullbit: Integer;
   ddlitem: TDDLItem;
-  table: TDDL_Create_Table;
   FieldItem: TdbFieldItem;
-  cColumn:TDDL_Create_Column;
+  TableItem:TdbTableItem;
+  ctable: TDDL_Create_Table;
+  rsC:TDDL_RsCols;
 begin
   rowsetid := 0;
   ColId := 0;
@@ -2295,8 +2399,8 @@ begin
     ddlitem := DDL.GetItem(ObjId);
     if (ddlitem <> nil) and (ddlitem.xType = 'u') then
     begin
-      table := TDDL_Create_Table(ddlitem);
-      FieldItem := table.TableObj.Fields.GetItemById(ColId);
+      ctable := TDDL_Create_Table(ddlitem);
+      FieldItem := ctable.TableObj.Fields.GetItemById(ColId);
       if FieldItem <> nil then
       begin
         FieldItem.nullMap := Nullbit - 1;
@@ -2307,22 +2411,22 @@ begin
   end
   else
   begin
-    //直接新增列，alter table xxx add xxx xx;
-    ObjId := FLogSource.Fdbc.GetObjectIdByPartitionid(rowsetid);
-    if ObjId <> 0 then
+    //直接修改表，alter table xxx xxx xxx xx;
+    TableItem := FLogSource.Fdbc.dict.tables.GetItemByPartitionId(rowsetid);
+    if TableItem <> nil then
     begin
-      for I := 0 to DDL.FItems.Count -1 do
+      FieldItem := TableItem.Fields.GetItemById(ColId);
+      if FieldItem <> nil then
       begin
-        if DDL.FItems[i] is TDDL_Create_Column then
-        begin
-          cColumn := TDDL_Create_Column(DDL.FItems[I]);
-          if (cColumn.table.TableId = ObjId) and (cColumn.field.Col_id = ColId) then
-          begin
-            cColumn.field.nullMap := Nullbit - 1;
-            cColumn.field.is_nullable := (statusCode and $80) = 0;
-            cColumn.field.leaf_pos := DataOffset;
-          end;
-        end;
+        rsC := TDDL_RsCols.Create;
+        rsC.rowsetid := rowsetid;
+        rsC.ColId := ColId;
+        rsC.statusCode := statusCode;
+        rsC.DataOffset := DataOffset;
+        rsC.Nullbit := Nullbit;
+        rsC.TableObj := TableItem;
+        rsC.ColObj := FieldItem;
+        Rscols.Add(rsC);
       end;
     end else begin
       //忽略的partition

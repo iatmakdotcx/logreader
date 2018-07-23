@@ -1,6 +1,6 @@
 select AllocUnitName,* from fn_dblog('0x0000003c:00000140:001b',null) where [Transaction ID]='0000:0000079d'
 --select * from fn_dblog('0x0000003c:00000140:001b',null) where [Transaction ID]='0000:0000079E'
-select * from fn_dblog('0x0000003d:00000270:0011',null) where [Transaction ID]='0000:000007b4'
+select * from fn_dblog('0x0000003e:000000e8:0001',null)  
 checkpoint
 
 
@@ -109,3 +109,19 @@ select object_id('dbo.tc_heap.[[dbo]].[tc_heap]].[mc1]]]')
 select OBJECT_NAME(350624292)
 
  
+Create table tc_fixedC
+(
+  id int primary key,
+  dm char(20),
+  mc char(20),
+  pym char(30)
+)
+
+
+alter table tc_fixedC alter column dm char(200) not null
+
+ALTER TABLE [dbo].[tc_fixedC] alter column [dm] char(20) COLLATE Chinese_PRC_CI_AS NOT NULL
+ALTER TABLE [dbo].[tc_fixedC] alter column [dm] [CHAR](20) COLLATE Chinese_PRC_CI_AS NOT NULL
+
+
+select * from sys.objects where name='tc_fixedC'

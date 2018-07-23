@@ -45,6 +45,11 @@ type
     /// <param name="ExistsRenew">如果已存在，释放。重新创建</param>
     /// <returns></returns>
     function CreateLogReader(ExistsRenew:Boolean = False):Boolean;
+    /// <summary>
+    /// 从数据库对比字典差异
+    /// </summary>
+    /// <returns></returns>
+    function CompareDict:string;
   end;
 
   TLogSourceList = class(TObject)
@@ -79,6 +84,11 @@ begin
     FreeAndNil(Fdbc);
   if FLogReader <> nil then
     FreeAndNil(FLogReader);
+end;
+
+function TLogSource.CompareDict: string;
+begin
+
 end;
 
 procedure TLogSource.cpyFile(fileid:Byte;var OutBuffer: TMemory_data);
