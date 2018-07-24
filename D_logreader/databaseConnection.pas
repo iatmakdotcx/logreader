@@ -83,7 +83,11 @@ type
     function CheckIsSysadmin:Boolean;
     function getUpdateSQLfromSelect(table:TdbTableItem; wherekey: string): string;
     property dbok:Boolean read FdBConfigOK;
-
+    /// <summary>
+    /// 从数据库对比字典差异
+    /// </summary>
+    /// <returns></returns>
+    function CompareDict:string;
   end;
 
 implementation
@@ -694,6 +698,165 @@ begin
       Result := rDataset.Fields[0].AsInteger;
     rDataset.Free;
   end;
+end;
+
+function TdatabaseConnection.CompareDict: string;
+var
+  rDataset:TCustomADODataSet;
+  aSql:string;
+  I:Integer;
+  object_id:Integer;
+  object_name:string;
+  DiffStr:TStringList;
+  tableItem:TdbTableItem;
+var
+  tti: TdbTableItem;
+  tblId: Integer;
+  field: TdbFieldItem;
+  Col_id: Integer;
+  ColName: string;
+  type_id: Word;
+  nullMap: Integer;
+  Max_length: Word;
+  procision: Integer;
+  scale: Integer;
+  is_nullable: Boolean;
+  leaf_pos: Integer;
+  collation_name: string;  //字符集
+  CodePage: Integer;
+
+  tmpStr:string;
+begin
+  DiffStr := TStringList.Create;
+  try
+    aSql := 'select s.name,a.object_id, a.name,partition_id '+
+             'from sys.objects a join sys.schemas s on a.schema_id = s.schema_id '+
+             'left join (select partition_id,object_id from sys.partitions where partitions.index_id <= 1) p on a.object_id=p.object_id '+
+             'where (a.type = ''U'' or a.type = ''S'') ';
+    if ExecSql(aSql, rDataset) then
+    begin
+      rDataset.First;
+      while not rDataset.eof do
+      begin
+        if rDataset.Fields[0].AsString<>'sys' then
+        begin
+          object_id := rDataset.Fields[1].AsInteger;
+          object_name := rDataset.Fields[2].AsString;
+          tableItem := dict.tables.GetItemById(object_id);
+          if tableItem = nil then
+          begin
+            DiffStr.Add(Format('数据库 + %d,%s', [object_id, object_name]));
+          end else begin
+            if LowerCase(tableItem.TableNmae) <> LowerCase(object_name) then
+            begin
+              DiffStr.Add(Format('表名不同 x %s => %s', [object_name, tableItem.TableNmae]));
+            end;
+          end;
+        end;
+        rDataset.Next;
+      end;
+
+      for I := 0 to dict.tables.Count-1 do
+      begin
+        tableItem := dict.tables[i];
+        if not rDataset.Locate('object_id', tableItem.TableId, []) then
+        begin
+          DiffStr.Add(Format('数据库 - %d,%s', [tableItem.TableId, tableItem.TableNmae]));
+        end;
+      end;
+      rDataset.Free;
+    end;
+
+    aSql := 'select cols.object_id,cols.column_id,cols.system_type_id,cols.max_length,cols.precision,cols.scale,cols.is_nullable,cols.name, ' +
+        ' p_cols.leaf_null_bit nullmap,p_cols.leaf_offset leaf_pos,cols.collation_name,Convert(int,COLLATIONPROPERTY(cols.collation_name, ''CodePage'')) cp  ' +
+        ' from sys.all_columns cols,sys.system_internals_partition_columns p_cols ' +
+        ' where p_cols.leaf_null_bit > 0 and cols.column_id = p_cols.partition_column_id and ' +
+        ' p_cols.partition_id in (Select partitions.partition_id from sys.partitions partitions where partitions.index_id <= 1 and partitions.object_id=cols.object_id) ' +
+        ' order by cols.object_id,cols.column_id ';
+    if ExecSql(aSql, rDataset) then
+    begin
+      rDataset.First;
+      tblId := 0;
+      tti := nil;
+      while not rDataset.Eof do
+      begin
+        if tblId <> rDataset.Fields[0].AsInteger then
+        begin
+          tblId := rDataset.Fields[0].AsInteger;
+          tti := dict.tables.GetItemById(tblId);
+        end;
+        if (tti<>nil) and (tti.Owner<>'sys') then
+        begin
+          Col_id := rDataset.Fields[1].AsInteger;
+          type_id := rDataset.Fields[2].AsInteger;
+          Max_length := rDataset.Fields[3].AsInteger;
+          procision := rDataset.Fields[4].AsInteger;
+          scale := rDataset.Fields[5].AsInteger;
+          is_nullable := rDataset.Fields[6].AsBoolean;
+          ColName := rDataset.Fields[7].AsString;
+          nullMap := rDataset.Fields[8].AsInteger - 1;
+          leaf_pos := rDataset.Fields[9].AsInteger;
+          collation_name := rDataset.Fields[10].AsString;
+          if rDataset.Fields[11].IsNull then
+            CodePage := -1
+          else
+            CodePage := rDataset.Fields[11].AsInteger;
+          field := tti.Fields.GetItemById(Col_id);
+          if field=nil then
+          begin
+            DiffStr.Add(Format('数据库Field + %s', [tti.getFullName+'.'+ColName]));
+          end else begin
+            tmpStr := '';
+            if field.ColName<>ColName then
+            begin
+              tmpStr := tmpStr + Format(',name:%s => %s', [ColName, field.ColName])
+            end;
+            if field.type_id<>type_id then
+            begin
+              tmpStr := tmpStr + Format(',type_id:%d => %d', [type_id, field.type_id])
+            end;
+            if field.nullMap<>nullMap then
+            begin
+              tmpStr := tmpStr + Format(',nullMap:%d => %d', [nullMap, field.nullMap])
+            end;
+            if field.Max_length<>Max_length then
+            begin
+              tmpStr := tmpStr + Format(',Max_length:%d => %d', [Max_length, field.Max_length])
+            end;
+            if field.procision<>procision then
+            begin
+              tmpStr := tmpStr + Format(',procision:%s => %s', [procision, field.procision])
+            end;
+            if field.scale<>scale then
+            begin
+              tmpStr := tmpStr + Format(',scale:%d => %d', [scale, field.scale])
+            end;
+            if field.is_nullable<>is_nullable then
+            begin
+              tmpStr := tmpStr + Format(',is_nullable:%s => %s', [booltostr(is_nullable,True), booltostr(field.is_nullable,True)])
+            end;
+            if field.collation_name<>collation_name then
+            begin
+              tmpStr := tmpStr + Format(',collation_name:%s => %s', [collation_name, field.collation_name])
+            end;
+            if field.CodePage<>CodePage then
+            begin
+              tmpStr := tmpStr + Format(',CodePage:%d => %d', [CodePage, field.CodePage])
+            end;
+            if tmpStr<>'' then
+              DiffStr.Add('数据库Field X >'+ tti.getFullName+'.'+ColName + tmpStr);
+          end;
+        end;
+        rDataset.Next;
+      end;
+      rDataset.Free;
+    end;
+
+    Result := DiffStr.Text;
+  finally
+    DiffStr.Free;
+  end;
+
 end;
 
 procedure TdatabaseConnection.refreshDict;

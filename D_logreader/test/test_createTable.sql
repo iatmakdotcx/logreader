@@ -1,6 +1,6 @@
-select AllocUnitName,* from fn_dblog('0x0000003c:00000140:001b',null) where [Transaction ID]='0000:0000079d'
+select AllocUnitName,* from fn_dblog('0x0000003e:00000238:0001',null) where [Transaction ID]='0000:00000831'
 --select * from fn_dblog('0x0000003c:00000140:001b',null) where [Transaction ID]='0000:0000079E'
-select * from fn_dblog('0x0000003e:000000e8:0001',null)  
+select * from fn_dblog('0x0000003e:00000238:0001',null)  
 checkpoint
 
 
@@ -118,10 +118,17 @@ Create table tc_fixedC
 )
 
 
-alter table tc_fixedC alter column dm char(200) not null
+alter table tc_fixedC add zjm char(200) 
 
-ALTER TABLE [dbo].[tc_fixedC] alter column [dm] char(20) COLLATE Chinese_PRC_CI_AS NOT NULL
+alter table tc_fixedC add dm char(200)
+
+alter table tc_fixedC alter column zjm char(220) not null
+
+ALTER TABLE [dbo].[tc_fixedC] alter column [dm] char(20) COLLATE Chinese_PRC_CI_AS not NULL
 ALTER TABLE [dbo].[tc_fixedC] alter column [dm] [CHAR](20) COLLATE Chinese_PRC_CI_AS NOT NULL
 
 
 select * from sys.objects where name='tc_fixedC'
+
+ALTER TABLE [dbo].[tc_fixedC] alter column [dm] [CHAR](200) COLLATE Chinese_PRC_CI_AS NOT NULL
+

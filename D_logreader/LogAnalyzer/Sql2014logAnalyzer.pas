@@ -76,7 +76,6 @@ type
     DataOffset: Integer;
     Nullbit: Integer;
     TableObj:TdbTableItem;
-    ColObj: TdbFieldItem;
   end;
 
   TSql2014logAnalyzer = class(TlogAnalyzer)
@@ -127,6 +126,7 @@ type
     procedure PriseDDLPkg_U(DataRow: Tsql2014Opt);
     procedure PriseDDLPkg_U_sysschobjs(DataRow: Tsql2014Opt);
     procedure PriseDDLPkg_U_syscolpars(DataRow: Tsql2014Opt);
+    procedure PriseDDLPkg_U_sysrscols(DataRow: Tsql2014Opt);
     function GenSql_DDL_Insert(ddlitem: TDDLItem_Insert): string;
     function GenSql_DDL_Delete(ddlitem: TDDLItem_Delete): string;
     function GenSql_DDL_Update(ddlitem: TDDLItem_Update): string;
@@ -147,6 +147,7 @@ type
     procedure PriseRowLog_MODIFY_COLUMNS(tPkg: TTransPkgItem);
     function PriseRowLog_UniqueClusteredKeys(BinReader: TbinDataReader; DbTable: TdbTableItem): string;
     procedure DDLClear;
+    procedure DDLPretreatment;
     procedure PriseDDLPkg_sysidxstats(DataRow: Tsql2014Opt);
   public
     /// <summary>
@@ -247,6 +248,71 @@ begin
   end;
 end;
 
+procedure TSql2014logAnalyzer.DDLPretreatment;
+var
+  I,J:Integer;
+  ddlitem :TDDLItem;
+  idxObj:TDDL_IDX_stats;
+  cUniKey:TDDL_Create_UniqueKey;
+  cColumn:TDDL_Create_Column;
+  uColumn:TDDL_Update_Column;
+  rsC:TDDL_RsCols;
+begin
+  for I := 0 to DDL.FItems.Count - 1 do
+  begin
+    ddlitem := TDDLItem(DDL.FItems[I]);
+    if not ddlitem.isSkip then
+    begin
+      if (ddlitem is TDDL_Create_UniqueKey) then
+      begin
+        cUniKey := TDDL_Create_UniqueKey(ddlitem);
+        for J := 0 to IDXstats.Count - 1 do
+        begin
+          idxObj := TDDL_IDX_stats(IDXstats[J]);
+          if (cUniKey.tableid = idxObj.tableId) and (cUniKey.objName = idxObj.idxName) then
+          begin
+            cUniKey.isCLUSTERED := idxObj.isCLUSTERED;
+            cUniKey.isUnique := idxObj.isUnique;
+            Break;
+          end;
+        end;
+      end else if (ddlitem is TDDL_Create_Column) then
+      begin
+        cColumn := TDDL_Create_Column(ddlitem);
+        for J := 0 to Rscols.Count - 1 do
+        begin
+          rsC := TDDL_RsCols(Rscols[J]);
+          if (rsC.TableObj.TableId = cColumn.Table.TableId) and (rsC.ColId = cColumn.field.Col_id) then
+          begin
+            cColumn.field.nullMap := rsC.Nullbit - 1;
+            cColumn.field.is_nullable := (rsC.statusCode and $80) = 0;
+            cColumn.field.leaf_pos := rsC.DataOffset;
+            Break;
+          end;
+        end;
+      end else if (ddlitem is TDDL_Update_Column) then
+      begin
+        uColumn := TDDL_Update_Column(ddlitem);
+        for J := 0 to Rscols.Count - 1 do
+        begin
+          rsC := TDDL_RsCols(Rscols[J]);
+          if (rsC.TableObj.TableId = uColumn.Table.TableId) and (rsC.ColId = uColumn.field.Col_id) then
+          begin
+            uColumn.field.nullMap := rsC.Nullbit - 1;
+            uColumn.field.is_nullable := (rsC.statusCode and $80) = 0;   //128 not null
+            uColumn.field.leaf_pos := rsC.DataOffset;
+            Break;
+          end;
+        end;
+      end else if (ddlitem is TDDL_Create_UniqueKey) then
+      begin
+
+      end;
+
+    end;
+  end;
+end;
+
 procedure TSql2014logAnalyzer.ApplySysDDLChange;
 var
   I:Integer;
@@ -335,9 +401,12 @@ begin
           FieldObj.collation_name := uColumn.field.collation_name;
           FieldObj.CodePage := uColumn.field.CodePage;
 
-          FieldObj.nullMap := uColumn.field.nullMap;
-          FieldObj.is_nullable := uColumn.field.is_nullable;
-          FieldObj.leaf_pos := uColumn.field.leaf_pos;
+          if uColumn.field.leaf_pos<>0 then
+          begin
+            FieldObj.nullMap := uColumn.field.nullMap;
+            FieldObj.is_nullable := uColumn.field.is_nullable;
+            FieldObj.leaf_pos := uColumn.field.leaf_pos;
+          end;
         end;
       end;
     end;
@@ -828,6 +897,10 @@ begin
   PluginsMgr.onTransPkgRev(mm);
   FreeMem(mm.data);
 
+//  if FTranspkg.Ftransid.Id1>=$831 then
+//    Exit;
+
+
   //开始解析数据
   for I := 0 to FTranspkg.Items.Count - 1 do
   begin
@@ -839,6 +912,10 @@ begin
   for I := 0 to FRows.Count - 1 do
   begin
     DataRow_buf := Tsql2014Opt(FRows[i]);
+    if DataRow_buf.deleteFlag then
+    begin
+      Continue;
+    end;
     if DataRow_buf.R0<>nil then
     begin
       TmpBinReader := TbinDataReader.Create(DataRow_buf.R0, $2000);
@@ -885,6 +962,7 @@ begin
     end;
   end;
   DDLClear;
+  DDLPretreatment;
   Loger.Add(GenSql);
   Loger.Add(GenXML);
   ApplySysDDLChange;
@@ -1063,21 +1141,7 @@ const
   SQLTEMPLATE = 'ALTER TABLE %s alter column %s';
 var
   tmpStr:string;
-  I:Integer;
-  rsC :TDDL_RsCols;
 begin
-  for I := 0 to Rscols.Count-1 do
-  begin
-    rsC := TDDL_RsCols(Rscols[0]);
-    if (rsC.TableObj.TableId = ddlitem.Table.TableId) and (rsC.ColObj.Col_id = ddlitem.field.Col_id) then
-    begin
-      ddlitem.field.nullMap := rsC.Nullbit - 1;
-      ddlitem.field.is_nullable := (rsC.statusCode and $80) = 0;
-      ddlitem.field.leaf_pos := rsC.DataOffset;
-      Break;
-    end;
-  end;
-
   Result := '--alter Column table id:'+IntToStr(ddlitem.Table.TableId);
   tmpStr := ddlitem.field.getSafeColName + ' ';
   tmpStr := tmpStr + getColsTypeStr(ddlitem.field) + ' ';
@@ -1160,23 +1224,9 @@ const
 var
   resStr:Tstringlist;
   tmpStr:string;
-  I: Integer;
-  rsC:TDDL_RsCols;
 begin
   resStr:=Tstringlist.Create;
   try
-    for I := 0 to Rscols.Count-1 do
-    begin
-      rsC := TDDL_RsCols(Rscols[0]);
-      if (rsC.TableObj.TableId = ddlitem.Table.TableId) and (rsC.ColObj.Col_id = ddlitem.field.Col_id) then
-      begin
-        ddlitem.field.nullMap := rsC.Nullbit - 1;
-        ddlitem.field.is_nullable := (rsC.statusCode and $80) = 0;
-        ddlitem.field.leaf_pos := rsC.DataOffset;
-        Break;
-      end;
-    end;
-
     resStr.Add('--ALTER TABLE Add Column');
     resStr.Add('--Tableid:'+inttostr(ddlitem.Table.TableId));
     resStr.Add('--columnName:'+ddlitem.field.ColName);
@@ -1258,7 +1308,6 @@ var
   dbfield:TdbFieldItem;
   resStr:Tstringlist;
   TmpStr:string;
-  idxObj :TDDL_IDX_stats;
 begin
   Result := '';
   DDLtable := ddl.GetItem(ddlitem.tableid);
@@ -1282,16 +1331,6 @@ begin
     Loger.Add('GenSql_CreateUniqueKey fail! ->' + TmpStr, LOG_ERROR or LOG_IMPORTANT);
 
     Exit;
-  end;
-
-  for I := 0 to IDXstats.Count-1 do
-  begin
-    idxObj := TDDL_IDX_stats(IDXstats[i]);
-    if (ddlitem.tableid = idxObj.tableId) and (ddlitem.objName=idxObj.idxName) then
-    begin
-      ddlitem.isCLUSTERED := idxObj.isCLUSTERED;
-      ddlitem.isUnique := idxObj.isUnique;
-    end;
   end;
 
   cols := IDXs.GetById(ddlitem.tableid);
@@ -1692,6 +1731,10 @@ begin
   begin
     //修改列
     PriseDDLPkg_U_syscolpars(DataRow);
+  end else if DataRow.Table.TableNmae = 'sysrscols' then
+  begin
+    //修改列
+    PriseDDLPkg_U_sysrscols(DataRow);
   end
 end;
 
@@ -1842,6 +1885,89 @@ begin
         //不是表不存在
         Loger.Add('Error Message:PriseDDLPkg_U_syscolpars table not exists!tableid:%d',[ObjId]);
       end;
+    end;
+  end;
+end;
+
+procedure TSql2014logAnalyzer.PriseDDLPkg_U_sysrscols(DataRow: Tsql2014Opt);
+var
+  I: Integer;
+  pdd: PdbFieldValue;
+  pdd_field_ColName: string;
+  rowsetid: int64;
+  ColId: Integer;
+  statusCode: Integer;
+  ObjId: Integer;
+  DataOffset: Integer;
+  Nullbit: Integer;
+  ddlitem: TDDLItem;
+  FieldItem: TdbFieldItem;
+  TableItem:TdbTableItem;
+  ctable: TDDL_Create_Table;
+  rsC:TDDL_RsCols;
+begin
+  rowsetid := 0;
+  ColId := 0;
+  statusCode := 0;
+  DataOffset := 0;
+  Nullbit := 0;
+  for I := 0 to DataRow.new_data.Fields.Count - 1 do
+  begin
+    pdd := PdbFieldValue(DataRow.new_data.Fields[I]);
+    pdd_field_ColName := LowerCase(pdd.field.ColName);
+    if pdd_field_ColName = 'rsid' then
+    begin
+      rowsetid := StrToInt64(Hvu_GetFieldStrValue(pdd.field, pdd.value));
+    end
+    else if pdd_field_ColName = 'rscolid' then
+    begin
+      ColId := StrToInt(Hvu_GetFieldStrValue(pdd.field, pdd.value));
+    end
+    else if pdd_field_ColName = 'status' then
+    begin
+      statusCode := StrToInt(Hvu_GetFieldStrValue(pdd.field, pdd.value));
+    end
+    else if pdd_field_ColName = 'offset' then
+    begin
+      DataOffset := Hvu_getShort(pdd.value, 0, 2);
+    end
+    else if pdd_field_ColName = 'nullbit' then
+    begin
+      Nullbit := Hvu_getShort(pdd.value, 0, 2);
+    end;
+  end;
+  ObjId := AllocUnitMgr.GetObjId(rowsetid);
+  if ObjId <> 0 then
+  begin
+    ddlitem := DDL.GetItem(ObjId);
+    if (ddlitem <> nil) and (ddlitem.xType = 'u') then
+    begin
+      ctable := TDDL_Create_Table(ddlitem);
+      FieldItem := ctable.TableObj.Fields.GetItemById(ColId);
+      if FieldItem <> nil then
+      begin
+        FieldItem.nullMap := Nullbit - 1;
+        FieldItem.is_nullable := (statusCode and $80) = 0;
+        FieldItem.leaf_pos := DataOffset;
+      end;
+    end;
+  end
+  else
+  begin
+    //直接修改表，alter table xxx xxx xxx xx;
+    TableItem := FLogSource.Fdbc.dict.tables.GetItemByPartitionId(rowsetid);
+    if (TableItem <> nil) and (ColId < 65535) then
+    begin
+      rsC := TDDL_RsCols.Create;
+      rsC.rowsetid := rowsetid;
+      rsC.ColId := ColId;
+      rsC.statusCode := statusCode;
+      rsC.DataOffset := DataOffset;
+      rsC.Nullbit := Nullbit;
+      rsC.TableObj := TableItem;
+      Rscols.Add(rsC);
+    end else begin
+      //忽略的partition
     end;
   end;
 end;
@@ -2413,21 +2539,16 @@ begin
   begin
     //直接修改表，alter table xxx xxx xxx xx;
     TableItem := FLogSource.Fdbc.dict.tables.GetItemByPartitionId(rowsetid);
-    if TableItem <> nil then
+    if (TableItem <> nil) and (ColId < 65535) then
     begin
-      FieldItem := TableItem.Fields.GetItemById(ColId);
-      if FieldItem <> nil then
-      begin
-        rsC := TDDL_RsCols.Create;
-        rsC.rowsetid := rowsetid;
-        rsC.ColId := ColId;
-        rsC.statusCode := statusCode;
-        rsC.DataOffset := DataOffset;
-        rsC.Nullbit := Nullbit;
-        rsC.TableObj := TableItem;
-        rsC.ColObj := FieldItem;
-        Rscols.Add(rsC);
-      end;
+      rsC := TDDL_RsCols.Create;
+      rsC.rowsetid := rowsetid;
+      rsC.ColId := ColId;
+      rsC.statusCode := statusCode;
+      rsC.DataOffset := DataOffset;
+      rsC.Nullbit := Nullbit;
+      rsC.TableObj := TableItem;
+      Rscols.Add(rsC);
     end else begin
       //忽略的partition
     end;

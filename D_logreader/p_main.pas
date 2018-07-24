@@ -100,8 +100,7 @@ begin
   begin
     ItemIdx := StrToInt(ListView1.Selected.Caption) - 1;
     tlsObj := LogSourceList.Get(ItemIdx);
-
-
+    Memo1.Text := tlsObj.CompareDict;
   end;
 end;
 

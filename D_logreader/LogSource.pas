@@ -88,7 +88,7 @@ end;
 
 function TLogSource.CompareDict: string;
 begin
-
+  Result := Fdbc.CompareDict;
 end;
 
 procedure TLogSource.cpyFile(fileid:Byte;var OutBuffer: TMemory_data);
