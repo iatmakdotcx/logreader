@@ -18,8 +18,8 @@ object Form1: TForm1
   object Button3: TButton
     Left = 375
     Top = 23
-    Width = 75
-    Height = 25
+    Width = 114
+    Height = 34
     Caption = 'DBConnectionCfg'
     TabOrder = 0
     OnClick = Button3Click
@@ -186,7 +186,7 @@ object Form1: TForm1
   end
   object Button5: TButton
     Left = 375
-    Top = 296
+    Top = 267
     Width = 75
     Height = 25
     Caption = 'Button5'
@@ -194,19 +194,19 @@ object Form1: TForm1
     OnClick = Button5Click
   end
   object Memo1: TMemo
-    Left = 23
-    Top = 424
-    Width = 703
-    Height = 113
+    Left = 8
+    Top = 395
+    Width = 735
+    Height = 150
     Lines.Strings = (
       'Memo1')
     TabOrder = 7
   end
   object Button14: TButton
-    Left = 480
-    Top = 331
-    Width = 201
-    Height = 86
+    Left = 375
+    Top = 298
+    Width = 114
+    Height = 39
     Caption = 'CompareDictFromdb'
     TabOrder = 8
     OnClick = Button14Click
@@ -219,11 +219,20 @@ object Form1: TForm1
     TabOrder = 9
     Text = '0000003e:00000238:0001'
   end
+  object Button15: TButton
+    Left = 495
+    Top = 298
+    Width = 106
+    Height = 39
+    Caption = 'AllTables'
+    TabOrder = 10
+    OnClick = Button15Click
+  end
   object ImageList1: TImageList
     Left = 400
     Top = 224
     Bitmap = {
-      494C01010B001800780010001000FFFFFFFFFF10FFFFFFFFFFFFFFFF424D3600
+      494C01010B0018007C0010001000FFFFFFFFFF10FFFFFFFFFFFFFFFF424D3600
       0000000000003600000028000000400000003000000001002000000000000030
       000000000000000000000000000000000000FFFFFF00FFFFFF00F6821000F580
       0C00F4851600F67B0000F37B0500FFFFFF00FFFFFF00F47C0500F57A0000F284

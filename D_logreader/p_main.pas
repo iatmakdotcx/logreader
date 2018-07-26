@@ -30,6 +30,7 @@ type
     Button14: TButton;
     Button11: TButton;
     Edit1: TEdit;
+    Button15: TButton;
     procedure FormCreate(Sender: TObject);
     procedure Button3Click(Sender: TObject);
     procedure FormDestroy(Sender: TObject);
@@ -45,6 +46,7 @@ type
     procedure Button6Click(Sender: TObject);
     procedure Button11Click(Sender: TObject);
     procedure Button14Click(Sender: TObject);
+    procedure Button15Click(Sender: TObject);
   private
     { Private declarations }
   public
@@ -101,6 +103,27 @@ begin
     ItemIdx := StrToInt(ListView1.Selected.Caption) - 1;
     tlsObj := LogSourceList.Get(ItemIdx);
     Memo1.Text := tlsObj.CompareDict;
+  end;
+end;
+
+procedure TForm1.Button15Click(Sender: TObject);
+var
+  ItemIdx:Integer;
+  tlsObj:TLogSource;
+  tmpStr:string;
+  I: Integer;
+begin
+  if ListView1.Selected <> nil then
+  begin
+    ItemIdx := StrToInt(ListView1.Selected.Caption) - 1;
+    tlsObj := LogSourceList.Get(ItemIdx);
+    tmpStr := '';
+    for I := 0 to tlsObj.Fdbc.dict.tables.Count-1 do
+    begin
+      if tlsObj.Fdbc.dict.tables[i].Owner<>'sys' then
+        tmpStr:= tmpStr +',['+inttostr(tlsObj.Fdbc.dict.tables[i].TableId)+']'+tlsObj.Fdbc.dict.tables[i].TableNmae;
+    end;
+    Memo1.Lines.Add(tmpStr);
   end;
 end;
 

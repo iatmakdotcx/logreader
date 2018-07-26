@@ -1,0 +1,17 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<BorlandProject>
+	<Transactions>
+    <Transaction>1899-12-30 00:00:00.000.317,=C:\Users\Chin\Documents\Embarcadero\Studio\Projects\Unit1.pas</Transaction>
+    <Transaction>1899-12-30 00:00:00.000.525,=C:\Users\Chin\Documents\Embarcadero\Studio\Projects\Unit1.pas</Transaction>
+    <Transaction>1899-12-30 00:00:00.000.621,=C:\Users\Chin\Documents\Embarcadero\Studio\Projects\Unit1.pas</Transaction>
+    <Transaction>1899-12-30 00:00:00.000.575,=C:\Users\Chin\Documents\Embarcadero\Studio\Projects\Unit1.pas</Transaction>
+    <Transaction>2018-07-26 22:38:04.652,H:\Java\workspace\logreaderV2.0\D_logreader\plugins\fullSync\lr_fullSync.dproj=C:\Users\Chin\Documents\Embarcadero\Studio\Projects\Project1.dproj</Transaction>
+    <Transaction>2018-07-26 22:54:24.713,=H:\Java\workspace\logreaderV2.0\D_logreader\plugins\fullSync\Unit1.pas</Transaction>
+    <Transaction>2018-07-26 22:54:34.012,H:\Java\workspace\logreaderV2.0\D_logreader\plugins\fullSync\dbhelper.pas=H:\Java\workspace\logreaderV2.0\D_logreader\plugins\fullSync\Unit1.pas</Transaction>
+    <Transaction>2018-07-26 23:01:46.831,=H:\Delphi\通用的自定义单元\Log4D.pas</Transaction>
+    <Transaction>2018-07-26 23:02:01.072,=H:\Delphi\通用的自定义单元\pluginlog.pas</Transaction>
+    <Transaction>2018-07-26 23:02:20.231,H:\Delphi\通用的自定义单元\pluginlog.pas=</Transaction>
+    <Transaction>2018-07-26 23:02:35.413,=H:\Delphi\通用的自定义单元\loglog.pas</Transaction>
+    <Transaction>2018-07-26 23:07:51.884,=H:\Delphi\算法\Des.pas</Transaction>
+  </Transactions>
+</BorlandProject>

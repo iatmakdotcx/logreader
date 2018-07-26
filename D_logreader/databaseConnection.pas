@@ -94,7 +94,7 @@ implementation
 
 uses
   Windows, SysUtils, dbHelper, comm_func, MakCommonfuncs, loglog,
-  Winapi.ADOInt, System.Variants, Data.DB, dbFieldTypes, Memory_Common;
+  Winapi.ADOInt, System.Variants, Data.DB, dbFieldTypes, Memory_Common, math;
 
 function CloneRecordset(const Data: _Recordset): _Recordset;
 var
@@ -704,7 +704,7 @@ function TdatabaseConnection.CompareDict: string;
 var
   rDataset:TCustomADODataSet;
   aSql:string;
-  I:Integer;
+  I,J:Integer;
   object_id:Integer;
   object_name:string;
   DiffStr:TStringList;
@@ -725,7 +725,8 @@ var
   collation_name: string;  //字符集
   CodePage: Integer;
 
-  tmpStr:string;
+  tmpStr,tmpStr2:string;
+  idxxxxs:TList;
 begin
   DiffStr := TStringList.Create;
   try
@@ -849,6 +850,83 @@ begin
         end;
         rDataset.Next;
       end;
+      rDataset.Free;
+    end;
+
+    aSql := 'select a.id,a.colid from sysindexkeys a join sys.indexes b on a.id=b.object_id and a.indid=b.index_id and is_unique=1 and [type]=1 order by a.id,keyno';
+    if ExecSql(aSql, rDataset) then
+    begin
+      rDataset.First;
+      tblId := 0;
+      tti := nil;
+      idxxxxs:=TList.Create;
+      while not rDataset.Eof do
+      begin
+        if tblId <> rDataset.Fields[0].AsInteger then
+        begin
+          if (tti<>nil) and (idxxxxs.Count>0) then
+          begin
+            tmpStr := '';
+            for J := 0 to tti.UniqueClusteredKeys.Count-1 do
+            begin
+              tmpStr := ',' + TdbFieldItem(tti.UniqueClusteredKeys[j]).ColName;
+            end;
+            tmpStr2 := '';
+            for J := 0 to idxxxxs.Count-1 do
+            begin
+              tmpStr2 := ',' + TdbFieldItem(idxxxxs[j]).ColName;
+            end;
+            if tmpStr<>tmpStr2 then
+              DiffStr.Add('数据库UcK X > '+ tmpStr2+' => '+tmpStr);
+          end;
+          tblId := rDataset.Fields[0].AsInteger;
+          tti := dict.tables.GetItemById(tblId);
+          idxxxxs.clear;
+        end;
+        if (tti<>nil) and (tti.Owner<>'sys') then
+        begin
+          field := tti.Fields.GetItemById(rDataset.Fields[1].AsInteger);
+          if field<>nil then
+          begin
+            idxxxxs.Add(field);
+          end;
+        end;
+        rDataset.Next;
+      end;
+      if (tti<>nil) and (idxxxxs.Count>0) then
+      begin
+        tmpStr := '';
+        for J := 0 to tti.UniqueClusteredKeys.Count-1 do
+        begin
+          tmpStr := ',' + TdbFieldItem(tti.UniqueClusteredKeys[j]).ColName;
+        end;
+        tmpStr2 := '';
+        for J := 0 to idxxxxs.Count-1 do
+        begin
+          tmpStr2 := ',' + TdbFieldItem(idxxxxs[j]).ColName;
+        end;
+        if tmpStr<>tmpStr2 then
+          DiffStr.Add('数据库UcK X > '+tti.TableNmae+ tmpStr2+' => '+tmpStr);
+      end;
+      idxxxxs.Free;
+
+      for I := 0 to dict.tables.Count-1 do
+      begin
+        if dict.tables[i].Owner<>'sys' then
+        begin
+          if (dict.tables[i].UniqueClusteredKeys.Count>0) and (not rDataset.Locate('id',dict.tables[i].TableId,[])) then
+          begin
+            tmpStr := '';
+            for J := 0 to dict.tables[i].UniqueClusteredKeys.Count-1 do
+            begin
+              tmpStr := ',' + TdbFieldItem(dict.tables[i].UniqueClusteredKeys[j]).ColName;
+            end;
+
+            DiffStr.Add('数据库UcK X >'+dict.tables[i].TableNmae+'  => '+tmpStr);
+          end;
+        end;
+      end;
+
       rDataset.Free;
     end;
 

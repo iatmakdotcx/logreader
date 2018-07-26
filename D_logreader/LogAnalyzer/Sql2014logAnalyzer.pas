@@ -257,6 +257,7 @@ var
   cColumn:TDDL_Create_Column;
   uColumn:TDDL_Update_Column;
   rsC:TDDL_RsCols;
+  dck:TDDL_Delete_Constraint_key;
 begin
   for I := 0 to DDL.FItems.Count - 1 do
   begin
@@ -304,16 +305,51 @@ begin
             Break;
           end;
         end;
-      end else if (ddlitem is TDDL_Create_UniqueKey) then
+      end else if (ddlitem is TDDL_Delete_Constraint_key) then
       begin
-
+        dck := TDDL_Delete_Constraint_key(ddlitem);
+        for J := 0 to IDXstats.Count - 1 do
+        begin
+          idxObj := TDDL_IDX_stats(IDXstats[J]);
+          if (dck.tableid = idxObj.tableId) and (dck.objName = idxObj.idxName) then
+          begin
+            dck.isCLUSTERED := idxObj.isCLUSTERED;
+            dck.isUnique := idxObj.isUnique;
+            Break;
+          end;
+        end;
       end;
-
     end;
   end;
 end;
 
 procedure TSql2014logAnalyzer.ApplySysDDLChange;
+procedure addUcK(tableid:Integer);
+var
+  cols:TObjectList;
+  I:Integer;
+  TempItem : TDDL_Idxs_ColsItem;
+  tableL:TdbTableItem;
+  colItem:TdbFieldItem;
+begin
+  tableL := FLogSource.Fdbc.dict.tables.GetItemById(tableid);
+  if tableL <> nil then
+  begin
+    cols := IDXs.GetById(tableid);
+    if (cols <> nil) and (cols.Count > 0) then
+    begin
+      for I := 0 to cols.Count - 1 do
+      begin
+        TempItem := TDDL_Idxs_ColsItem(cols[I]);
+        colItem := tableL.Fields.GetItemById(TempItem.ColId);
+        if colItem <> nil then
+        begin
+          tableL.UniqueClusteredKeys.Add(colItem);
+        end;
+      end;
+    end;
+  end;
+end;
 var
   I:Integer;
   ddlitem :TDDLItem;
@@ -325,9 +361,13 @@ var
 
   uColumn:TDDL_Update_Column;
 
+  cPk:TDDL_Create_PrimaryKey;
+  cUq:TDDL_Create_UniqueKey;
+
   TableObj: TdbTableItem;
   FieldObj:TdbFieldItem;
   renameObj:TDDL_Update_RenameObj;
+  ddlDck:TDDL_Delete_Constraint_key;
 begin
   for I := 0 to DDL.FItems.Count - 1 do
   begin
@@ -335,7 +375,7 @@ begin
     if ddlitem.isSkip then
       Continue;
 
-    if (ddlitem.OpType=Opt_Insert) then
+    if (ddlitem.OpType = Opt_Insert) then
     begin
       if ddlitem.xType = 'u' then
       begin
@@ -344,12 +384,24 @@ begin
         ctable.TableObj := nil;
       end else if ddlitem.xType = 'column' then
       begin
-        cColumn:=TDDL_Create_Column(ddlitem);
+        cColumn := TDDL_Create_Column(ddlitem);
         cColumn.Table.Fields.addField(cColumn.field);
+      end else if ddlitem.xType = 'pk' then
+      begin
+        cPk := TDDL_Create_PrimaryKey(ddlitem);
+        if cPk.isCLUSTERED then
+        begin
+          addUcK(cPk.tableid);
+        end;
+      end else if ddlitem.xType = 'uq' then
+      begin
+        cUq := TDDL_Create_UniqueKey(ddlitem);
+        if cUq.isCLUSTERED and cUq.isUnique then
+        begin
+          addUcK(cUq.tableid);
+        end;
       end;
-
-    end else if (ddlitem.OpType=Opt_Delete) then
-    begin
+    end else if (ddlitem.OpType = Opt_Delete) then begin
       if ddlitem.xType = 'u' then
       begin
         dtable := TDDL_Delete_Table(ddlitem);
@@ -362,8 +414,21 @@ begin
         begin
           TableObj.Fields.RemoveField(dColumn.objName);
         end;
+      end else if ddlitem.xType = 'constraint' then
+      begin
+        if ddlitem is TDDL_Delete_Constraint_key then
+        begin
+          ddlDck := TDDL_Delete_Constraint_key(ddlitem);
+          if ddlDck.isCLUSTERED and ddlDck.isUnique then
+          begin
+            TableObj := FLogSource.Fdbc.dict.tables.GetItemById(ddlDck.tableid);
+            if TableObj <> nil then
+            begin
+              TableObj.UniqueClusteredKeys.Clear;
+            end;
+          end;
+        end;
       end;
-
     end else if (ddlitem.OpType = Opt_Update) then begin
       if ddlitem.xType = 'rename' then
       begin
@@ -781,16 +846,21 @@ begin
     for I := 0 to aRowData.table.UniqueClusteredKeys.Count-1 do
     begin
       field := TdbFieldItem(aRowData.table.UniqueClusteredKeys[i]);
-      for J := 0 to aRowData.new_data.Fields.Count -1 do
+      if aRowData.new_data <> nil then
       begin
-        raw_old := PdbFieldValue(aRowData.new_data.Fields[j]);
-        if raw_old.field.Col_id=field.Col_id then
+        for J := 0 to aRowData.new_data.Fields.Count -1 do
         begin
-          StrVal := Hvu_GetFieldStrValue(raw_old.field, raw_old.value);
-          StrVal := DML_BuilderXML_SafeStr(StrVal);
-          Result := Result + Format('<%s>%s</%s>', [raw_old.field.ColName,StrVal,raw_old.field.ColName]);
-          Break;
+          raw_old := PdbFieldValue(aRowData.new_data.Fields[j]);
+          if raw_old.field.Col_id=field.Col_id then
+          begin
+            StrVal := Hvu_GetFieldStrValue(raw_old.field, raw_old.value);
+            StrVal := DML_BuilderXML_SafeStr(StrVal);
+            Result := Result + Format('<%s>%s</%s>', [raw_old.field.ColName,StrVal,raw_old.field.ColName]);
+            Break;
+          end;
         end;
+      end else begin
+        Result := Result + aRowData.UniqueClusteredKeys;
       end;
     end;
   end;
@@ -897,9 +967,8 @@ begin
   PluginsMgr.onTransPkgRev(mm);
   FreeMem(mm.data);
 
-//  if FTranspkg.Ftransid.Id1>=$831 then
+//  if FTranspkg.Ftransid.Id1>=$83D then
 //    Exit;
-
 
   //开始解析数据
   for I := 0 to FTranspkg.Items.Count - 1 do
@@ -963,8 +1032,10 @@ begin
   end;
   DDLClear;
   DDLPretreatment;
-  Loger.Add(GenSql);
-  Loger.Add(GenXML);
+  PluginsMgr.onTranSql(GenSql);
+  PluginsMgr.onTransXml(GenXML);
+//  Loger.Add(GenSql);
+//  Loger.Add(GenXML);
   ApplySysDDLChange;
 end;
 
@@ -1686,6 +1757,10 @@ begin
   begin
     //删除表列
     PriseDDLPkg_D_syscolpars(DataRow);
+  end else if DataRow.Table.TableNmae = 'sysidxstats' then
+  begin
+    //index 信息
+    PriseDDLPkg_sysidxstats(DataRow);
   end
 end;
 
@@ -2259,6 +2334,7 @@ var
 
   table: TDDL_Delete_Table;
   DefObj: TDDL_Delete_Constraint;
+  DefObjkey : TDDL_Delete_Constraint_key;
 begin
   ObjId := 0;
   ObjName := '';
@@ -2317,6 +2393,16 @@ begin
     //todo:过程
 
 
+  end
+  else if (ObjType = 'pk') or (ObjType = 'uq') then
+  begin
+    //primary key ,unique key
+    DefObjkey := TDDL_Delete_Constraint_key.Create;
+    DefObjkey.subType := ObjType;
+    DefObjkey.objId := ObjId;
+    DefObjkey.objName := ObjName;
+    DefObjkey.tableid := pid;
+    DDL.Add(DefObjkey);
   end
   else if (ObjType = 'd') or (ObjType = 'pk') or (ObjType = 'uq') or (ObjType = 'c') or (ObjType = 'fk') then
   begin

@@ -1,6 +1,6 @@
-select AllocUnitName,* from fn_dblog('0x0000003e:00000238:0001',null) where [Transaction ID]='0000:00000831'
+select AllocUnitName,* from fn_dblog('0x0000003e:00000238:0001',null) where [Transaction ID]='0000:00000839'
 --select * from fn_dblog('0x0000003c:00000140:001b',null) where [Transaction ID]='0000:0000079E'
-select * from fn_dblog('0x0000003e:00000238:0001',null)  
+select * from fn_dblog('0x0000003e:00000360:0001',null)  
 checkpoint
 
 
@@ -125,10 +125,31 @@ alter table tc_fixedC add dm char(200)
 alter table tc_fixedC alter column zjm char(220) not null
 
 ALTER TABLE [dbo].[tc_fixedC] alter column [dm] char(20) COLLATE Chinese_PRC_CI_AS not NULL
-ALTER TABLE [dbo].[tc_fixedC] alter column [dm] [CHAR](20) COLLATE Chinese_PRC_CI_AS NOT NULL
+ALTER TABLE [dbo].[tc_fixedC] alter column [dm] [CHAR](10) COLLATE Japanese_CI_AS NULL
 
+alter table tc_fixedC drop column zjm
 
 select * from sys.objects where name='tc_fixedC'
 
 ALTER TABLE [dbo].[tc_fixedC] alter column [dm] [CHAR](200) COLLATE Chinese_PRC_CI_AS NOT NULL
+
+
+drop table tc_fixedC
+
+
+select object_name(1714105147)
+
+begin tran
+Create table tc_fixedC
+(
+  id int primary key,
+  dm char(20),
+  mc char(20),
+  pym char(30)
+)
+
+alter table tc_fixedC add zjm char(200) 
+commit tran
+
+ select a.id,a.colid from sysindexkeys a join sys.indexes b on a.id=b.object_id and a.indid=b.index_id and is_unique=1 and [type]=1 and a.id=1070626857 order by a.id,keyno
 

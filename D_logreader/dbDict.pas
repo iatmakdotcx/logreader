@@ -112,7 +112,7 @@ type
 implementation
 
 uses
-  loglog,Types;
+  loglog, Types;
 
 { TDbDict }
 
@@ -363,8 +363,7 @@ begin
   begin
     FItems.Remove(field);
     FItems_s_Name.Remove(ColName);
-    //删除列不影响排序
-    //fSorted := False;
+    fSorted := False;
   end;
 end;
 
@@ -439,8 +438,7 @@ begin
   table := GetItemById(objId);
   FItems_s_Name.Remove(table.getFullName);
   fitems.Remove(table);
-  //删除列不影响排序
-  //fSorted := False;
+  fSorted := False;
 end;
 
 constructor TdbTables.Create;

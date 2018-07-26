@@ -20,10 +20,8 @@ type
     _Lr_PluginGetErrMsg: T_Lr_PluginGetErrMsg;
     _Lr_PluginRegLogRowRead: T_Lr_PluginRegLogRowRead;
     _Lr_PluginRegTransPkg: T_Lr_PluginRegTransPkg;
-    _Lr_PluginRegDMLSQL:T_Lr_PluginRegDMLSQL;
-    _Lr_PluginRegDMLXML:T_Lr_PluginRegDMLXML;
-    _Lr_PluginRegDDLSQL:T_Lr_PluginRegDDLSQL;
-    _Lr_PluginRegDDLXML:T_Lr_PluginRegDDLXML;
+    _Lr_PluginRegSQL:T_Lr_PluginRegSQL;
+    _Lr_PluginRegXML:T_Lr_PluginRegXML;
     _Lr_PluginUnInit:T_Lr_PluginUnInit;
   end;
 
@@ -34,6 +32,7 @@ type
     pluginMREW: TMultiReadExclusiveWriteSynchronizer;
     plugins: array of TPluginItem;
     function Getplugin(pluginid: integer): TPluginItem;
+
   public
     constructor Create;
     destructor Destroy; override;
@@ -43,6 +42,8 @@ type
     function Count: Integer;
 
     procedure onTransPkgRev(mm:TMemory_data);
+    procedure onTranSql(data:string);
+    procedure onTransXml(data:string);
   end;
 
 var
@@ -188,10 +189,8 @@ begin
         plugins[Result]._Lr_PluginUnInit := GetProcAddress(dlHandle, '_Lr_PluginUnInit');
         plugins[Result]._Lr_PluginRegTransPkg := GetProcAddress(dlHandle, '_Lr_PluginRegTransPkg');
 
-        plugins[Result]._Lr_PluginRegDMLSQL := GetProcAddress(dlHandle, '_Lr_PluginRegDMLSQL');
-        plugins[Result]._Lr_PluginRegDMLXML := GetProcAddress(dlHandle, '_Lr_PluginRegDMLXML');
-        plugins[Result]._Lr_PluginRegDDLSQL := GetProcAddress(dlHandle, '_Lr_PluginRegDDLSQL');
-        plugins[Result]._Lr_PluginRegDDLXML := GetProcAddress(dlHandle, '_Lr_PluginRegDDLXML');
+        plugins[Result]._Lr_PluginRegSQL := GetProcAddress(dlHandle, '_Lr_PluginRegSQL');
+        plugins[Result]._Lr_PluginRegXML := GetProcAddress(dlHandle, '_Lr_PluginRegXML');
       finally
         pluginMREW.EndWrite;
       end;
@@ -203,15 +202,68 @@ procedure TPluginsMgr.onTransPkgRev(mm: TMemory_data);
 var
   I: Integer;
 begin
-  for I := 0 to Count - 1 do
-  begin
-    try
-      if Assigned(plugins[i]._Lr_PluginRegTransPkg) then
-      begin
-        plugins[i]._Lr_PluginRegTransPkg(@mm);
+  pluginMREW.BeginRead;
+  try
+    for I := 0 to Count - 1 do
+    begin
+      try
+        if Assigned(plugins[i]._Lr_PluginRegTransPkg) then
+        begin
+          plugins[i]._Lr_PluginRegTransPkg(@mm);
+        end;
+      except
       end;
-    except
     end;
+  finally
+    pluginMREW.EndRead;
+  end;
+end;
+
+procedure TPluginsMgr.onTranSql(data:string);
+var
+  I: Integer;
+begin
+  pluginMREW.BeginRead;
+  try
+    for I := 0 to Count - 1 do
+    begin
+      try
+        if Assigned(plugins[i]._Lr_PluginRegSQL) then
+        begin
+          try
+            plugins[i]._Lr_PluginRegSQL(PChar(data));
+          except
+          end;
+        end;
+      except
+      end;
+    end;
+  finally
+    pluginMREW.EndRead;
+  end;
+end;
+
+procedure TPluginsMgr.onTransXml(data:string);
+var
+  I: Integer;
+begin
+  pluginMREW.BeginRead;
+  try
+    for I := 0 to Count - 1 do
+    begin
+      try
+        if Assigned(plugins[i]._Lr_PluginRegXML) then
+        begin
+          try
+            plugins[I]._Lr_PluginRegXML(PChar(data));
+          except
+          end;
+        end;
+      except
+      end;
+    end;
+  finally
+    pluginMREW.EndRead;
   end;
 end;
 

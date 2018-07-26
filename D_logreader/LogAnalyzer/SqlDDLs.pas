@@ -126,6 +126,11 @@ type
     function ParentId: Integer; override;
   end;
 
+  TDDL_Delete_Constraint_key = class(TDDL_Delete_Constraint)
+    isCLUSTERED: Boolean;
+    isUnique:Boolean;
+  end;
+
   TDDL_Delete_Column = class(TDDLItem_Delete)
     TableId: Integer;
     objName: string;

@@ -158,13 +158,9 @@ type
 
   T_Lr_PluginRegTransPkg = function(TransPkg: PMemory_data): integer; stdcall;
 
-  T_Lr_PluginRegDMLSQL = function(Sql: PChar): integer; stdcall;
+  T_Lr_PluginRegSQL = function(Sql: PChar): integer; stdcall;
 
-  T_Lr_PluginRegDMLXML = function(Xml: PChar): integer; stdcall;
-
-  T_Lr_PluginRegDDLSQL = function(Sql: PChar): integer; stdcall;
-
-  T_Lr_PluginRegDDLXML = function(Xml: PChar): integer; stdcall;
+  T_Lr_PluginRegXML = function(Xml: PChar): integer; stdcall;
 
 function LSN2Str(lsn: Tlog_LSN): string;
 
