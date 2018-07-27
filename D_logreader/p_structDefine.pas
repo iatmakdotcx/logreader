@@ -162,6 +162,9 @@ type
 
   T_Lr_PluginRegXML = function(Xml: PChar): integer; stdcall;
 
+  T_Lr_PluginMenu = function(var Xml: PChar): integer; stdcall;
+  T_Lr_PluginMenuAction = procedure(actionId: PChar); stdcall;
+
 function LSN2Str(lsn: Tlog_LSN): string;
 
 function TranId2Str(trans: TTrans_Id): string;
@@ -209,7 +212,7 @@ begin
     end;
     if (RowFlag and $40) > 0 then
     begin
-      //versioning tag
+      //versioning tag  (only 2005?
       Endoffset := Endoffset + $E;
     end;
     Result := Endoffset - UINT_PTR(rawData);

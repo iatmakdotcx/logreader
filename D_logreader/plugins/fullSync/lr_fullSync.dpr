@@ -84,6 +84,20 @@ begin
   Result := STATUS_SUCCESS;
 end;
 
+function _Lr_PluginMenu(var Xml: PChar): integer; stdcall;
+begin
+  Xml := '<root><item caption="插件"><item caption="全库同步"><item caption="数据库设置" actionid="1"></item></item></item></root>';
+  Result := STATUS_SUCCESS;
+end;
+
+procedure _Lr_PluginMenuAction(actionId: PChar); stdcall;
+begin
+  if actionId = '1' then
+  begin
+    dbConfig;
+  end;
+end;
+
 {$R *.res}
 
 exports
@@ -91,7 +105,9 @@ exports
   _Lr_PluginInit,
   _Lr_PluginUnInit,
   _Lr_PluginGetErrMsg,
-  _Lr_PluginRegSQL;
+  _Lr_PluginRegSQL,
+  _Lr_PluginMenuAction,
+  _Lr_PluginMenu;
 
 begin
 

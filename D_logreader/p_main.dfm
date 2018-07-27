@@ -10,6 +10,7 @@ object Form1: TForm1
   Font.Height = -11
   Font.Name = 'Tahoma'
   Font.Style = []
+  Menu = MainMenu1
   OldCreateOrder = False
   OnCreate = FormCreate
   OnDestroy = FormDestroy
@@ -228,11 +229,28 @@ object Form1: TForm1
     TabOrder = 10
     OnClick = Button15Click
   end
+  object Button16: TButton
+    Left = 384
+    Top = 360
+    Width = 75
+    Height = 25
+    Caption = 'Button16'
+    TabOrder = 11
+    OnClick = Button16Click
+  end
+  object Button17: TButton
+    Left = 688
+    Top = 368
+    Width = 75
+    Height = 25
+    Caption = 'Button17'
+    TabOrder = 12
+  end
   object ImageList1: TImageList
     Left = 400
     Top = 224
     Bitmap = {
-      494C01010B0018007C0010001000FFFFFFFFFF10FFFFFFFFFFFFFFFF424D3600
+      494C01010B001800840010001000FFFFFFFFFF10FFFFFFFFFFFFFFFF424D3600
       0000000000003600000028000000400000003000000001002000000000000030
       000000000000000000000000000000000000FFFFFF00FFFFFF00F6821000F580
       0C00F4851600F67B0000F37B0500FFFFFF00FFFFFF00F47C0500F57A0000F284
@@ -634,5 +652,16 @@ object Form1: TForm1
       0000000000000000000000000000000000000000000000000000000000000000
       0000000000000000000000000000000000000000000000000000000000000000
       000000000000}
+  end
+  object MainMenu1: TMainMenu
+    Left = 504
+    Top = 40
+    object N1: TMenuItem
+      Caption = #31243#24207
+      object N2: TMenuItem
+        Caption = #36864#20986
+        OnClick = N2Click
+      end
+    end
   end
 end

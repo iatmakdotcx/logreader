@@ -4,7 +4,14 @@ interface
 
 uses
   Windows, Messages, SysUtils, Variants, Classes, Graphics, Controls, Forms,
-  Dialogs, StdCtrls, LogSource, Vcl.ComCtrls, System.ImageList, Vcl.ImgList;
+  Dialogs, StdCtrls, LogSource, Vcl.ComCtrls, System.ImageList, Vcl.ImgList,
+  Vcl.Menus, Xml.XMLIntf, System.Contnrs, plugins;
+
+type
+  TPluginMenuActionItem = class(TObject)
+    PluginItem:TPluginItem;
+    ActionId:string;
+  end;
 
 type
   TForm1 = class(TForm)
@@ -31,6 +38,11 @@ type
     Button11: TButton;
     Edit1: TEdit;
     Button15: TButton;
+    Button16: TButton;
+    MainMenu1: TMainMenu;
+    N1: TMenuItem;
+    N2: TMenuItem;
+    Button17: TButton;
     procedure FormCreate(Sender: TObject);
     procedure Button3Click(Sender: TObject);
     procedure FormDestroy(Sender: TObject);
@@ -47,7 +59,13 @@ type
     procedure Button11Click(Sender: TObject);
     procedure Button14Click(Sender: TObject);
     procedure Button15Click(Sender: TObject);
+    procedure Button16Click(Sender: TObject);
+    procedure N2Click(Sender: TObject);
   private
+    menuActions:TobjectList;
+    procedure InitPluginsMenus;
+    procedure CreatePluginsMenus(items: TMenuItem; node: IXMLNode;PluginItem:TPluginItem);
+    procedure PluginMenuItemClick(Sender: TObject);
     { Private declarations }
   public
     logsource: TLogSource;
@@ -60,8 +78,8 @@ var
 implementation
 
 uses
-  dbConnectionCfg, databaseConnection, p_structDefine, Memory_Common, plugins,
-  MakCommonfuncs, loglog, sqlextendedprocHelper;
+  dbConnectionCfg, databaseConnection, p_structDefine, Memory_Common,
+  MakCommonfuncs, loglog, sqlextendedprocHelper, XMLDoc;
 
 {$R *.dfm}
 
@@ -125,6 +143,11 @@ begin
     end;
     Memo1.Lines.Add(tmpStr);
   end;
+end;
+
+procedure TForm1.Button16Click(Sender: TObject);
+begin
+  PluginsMgr.onTranSql('select 1');
 end;
 
 procedure TForm1.Button3Click(Sender: TObject);
@@ -258,14 +281,95 @@ begin
   logsource.Stop_picker;
 end;
 
+procedure TForm1.CreatePluginsMenus(items:TMenuItem; node:IXMLNode;PluginItem:TPluginItem);
+var
+  caption:string;
+  I:Integer;
+  aitem:TPluginMenuActionItem;
+  menuI:TMenuItem;
+begin
+  caption := node.Attributes['caption'];
+  menuI := TMenuItem.Create(Self);
+  menuI.Caption := caption;
+  items.Add(menuI);
+  if node.HasAttribute('actionid') then
+  begin
+    aitem := TPluginMenuActionItem.Create;
+    aitem.ActionId := node.Attributes['actionid'];
+    aitem.PluginItem := PluginItem;
+    menuActions.Add(aitem);
+    menuI.Tag := menuActions.Count-1;
+    menuI.OnClick := PluginMenuItemClick;
+  end else begin
+    for I := 0 to node.ChildNodes.Count - 1 do
+    begin
+      if node.ChildNodes[i].NodeName = 'item' then
+      begin
+        CreatePluginsMenus(menuI, node.ChildNodes[i], PluginItem);
+      end;
+    end;
+  end;
+end;
+
+procedure TForm1.InitPluginsMenus;
+var
+  menuXml:PChar;
+  I, J: Integer;
+  resV: DWORD;
+  Xml:IXMLDocument;
+  Rootnode:IXMLNode;
+begin
+  for I := 0 to PluginsMgr.Count-1 do
+  begin
+    if Assigned(PluginsMgr.Items[i]._Lr_PluginMenu) then
+    begin
+      resV := PluginsMgr.Items[i]._Lr_PluginMenu(menuXml);
+      if not Succeeded(resV) then
+      begin
+        Loger.Add('%s 插件 %s 已加载.获取菜单失败！Code：%d', [PluginsMgr.Items[i].dllname, PluginsMgr.Items[i].name, resV]);
+      end else begin
+        Xml := TXMLDocument.Create(nil);
+        Xml.LoadFromXML(menuXml);
+        Rootnode := Xml.DocumentElement;
+        for J := 0 to Rootnode.ChildNodes.Count-1 do
+        begin
+          if Rootnode.ChildNodes[J].NodeName = 'item' then
+          begin
+            CreatePluginsMenus(MainMenu1.Items, Rootnode.ChildNodes[J], PluginsMgr.Items[i]);
+          end;
+        end;
+      end;
+    end;
+  end;
+end;
+
 procedure TForm1.FormCreate(Sender: TObject);
 begin
+  menuActions := TobjectList.Create;
   logsource := TLogSource.create;
+  InitPluginsMenus;
 end;
 
 procedure TForm1.FormDestroy(Sender: TObject);
 begin
   logsource.Free;
+  menuActions.Free;
+end;
+
+procedure TForm1.N2Click(Sender: TObject);
+begin
+  application.Terminate;
+end;
+
+procedure TForm1.PluginMenuItemClick(Sender: TObject);
+var
+  aitem:TPluginMenuActionItem;
+begin
+  if Sender is TMenuItem then
+  begin
+    aitem := TPluginMenuActionItem(menuActions[(Sender as TMenuItem).Tag]);
+    aitem.PluginItem._Lr_PluginMenuAction(Pchar(aitem.ActionId));
+  end;
 end;
 
 procedure TForm1.ReloadListClick(Sender: TObject);

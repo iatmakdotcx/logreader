@@ -23,6 +23,8 @@ type
     _Lr_PluginRegSQL:T_Lr_PluginRegSQL;
     _Lr_PluginRegXML:T_Lr_PluginRegXML;
     _Lr_PluginUnInit:T_Lr_PluginUnInit;
+    _Lr_PluginMenu:T_Lr_PluginMenu;
+    _Lr_PluginMenuAction:T_Lr_PluginMenuAction;
   end;
 
 type
@@ -188,9 +190,12 @@ begin
         plugins[Result]._Lr_PluginRegLogRowRead := GetProcAddress(dlHandle, '_Lr_PluginRegLogRowRead');
         plugins[Result]._Lr_PluginUnInit := GetProcAddress(dlHandle, '_Lr_PluginUnInit');
         plugins[Result]._Lr_PluginRegTransPkg := GetProcAddress(dlHandle, '_Lr_PluginRegTransPkg');
-
+        //Ω‚Œˆƒ⁄»›
         plugins[Result]._Lr_PluginRegSQL := GetProcAddress(dlHandle, '_Lr_PluginRegSQL');
         plugins[Result]._Lr_PluginRegXML := GetProcAddress(dlHandle, '_Lr_PluginRegXML');
+        //≤Àµ•
+        plugins[Result]._Lr_PluginMenu := GetProcAddress(dlHandle, '_Lr_PluginMenu');
+        plugins[Result]._Lr_PluginMenuAction := GetProcAddress(dlHandle, '_Lr_PluginMenuAction');
       finally
         pluginMREW.EndWrite;
       end;
