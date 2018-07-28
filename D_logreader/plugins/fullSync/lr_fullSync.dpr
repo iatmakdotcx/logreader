@@ -17,7 +17,8 @@ uses
   dbhelper in 'dbhelper.pas',
   Log4D in 'H:\Delphi\通用的自定义单元\Log4D.pas',
   loglog in 'H:\Delphi\通用的自定义单元\loglog.pas',
-  Des in 'H:\Delphi\算法\Des.pas';
+  Des in 'H:\Delphi\算法\Des.pas',
+  cfgForm in 'cfgForm.pas' {frm_cfg};
 
 const
   STATUS_SUCCESS = $00000000;   //成功
@@ -94,7 +95,9 @@ procedure _Lr_PluginMenuAction(actionId: PChar); stdcall;
 begin
   if actionId = '1' then
   begin
-    dbConfig;
+    frm_cfg:=Tfrm_cfg.Create(nil);
+    frm_cfg.ShowModal;
+    frm_cfg.Free;
   end;
 end;
 

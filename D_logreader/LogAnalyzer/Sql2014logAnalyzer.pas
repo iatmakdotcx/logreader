@@ -3617,7 +3617,7 @@ begin
               end
             end;
 
-             DataRow_buf := Tsql2014Opt.Create;
+            DataRow_buf := Tsql2014Opt.Create;
             try
               BinReader.SetRange(R_Info[3].Offset, R_Info[3].Length);
               BinReader.skip(6);

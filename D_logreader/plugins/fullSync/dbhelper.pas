@@ -11,6 +11,7 @@ var
 
 function RunSql(aSql:string): Boolean;
 procedure dbConfig;
+procedure SavedbConfig;
 
 
 implementation
@@ -57,9 +58,9 @@ begin
     try
       sl.Values['ConnStr'] := dbconStr;
       if TransEnable then
-        sl.Values['enable'] := '0'
+        sl.Values['enable'] := '1'
       else
-        sl.Values['enable'] := '1';
+        sl.Values['enable'] := '0';
       sl.Text := TNetEncoding.Base64.Encode(DesEncryStr(sl.Text, DESPASSWORD));
       sl.SaveToFile(cfgfilepath);
     finally
@@ -103,6 +104,7 @@ begin
       try
         adoq := TADOCommand.Create(nil);
         try
+          adoq.ParamCheck := False;
           adoq.ConnectionString := dbconStr;
           adoq.CommandText := aSql;
           adoq.Execute;

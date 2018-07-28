@@ -110,6 +110,10 @@
         <DCCReference Include="H:\Delphi\通用的自定义单元\Log4D.pas"/>
         <DCCReference Include="H:\Delphi\通用的自定义单元\loglog.pas"/>
         <DCCReference Include="H:\Delphi\算法\Des.pas"/>
+        <DCCReference Include="cfgForm.pas">
+            <Form>frm_cfg</Form>
+            <FormType>dfm</FormType>
+        </DCCReference>
         <BuildConfiguration Include="Release">
             <Key>Cfg_2</Key>
             <CfgParent>Base</CfgParent>
@@ -138,12 +142,6 @@
             <Deployment Version="3">
                 <DeployFile LocalName="$(BDS)\Redist\osx32\libcgunwind.1.0.dylib" Class="DependencyModule">
                     <Platform Name="OSX32">
-                        <Overwrite>true</Overwrite>
-                    </Platform>
-                </DeployFile>
-                <DeployFile LocalName="..\..\..\bin\plugins\lr_fullSync.rsm" Configuration="Debug" Class="DebugSymbols">
-                    <Platform Name="Win64">
-                        <RemoteName>lr_fullSync.rsm</RemoteName>
                         <Overwrite>true</Overwrite>
                     </Platform>
                 </DeployFile>

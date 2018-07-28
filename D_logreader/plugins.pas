@@ -227,6 +227,7 @@ end;
 procedure TPluginsMgr.onTranSql(data:string);
 var
   I: Integer;
+  begt:Cardinal;
 begin
   pluginMREW.BeginRead;
   try
@@ -236,7 +237,13 @@ begin
         if Assigned(plugins[i]._Lr_PluginRegSQL) then
         begin
           try
+            begt := GetTickCount;
             plugins[i]._Lr_PluginRegSQL(PChar(data));
+            begt := GetTickCount-begt;
+            if begt > 1000 then
+            begin
+              loger.Add('插件 %s._Lr_PluginRegSQL 执行时间大于1000ms(%d ms)(响应过慢可能导致整体解析效率下降！)',[plugins[i].filepath, begt], LOG_IMPORTANT or LOG_WARNING);
+            end;
           except
           end;
         end;
@@ -251,6 +258,7 @@ end;
 procedure TPluginsMgr.onTransXml(data:string);
 var
   I: Integer;
+  begt:Cardinal;
 begin
   pluginMREW.BeginRead;
   try
@@ -260,7 +268,13 @@ begin
         if Assigned(plugins[i]._Lr_PluginRegXML) then
         begin
           try
+            begt := GetTickCount;
             plugins[I]._Lr_PluginRegXML(PChar(data));
+            begt := GetTickCount-begt;
+            if begt > 1000 then
+            begin
+              loger.Add('插件 %s._Lr_PluginRegXML 执行时间大于1000ms(%d ms)(响应过慢可能导致整体解析效率下降！)',[plugins[i].filepath, begt], LOG_IMPORTANT or LOG_WARNING);
+            end;
           except
           end;
         end;
