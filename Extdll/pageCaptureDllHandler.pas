@@ -62,6 +62,7 @@ var
 
 procedure pageCapture_finit();
 begin
+  Loger.Add('pageCapture_finit...%d',[dllHandle]);
   if dllHandle <> 0 then
   begin
     FreeLibrary(dllHandle);

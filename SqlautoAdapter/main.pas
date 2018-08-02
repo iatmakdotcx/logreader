@@ -220,7 +220,7 @@ var
   ASymInfo: PSymInfo;
 begin
   Result := 0;
-  FLoadedImg := SymLoadModuleEx(GetCurrentProcess, 0, PChar(aPdbName), nil, $400000, GetFileSize(aPdbName), nil, 0);
+  FLoadedImg := SymLoadModuleEx(GetCurrentProcess, 0, PChar(aPdbName), nil, $40000000, GetFileSize(aPdbName), nil, 0);
   if FLoadedImg = 0 then
   begin
     Loger.Add('getPageRef_ModifyColumnsInternalFromSymbols:SymLoadModuleEx fail!' + SysErrorMessage(GetLastError), LOG_ERROR or LOG_IMPORTANT);
@@ -244,7 +244,7 @@ begin
         Loger.Add('getPageRef_ModifyColumnsInternalFromSymbols:SymFromName fail!' + SysErrorMessage(GetLastError), LOG_ERROR or LOG_IMPORTANT);
         Exit;
       end;
-      Result := ASymInfo.Address;
+      Result := ASymInfo.Address - ASymInfo.ModBase;
     finally
       Dispose(ASymInfo);
     end;
@@ -261,7 +261,7 @@ end;
 
 procedure Tfrm_main.Button2Click(Sender: TObject);
 begin
-  getPageRef_ModifyColumnsInternalFromSymbols('H:\Symbols\sqlmin.pdb\EF62962237614EF0B93B51D745D8662A2\sqlmin.pdb')
+  getPageRef_ModifyColumnsInternalFromSymbols('H:\Symbols\sqlmin.pdb\D1C97E280B0140E18A5ACD148315ED1A2\sqlmin.pdb')
 end;
 
 procedure Tfrm_main.Button3Click(Sender: TObject);
@@ -293,7 +293,15 @@ begin
   if DBH.checkMd5(sqlminMD5) then
   begin
     processLog('!!!!!!!!!!!!!!!!!!!!!!!!!!!!Ext cfg exists!!!!!!!!!!!!!!!!!!!!!!!!!!!!');
+    Exit;
   end;
+  if Major < 10 then
+  begin
+    processLog('!!!!!!!!!!!!!!!!!!!!!!!!!!!!暂不支持2008之前的版本!!!!!!!!!!!!!!!!!!!!!!!!!!!!');
+    Exit;
+  end;
+  processLog('---------------------------准备测试自动方案---------------------------');
+
 end;
 
 procedure Tfrm_main.FormCreate(Sender: TObject);

@@ -36,7 +36,7 @@ function TDBH.cfg(md5Str: string; var pnt: Integer; var dll: string): Boolean;
 var
   sSQL: string;
 begin
-  sSQL := 'select a.pnt,a.pnt2,b.dllpath from cfg a join dlls b on a.bin=b.id where `hash`="' + md5Str + '"';
+  sSQL := 'select a.pnt,b.dllpath from cfg a join dlls b on a.bin=b.id where `hash`="' + md5Str + '"';
   Qry.Close;
   Qry.Open(sSQL);
   if Qry.RecordCount > 0 then
