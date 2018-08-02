@@ -13,17 +13,14 @@ library LrExtutils;
 {$IF CompilerVersion >= 21.0}
 {$WEAKLINKRTTI ON}
 {$RTTI EXPLICIT METHODS([]) PROPERTIES([]) FIELDS([])}
-{$IFEND}
+{$ENDIF}
 
 uses
   {$IFDEF DEBUG}
-  //FastMM4Messages in 'H:\Delphi\FastMMnew\FastMM4Messages.pas',
-  //FastMM4 in 'H:\Delphi\FastMMnew\FastMM4.pas',
   {$ENDIF }
   SysUtils,
   Classes,
   Winapi.Windows,
-  HashHelper in 'HashHelper.pas',
   MsOdsApi in 'MsOdsApi.pas',
   SqlSvrHelper in 'SqlSvrHelper.pas',
   dbhelper in 'dbhelper.pas',
@@ -35,8 +32,8 @@ uses
   cfg in 'cfg.pas',
   LidxMgr in 'LidxMgr.pas',
   loglog in 'H:\Delphi\通用的自定义单元\loglog.pas',
-  Log4D in 'H:\Delphi\通用的自定义单元\Log4D.pas'
-  ;
+  Log4D in 'H:\Delphi\通用的自定义单元\Log4D.pas',
+  HashHelper in '..\Common\HashHelper.pas';
 
 {$R *.res}
 
@@ -196,7 +193,7 @@ begin
 
     try
       if DBH = nil then
-        dbhelper.init;
+         DBH := TDBH.Create;
 
       if DBH.checkMd5(sqlminMD5) then
       begin
@@ -256,7 +253,7 @@ begin
 
     try
       if DBH = nil then
-        dbhelper.init;
+         DBH := TDBH.Create;
 
       if DBH.checkMd5(sqlminMD5) then
       begin
@@ -287,9 +284,10 @@ var
   hookPnt:UInt64;
 begin
   Result := SUCCEED;
-
   if not Assigned(_Lc_doHook) then
     d_hook_init(pSrvProc);
+
+  d_checkSqlSvr(pSrvProc);
 
   if Assigned(_Lc_doHook) and (SVR_hookPnt_Row > 0) then
   begin
@@ -682,7 +680,7 @@ begin
   DLLProc := @DLLMainHandler; //动态库地址告诉系统，结束的时候执行卸载
   DLLMainHandler(DLL_PROCESS_ATTACH);
 
-  dbhelper.init;
+  DBH := TDBH.Create;
   {$IFDEF DEBUG}
   //test code
   pageCapture_init('project1.exe');

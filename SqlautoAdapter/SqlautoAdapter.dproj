@@ -1,14 +1,14 @@
 ﻿<Project xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
     <PropertyGroup>
-        <ProjectGuid>{4940BA3D-4C59-4467-B66C-ACAFD292D033}</ProjectGuid>
-        <MainSource>LrExtutils.dpr</MainSource>
-        <Base>True</Base>
-        <Config Condition="'$(Config)'==''">Release</Config>
-        <TargetedPlatforms>1027</TargetedPlatforms>
-        <AppType>Library</AppType>
-        <FrameworkType>None</FrameworkType>
+        <ProjectGuid>{6514CD24-2520-41B3-9072-B0C8734260FE}</ProjectGuid>
         <ProjectVersion>18.1</ProjectVersion>
+        <FrameworkType>VCL</FrameworkType>
+        <MainSource>SqlautoAdapter.dpr</MainSource>
+        <Base>True</Base>
+        <Config Condition="'$(Config)'==''">Debug</Config>
         <Platform Condition="'$(Platform)'==''">Win64</Platform>
+        <TargetedPlatforms>3</TargetedPlatforms>
+        <AppType>Application</AppType>
     </PropertyGroup>
     <PropertyGroup Condition="'$(Config)'=='Base' or '$(Base)'!=''">
         <Base>true</Base>
@@ -23,13 +23,13 @@
         <CfgParent>Base</CfgParent>
         <Base>true</Base>
     </PropertyGroup>
-    <PropertyGroup Condition="'$(Config)'=='Release' or '$(Cfg_1)'!=''">
+    <PropertyGroup Condition="'$(Config)'=='Debug' or '$(Cfg_1)'!=''">
         <Cfg_1>true</Cfg_1>
         <CfgParent>Base</CfgParent>
         <Base>true</Base>
     </PropertyGroup>
-    <PropertyGroup Condition="('$(Platform)'=='iOSDevice64' and '$(Cfg_1)'=='true') or '$(Cfg_1_iOSDevice64)'!=''">
-        <Cfg_1_iOSDevice64>true</Cfg_1_iOSDevice64>
+    <PropertyGroup Condition="('$(Platform)'=='Win32' and '$(Cfg_1)'=='true') or '$(Cfg_1_Win32)'!=''">
+        <Cfg_1_Win32>true</Cfg_1_Win32>
         <CfgParent>Cfg_1</CfgParent>
         <Cfg_1>true</Cfg_1>
         <Base>true</Base>
@@ -40,13 +40,13 @@
         <Cfg_1>true</Cfg_1>
         <Base>true</Base>
     </PropertyGroup>
-    <PropertyGroup Condition="'$(Config)'=='Debug' or '$(Cfg_2)'!=''">
+    <PropertyGroup Condition="'$(Config)'=='Release' or '$(Cfg_2)'!=''">
         <Cfg_2>true</Cfg_2>
         <CfgParent>Base</CfgParent>
         <Base>true</Base>
     </PropertyGroup>
-    <PropertyGroup Condition="('$(Platform)'=='iOSDevice64' and '$(Cfg_2)'=='true') or '$(Cfg_2_iOSDevice64)'!=''">
-        <Cfg_2_iOSDevice64>true</Cfg_2_iOSDevice64>
+    <PropertyGroup Condition="('$(Platform)'=='Win32' and '$(Cfg_2)'=='true') or '$(Cfg_2_Win32)'!=''">
+        <Cfg_2_Win32>true</Cfg_2_Win32>
         <CfgParent>Cfg_2</CfgParent>
         <Cfg_2>true</Cfg_2>
         <Base>true</Base>
@@ -58,145 +58,128 @@
         <Base>true</Base>
     </PropertyGroup>
     <PropertyGroup Condition="'$(Base)'!=''">
-        <GenDll>true</GenDll>
-        <VerInfo_Locale>2052</VerInfo_Locale>
-        <SanitizedProjectName>LrExtutils</SanitizedProjectName>
-        <DCC_F>false</DCC_F>
-        <DCC_DebugInformation>1</DCC_DebugInformation>
-        <DCC_N>true</DCC_N>
-        <DCC_S>false</DCC_S>
-        <VerInfo_Keys>CompanyName=;FileDescription=;FileVersion=1.0.0.0;InternalName=;LegalCopyright=;LegalTrademarks=;OriginalFilename=;ProductName=;ProductVersion=1.0.0.0;Comments=</VerInfo_Keys>
+        <Icon_MainIcon>$(BDS)\bin\delphi_PROJECTICON.ico</Icon_MainIcon>
+        <SanitizedProjectName>SqlautoAdapter</SanitizedProjectName>
+        <DCC_Namespace>System;Xml;Data;Datasnap;Web;Soap;Vcl;Vcl.Imaging;Vcl.Touch;Vcl.Samples;Vcl.Shell;$(DCC_Namespace)</DCC_Namespace>
+        <DCC_DcuOutput>.\$(Platform)\$(Config)</DCC_DcuOutput>
+        <DCC_ExeOutput>.\$(Platform)\$(Config)</DCC_ExeOutput>
         <DCC_E>false</DCC_E>
-        <DCC_SymbolReferenceInfo>1</DCC_SymbolReferenceInfo>
-        <DCC_ImageBase>00400000</DCC_ImageBase>
-        <DCC_Namespace>System;Xml;Data;Datasnap;Web;Soap;Winapi;$(DCC_Namespace)</DCC_Namespace>
+        <DCC_N>false</DCC_N>
+        <DCC_S>false</DCC_S>
+        <DCC_F>false</DCC_F>
         <DCC_K>false</DCC_K>
     </PropertyGroup>
     <PropertyGroup Condition="'$(Base_Win32)'!=''">
-        <AppEnableRuntimeThemes>true</AppEnableRuntimeThemes>
         <VerInfo_Locale>1033</VerInfo_Locale>
-        <VerInfo_IncludeVerInfo>true</VerInfo_IncludeVerInfo>
-        <Icon_MainIcon>LrExtutils_Icon.ico</Icon_MainIcon>
-        <DCC_Namespace>System.Win;Data.Win;Datasnap.Win;Web.Win;Soap.Win;Xml.Win;Bde;$(DCC_Namespace)</DCC_Namespace>
+        <DCC_Namespace>Winapi;System.Win;Data.Win;Datasnap.Win;Web.Win;Soap.Win;Xml.Win;Bde;$(DCC_Namespace)</DCC_Namespace>
+        <DCC_UsePackage>DBXSqliteDriver;RESTComponents;DataSnapServerMidas;DBXDb2Driver;DBXInterBaseDriver;cxLibraryRS22;dxBarDBNavRS22;vclactnband;cxPivotGridRS22;vclFireDAC;cxPivotGridOLAPRS22;dxPSdxSpreadSheetLnkRS22;emsclientfiredac;DataSnapFireDAC;svnui;tethering;FireDACADSDriver;DBXMSSQLDriver;DCEF_2010;DatasnapConnectorsFreePascal;FireDACMSSQLDriver;vcltouch;vcldb;bindcompfmx;svn;Intraweb;DBXOracleDriver;dxCoreRS22;inetdb;CEF4Delphi;dxPSCoreRS22;dxRibbonRS22;FmxTeeUI;emsedge;FireDACIBDriver;fmx;fmxdae;dxPSdxDBOCLnkRS22;vclib;dxPSDBTeeChartRS22;cxDataRS22;FireDACDBXDriver;dbexpress;IndyCore;cxVerticalGridRS22;dxPScxCommonRS22;dxPSdxLCLnkRS22;vclx;dxPSTeeChartRS22;dsnap;DataSnapCommon;emsclient;dxDockingRS22;FireDACCommon;dxFlowChartRS22;RESTBackendComponents;DataSnapConnectors;dxPSPrVwRibbonRS22;VCLRESTComponents;dxPScxPCProdRS22;soapserver;dxFireDACServerModeRS22;dxmdsRS22;cxSchedulerGridRS22;dxPScxTLLnkRS22;dxSpellCheckerRS22;dxBarExtDBItemsRS22;dxdborRS22;vclie;cxSchedulerRibbonStyleEventEditorRS22;bindengine;DBXMySQLDriver;FireDACOracleDriver;CloudService;FireDACMySQLDriver;DBXFirebirdDriver;dxPScxExtCommonRS22;dxPScxPivotGridLnkRS22;dxPSdxFCLnkRS22;FireDACCommonODBC;FireDACCommonDriver;dxBarExtItemsRS22;DataSnapClient;inet;bindcompdbx;IndyIPCommon;cxTreeListRS22;cxTreeListdxBarPopupMenuRS22;vcl;DBXSybaseASEDriver;IndyIPServer;dxSpreadSheetRS22;IndySystem;FireDACDb2Driver;dxMapControlRS22;dxPScxGridLnkRS22;dxLayoutControlRS22;dsnapcon;dxServerModeRS22;dxThemeRS22;FireDACMSAccDriver;fmxFireDAC;FireDACInfxDriver;vclimg;cxPageControlRS22;TeeDB;FireDAC;dxorgcRS22;dxPScxSchedulerLnkRS22;emshosting;dxComnRS22;FireDACSqliteDriver;FireDACPgDriver;ibmonitor;FireDACASADriver;dxPsPrVwAdvRS22;DBXOdbcDriver;FireDACTDataDriver;FMXTee;dxTabbedMDIRS22;soaprtl;DbxCommonDriver;dxPScxVGridLnkRS22;GRDelphi;ibxpress;Tee;DataSnapServer;xmlrtl;soapmidas;DataSnapNativeClient;fmxobj;vclwinx;ibxbindings;rtl;FireDACDSDriver;DbxClientDriver;dxBarRS22;DBXSybaseASADriver;cxExportRS22;CustomIPTransport;vcldsnap;cxPivotGridChartRS22;cxBarEditItemRS22;dxPSLnksRS22;bindcomp;appanalytics;dxNavBarRS22;DBXInformixDriver;cxSchedulerRS22;IndyIPClient;EurekaLogCore;bindcompvcl;TeeUI;cxGridRS22;dxWizardControlRS22;dxPSdxOCLnkRS22;dbxcds;VclSmp;dxdbtrRS22;adortl;FireDACODBCDriver;dxTileControlRS22;DataSnapIndy10ServerTransport;dxPSdxDBTVLnkRS22;dsnapxml;DataSnapProviderClient;dbrtl;inetdbxpress;FireDACMongoDBDriver;IndyProtocols;dxADOServerModeRS22;cxSchedulerTreeBrowserRS22;dxGDIPlusRS22;dxtrmdRS22;cxEditorsRS22;fmxase;$(DCC_UsePackage)</DCC_UsePackage>
         <Manifest_File>$(BDS)\bin\default_app.manifest</Manifest_File>
+        <VerInfo_IncludeVerInfo>true</VerInfo_IncludeVerInfo>
+        <VerInfo_Keys>CompanyName=;FileDescription=;FileVersion=1.0.0.0;InternalName=;LegalCopyright=;LegalTrademarks=;OriginalFilename=;ProductName=;ProductVersion=1.0.0.0;Comments=</VerInfo_Keys>
     </PropertyGroup>
     <PropertyGroup Condition="'$(Base_Win64)'!=''">
-        <AppEnableRuntimeThemes>true</AppEnableRuntimeThemes>
         <VerInfo_Locale>1033</VerInfo_Locale>
-        <VerInfo_IncludeVerInfo>true</VerInfo_IncludeVerInfo>
-        <Icon_MainIcon>LrExtutils_Icon.ico</Icon_MainIcon>
-        <DCC_Namespace>System.Win;Data.Win;Datasnap.Win;Web.Win;Soap.Win;Xml.Win;$(DCC_Namespace)</DCC_Namespace>
+        <DCC_Namespace>Winapi;System.Win;Data.Win;Datasnap.Win;Web.Win;Soap.Win;Xml.Win;$(DCC_Namespace)</DCC_Namespace>
+        <DCC_UsePackage>DBXSqliteDriver;RESTComponents;DataSnapServerMidas;DBXDb2Driver;DBXInterBaseDriver;cxLibraryRS22;dxBarDBNavRS22;vclactnband;cxPivotGridRS22;vclFireDAC;cxPivotGridOLAPRS22;dxPSdxSpreadSheetLnkRS22;emsclientfiredac;DataSnapFireDAC;tethering;FireDACADSDriver;DBXMSSQLDriver;DatasnapConnectorsFreePascal;FireDACMSSQLDriver;vcltouch;vcldb;bindcompfmx;Intraweb;DBXOracleDriver;inetdb;dxPSCoreRS22;dxRibbonRS22;FmxTeeUI;emsedge;FireDACIBDriver;fmx;fmxdae;dxPSdxDBOCLnkRS22;vclib;dxPSDBTeeChartRS22;cxDataRS22;FireDACDBXDriver;dbexpress;IndyCore;cxVerticalGridRS22;dxPScxCommonRS22;dxPSdxLCLnkRS22;vclx;dxPSTeeChartRS22;dsnap;DataSnapCommon;emsclient;dxDockingRS22;FireDACCommon;dxFlowChartRS22;RESTBackendComponents;DataSnapConnectors;dxPSPrVwRibbonRS22;VCLRESTComponents;dxPScxPCProdRS22;soapserver;dxFireDACServerModeRS22;dxmdsRS22;cxSchedulerGridRS22;dxPScxTLLnkRS22;dxSpellCheckerRS22;dxBarExtDBItemsRS22;dxdborRS22;vclie;cxSchedulerRibbonStyleEventEditorRS22;bindengine;DBXMySQLDriver;FireDACOracleDriver;CloudService;FireDACMySQLDriver;DBXFirebirdDriver;dxPScxExtCommonRS22;dxPScxPivotGridLnkRS22;dxPSdxFCLnkRS22;FireDACCommonODBC;FireDACCommonDriver;dxBarExtItemsRS22;DataSnapClient;inet;bindcompdbx;IndyIPCommon;cxTreeListRS22;cxTreeListdxBarPopupMenuRS22;vcl;DBXSybaseASEDriver;IndyIPServer;dxSpreadSheetRS22;IndySystem;FireDACDb2Driver;dxMapControlRS22;dxPScxGridLnkRS22;dxLayoutControlRS22;dsnapcon;dxServerModeRS22;dxThemeRS22;FireDACMSAccDriver;fmxFireDAC;FireDACInfxDriver;vclimg;cxPageControlRS22;TeeDB;FireDAC;dxorgcRS22;dxPScxSchedulerLnkRS22;emshosting;dxComnRS22;FireDACSqliteDriver;FireDACPgDriver;ibmonitor;FireDACASADriver;dxPsPrVwAdvRS22;DBXOdbcDriver;FireDACTDataDriver;FMXTee;dxTabbedMDIRS22;soaprtl;DbxCommonDriver;dxPScxVGridLnkRS22;ibxpress;Tee;DataSnapServer;xmlrtl;soapmidas;DataSnapNativeClient;fmxobj;vclwinx;ibxbindings;rtl;FireDACDSDriver;DbxClientDriver;dxBarRS22;DBXSybaseASADriver;cxExportRS22;CustomIPTransport;vcldsnap;cxPivotGridChartRS22;cxBarEditItemRS22;dxPSLnksRS22;bindcomp;appanalytics;dxNavBarRS22;DBXInformixDriver;cxSchedulerRS22;IndyIPClient;bindcompvcl;TeeUI;cxGridRS22;dxWizardControlRS22;dxPSdxOCLnkRS22;dbxcds;VclSmp;dxdbtrRS22;adortl;FireDACODBCDriver;dxTileControlRS22;DataSnapIndy10ServerTransport;dxPSdxDBTVLnkRS22;dsnapxml;DataSnapProviderClient;dbrtl;inetdbxpress;FireDACMongoDBDriver;IndyProtocols;dxADOServerModeRS22;cxSchedulerTreeBrowserRS22;dxGDIPlusRS22;dxtrmdRS22;cxEditorsRS22;fmxase;$(DCC_UsePackage)</DCC_UsePackage>
         <Manifest_File>$(BDS)\bin\default_app.manifest</Manifest_File>
+        <VerInfo_IncludeVerInfo>true</VerInfo_IncludeVerInfo>
+        <VerInfo_Keys>CompanyName=;FileDescription=;FileVersion=1.0.0.0;InternalName=;LegalCopyright=;LegalTrademarks=;OriginalFilename=;ProductName=;ProductVersion=1.0.0.0;Comments=</VerInfo_Keys>
     </PropertyGroup>
     <PropertyGroup Condition="'$(Cfg_1)'!=''">
-        <DCC_LocalDebugSymbols>false</DCC_LocalDebugSymbols>
-        <DCC_DebugInformation>0</DCC_DebugInformation>
-        <DCC_SymbolReferenceInfo>0</DCC_SymbolReferenceInfo>
-        <DCC_Define>RELEASE;$(DCC_Define)</DCC_Define>
+        <DCC_Define>DEBUG;$(DCC_Define)</DCC_Define>
+        <DCC_DebugDCUs>true</DCC_DebugDCUs>
+        <DCC_Optimize>false</DCC_Optimize>
+        <DCC_GenerateStackFrames>true</DCC_GenerateStackFrames>
+        <DCC_DebugInfoInExe>true</DCC_DebugInfoInExe>
+        <DCC_RemoteDebug>true</DCC_RemoteDebug>
     </PropertyGroup>
-    <PropertyGroup Condition="'$(Cfg_1_iOSDevice64)'!=''">
-        <BT_BuildType>Debug</BT_BuildType>
+    <PropertyGroup Condition="'$(Cfg_1_Win32)'!=''">
+        <DCC_Define>EUREKALOG;EUREKALOG_VER7;$(DCC_Define)</DCC_Define>
+        <AppEnableRuntimeThemes>true</AppEnableRuntimeThemes>
+        <DCC_MapFile>3</DCC_MapFile>
+        <AppEnableHighDPI>true</AppEnableHighDPI>
+        <DCC_RemoteDebug>false</DCC_RemoteDebug>
     </PropertyGroup>
     <PropertyGroup Condition="'$(Cfg_1_Win64)'!=''">
-        <DCC_ExeOutput>../bin</DCC_ExeOutput>
-        <Debugger_HostApplication>H:\Java\workspace\logreaderV2.0\Extdll\Project1.exe</Debugger_HostApplication>
         <VerInfo_Locale>1033</VerInfo_Locale>
+        <DCC_ExeOutput>../bin</DCC_ExeOutput>
         <VerInfo_IncludeVerInfo>true</VerInfo_IncludeVerInfo>
         <AppEnableRuntimeThemes>true</AppEnableRuntimeThemes>
+        <DCC_MapFile>3</DCC_MapFile>
+        <AppEnableHighDPI>true</AppEnableHighDPI>
     </PropertyGroup>
     <PropertyGroup Condition="'$(Cfg_2)'!=''">
-        <DCC_GenerateStackFrames>true</DCC_GenerateStackFrames>
-        <DCC_Optimize>false</DCC_Optimize>
-        <DCC_Define>DEBUG;$(DCC_Define)</DCC_Define>
+        <DCC_LocalDebugSymbols>false</DCC_LocalDebugSymbols>
+        <DCC_Define>RELEASE;$(DCC_Define)</DCC_Define>
+        <DCC_SymbolReferenceInfo>0</DCC_SymbolReferenceInfo>
+        <DCC_DebugInformation>0</DCC_DebugInformation>
     </PropertyGroup>
-    <PropertyGroup Condition="'$(Cfg_2_iOSDevice64)'!=''">
-        <BT_BuildType>Debug</BT_BuildType>
+    <PropertyGroup Condition="'$(Cfg_2_Win32)'!=''">
+        <AppEnableRuntimeThemes>true</AppEnableRuntimeThemes>
+        <AppEnableHighDPI>true</AppEnableHighDPI>
     </PropertyGroup>
     <PropertyGroup Condition="'$(Cfg_2_Win64)'!=''">
-        <BRCC_Defines>FullDebugMode;$(BRCC_Defines)</BRCC_Defines>
-        <VerInfo_IncludeVerInfo>true</VerInfo_IncludeVerInfo>
-        <VerInfo_Locale>1033</VerInfo_Locale>
         <AppEnableRuntimeThemes>true</AppEnableRuntimeThemes>
-        <Debugger_HostApplication>H:\Java\workspace\logreaderV2.0\Extdll\Project1.exe</Debugger_HostApplication>
+        <AppEnableHighDPI>true</AppEnableHighDPI>
     </PropertyGroup>
     <ItemGroup>
         <DelphiCompile Include="$(MainSource)">
             <MainSource>MainSource</MainSource>
         </DelphiCompile>
-        <DCCReference Include="MsOdsApi.pas"/>
-        <DCCReference Include="SqlSvrHelper.pas"/>
-        <DCCReference Include="dbhelper.pas"/>
-        <DCCReference Include="pageCaptureDllHandler.pas"/>
-        <DCCReference Include="H:\Delphi\通用的自定义单元\Memory_Common.pas"/>
-        <DCCReference Include="logRecdItemSave.pas"/>
-        <DCCReference Include="H:\Delphi\通用的自定义单元\MakCommonfuncs.pas"/>
-        <DCCReference Include="logRecdItemReader.pas"/>
-        <DCCReference Include="cfg.pas"/>
-        <DCCReference Include="LidxMgr.pas"/>
-        <DCCReference Include="H:\Delphi\通用的自定义单元\loglog.pas"/>
+        <DCCReference Include="main.pas">
+            <Form>frm_main</Form>
+            <FormType>dfm</FormType>
+        </DCCReference>
+        <DCCReference Include="DbgHelp.pas"/>
         <DCCReference Include="H:\Delphi\通用的自定义单元\Log4D.pas"/>
+        <DCCReference Include="H:\Delphi\通用的自定义单元\loglog.pas"/>
+        <DCCReference Include="dbcfg.pas">
+            <Form>frm_dbcfg</Form>
+            <FormType>dfm</FormType>
+        </DCCReference>
+        <DCCReference Include="..\Extdll\dbhelper.pas"/>
         <DCCReference Include="..\Common\HashHelper.pas"/>
-        <BuildConfiguration Include="Debug">
+        <BuildConfiguration Include="Release">
             <Key>Cfg_2</Key>
             <CfgParent>Base</CfgParent>
         </BuildConfiguration>
         <BuildConfiguration Include="Base">
             <Key>Base</Key>
         </BuildConfiguration>
-        <BuildConfiguration Include="Release">
+        <BuildConfiguration Include="Debug">
             <Key>Cfg_1</Key>
             <CfgParent>Base</CfgParent>
         </BuildConfiguration>
     </ItemGroup>
     <ProjectExtensions>
         <Borland.Personality>Delphi.Personality.12</Borland.Personality>
-        <Borland.ProjectType/>
+        <Borland.ProjectType>Application</Borland.ProjectType>
         <BorlandProject>
             <Delphi.Personality>
                 <Source>
-                    <Source Name="MainSource">LrExtutils.dpr</Source>
+                    <Source Name="MainSource">SqlautoAdapter.dpr</Source>
                 </Source>
                 <Excluded_Packages>
                     <Excluded_Packages Name="$(BDSBIN)\dcloffice2k240.bpl">Microsoft Office 2000 Sample Automation Server Wrapper Components</Excluded_Packages>
                     <Excluded_Packages Name="$(BDSBIN)\dclofficexp240.bpl">Microsoft Office XP Sample Automation Server Wrapper Components</Excluded_Packages>
                 </Excluded_Packages>
             </Delphi.Personality>
-            <Platforms>
-                <Platform value="iOSDevice64">True</Platform>
-                <Platform value="OSX32">False</Platform>
-                <Platform value="Win32">True</Platform>
-                <Platform value="Win64">True</Platform>
-            </Platforms>
             <Deployment Version="3">
-                <DeployFile LocalName="LrExtutils.dll" Configuration="Debug" Class="ProjectOutput">
+                <DeployFile LocalName="Win32\Debug\SqlautoAdapter.exe" Configuration="Debug" Class="ProjectOutput">
+                    <Platform Name="Win32">
+                        <RemoteName>SqlautoAdapter.exe</RemoteName>
+                        <Overwrite>true</Overwrite>
+                    </Platform>
+                </DeployFile>
+                <DeployFile LocalName="..\bin\SqlautoAdapter.exe" Configuration="Debug" Class="ProjectOutput">
                     <Platform Name="Win64">
-                        <RemoteName>LrExtutils.dll</RemoteName>
+                        <RemoteName>SqlautoAdapter.exe</RemoteName>
                         <Overwrite>true</Overwrite>
                     </Platform>
                 </DeployFile>
-                <DeployFile LocalName="$(BDS)\Redist\osx32\libcgunwind.1.0.dylib" Class="DependencyModule">
-                    <Platform Name="OSX32">
-                        <Overwrite>true</Overwrite>
-                    </Platform>
-                </DeployFile>
-                <DeployFile LocalName="$(BDS)\Redist\iossimulator\libcgunwind.1.0.dylib" Class="DependencyModule">
-                    <Platform Name="iOSSimulator">
-                        <Overwrite>true</Overwrite>
-                    </Platform>
-                </DeployFile>
-                <DeployFile LocalName="$(BDS)\Redist\iossimulator\libPCRE.dylib" Class="DependencyModule">
-                    <Platform Name="iOSSimulator">
-                        <Overwrite>true</Overwrite>
-                    </Platform>
-                </DeployFile>
-                <DeployFile LocalName="$(BDS)\Redist\osx32\libcgsqlite3.dylib" Class="DependencyModule">
-                    <Platform Name="OSX32">
-                        <Overwrite>true</Overwrite>
-                    </Platform>
-                </DeployFile>
-                <DeployFile LocalName="..\bin\LrExtutils.dll" Configuration="Release" Class="ProjectOutput">
+                <DeployFile LocalName="..\bin\SqlautoAdapter.rsm" Configuration="Debug" Class="DebugSymbols">
                     <Platform Name="Win64">
-                        <RemoteName>LrExtutils.dll</RemoteName>
+                        <RemoteName>SqlautoAdapter.rsm</RemoteName>
                         <Overwrite>true</Overwrite>
                     </Platform>
                 </DeployFile>
@@ -205,7 +188,20 @@
                         <Operation>0</Operation>
                         <Extensions>.dll;.bpl</Extensions>
                     </Platform>
+                    <Platform Name="iOSDevice64">
+                        <Operation>1</Operation>
+                        <Extensions>.dylib</Extensions>
+                    </Platform>
                     <Platform Name="OSX32">
+                        <RemoteDir>Contents\MacOS</RemoteDir>
+                        <Operation>1</Operation>
+                        <Extensions>.dylib</Extensions>
+                    </Platform>
+                    <Platform Name="iOSDevice32">
+                        <Operation>1</Operation>
+                        <Extensions>.dylib</Extensions>
+                    </Platform>
+                    <Platform Name="iOSSimulator">
                         <Operation>1</Operation>
                         <Extensions>.dylib</Extensions>
                     </Platform>
@@ -227,7 +223,11 @@
                         <RemoteDir>Contents\MacOS</RemoteDir>
                         <Operation>0</Operation>
                     </Platform>
+                    <Platform Name="iOSSimulator">
+                        <Operation>1</Operation>
+                    </Platform>
                     <Platform Name="OSX32">
+                        <RemoteDir>Contents\MacOS</RemoteDir>
                         <Operation>1</Operation>
                     </Platform>
                 </DeployClass>
@@ -268,6 +268,7 @@
                         <Operation>1</Operation>
                     </Platform>
                     <Platform Name="OSX32">
+                        <RemoteDir>Contents\MacOS</RemoteDir>
                         <Operation>1</Operation>
                     </Platform>
                     <Platform Name="Android">
@@ -283,6 +284,7 @@
                         <Operation>0</Operation>
                     </Platform>
                     <Platform Name="OSX32">
+                        <RemoteDir>Contents\MacOS</RemoteDir>
                         <Operation>1</Operation>
                         <Extensions>.framework</Extensions>
                     </Platform>
@@ -330,7 +332,17 @@
                         <Operation>1</Operation>
                     </Platform>
                 </DeployClass>
-                <DeployClass Name="ProjectiOSInfoPList"/>
+                <DeployClass Name="ProjectiOSInfoPList">
+                    <Platform Name="iOSSimulator">
+                        <Operation>1</Operation>
+                    </Platform>
+                    <Platform Name="iOSDevice64">
+                        <Operation>1</Operation>
+                    </Platform>
+                    <Platform Name="iOSDevice32">
+                        <Operation>1</Operation>
+                    </Platform>
+                </DeployClass>
                 <DeployClass Name="AndroidLibnativeArmeabiFile">
                     <Platform Name="Android">
                         <RemoteDir>library\lib\armeabi</RemoteDir>
@@ -345,6 +357,7 @@
                         <Operation>1</Operation>
                     </Platform>
                     <Platform Name="OSX32">
+                        <RemoteDir>Contents\MacOS</RemoteDir>
                         <Operation>1</Operation>
                     </Platform>
                 </DeployClass>
@@ -388,7 +401,16 @@
                         <Operation>1</Operation>
                     </Platform>
                 </DeployClass>
-                <DeployClass Name="ProjectiOSEntitlements"/>
+                <DeployClass Name="ProjectiOSEntitlements">
+                    <Platform Name="iOSDevice64">
+                        <RemoteDir>..\</RemoteDir>
+                        <Operation>1</Operation>
+                    </Platform>
+                    <Platform Name="iOSDevice32">
+                        <RemoteDir>..\</RemoteDir>
+                        <Operation>1</Operation>
+                    </Platform>
+                </DeployClass>
                 <DeployClass Name="Android_LauncherIcon72">
                     <Platform Name="Android">
                         <RemoteDir>res\drawable-hdpi</RemoteDir>
@@ -401,8 +423,18 @@
                         <Operation>1</Operation>
                     </Platform>
                 </DeployClass>
-                <DeployClass Name="ProjectOSXInfoPList"/>
-                <DeployClass Name="ProjectOSXEntitlements"/>
+                <DeployClass Name="ProjectOSXInfoPList">
+                    <Platform Name="OSX32">
+                        <RemoteDir>Contents</RemoteDir>
+                        <Operation>1</Operation>
+                    </Platform>
+                </DeployClass>
+                <DeployClass Name="ProjectOSXEntitlements">
+                    <Platform Name="OSX32">
+                        <RemoteDir>..\</RemoteDir>
+                        <Operation>1</Operation>
+                    </Platform>
+                </DeployClass>
                 <DeployClass Name="iPad_Launch2048">
                     <Platform Name="iOSSimulator">
                         <Operation>1</Operation>
@@ -462,6 +494,7 @@
                         <Operation>0</Operation>
                     </Platform>
                     <Platform Name="OSX32">
+                        <RemoteDir>Contents\Resources\StartUp\</RemoteDir>
                         <Operation>0</Operation>
                     </Platform>
                     <Platform Name="iOSDevice32">
@@ -490,6 +523,7 @@
                         <Extensions>.dylib</Extensions>
                     </Platform>
                     <Platform Name="OSX32">
+                        <RemoteDir>Contents\MacOS</RemoteDir>
                         <Operation>1</Operation>
                         <Extensions>.dylib</Extensions>
                     </Platform>
@@ -520,16 +554,27 @@
                         <Operation>1</Operation>
                     </Platform>
                 </DeployClass>
-                <DeployClass Name="ProjectiOSDeviceResourceRules"/>
+                <DeployClass Name="ProjectiOSDeviceResourceRules">
+                    <Platform Name="iOSDevice64">
+                        <Operation>1</Operation>
+                    </Platform>
+                    <Platform Name="iOSDevice32">
+                        <Operation>1</Operation>
+                    </Platform>
+                </DeployClass>
                 <ProjectRoot Platform="iOSDevice64" Name="$(PROJECTNAME).app"/>
                 <ProjectRoot Platform="Win64" Name="$(PROJECTNAME)"/>
                 <ProjectRoot Platform="iOSDevice32" Name="$(PROJECTNAME).app"/>
                 <ProjectRoot Platform="Linux64" Name="$(PROJECTNAME)"/>
                 <ProjectRoot Platform="Win32" Name="$(PROJECTNAME)"/>
-                <ProjectRoot Platform="OSX32" Name="$(PROJECTNAME)"/>
+                <ProjectRoot Platform="OSX32" Name="$(PROJECTNAME).app"/>
                 <ProjectRoot Platform="Android" Name="$(PROJECTNAME)"/>
                 <ProjectRoot Platform="iOSSimulator" Name="$(PROJECTNAME).app"/>
             </Deployment>
+            <Platforms>
+                <Platform value="Win32">True</Platform>
+                <Platform value="Win64">True</Platform>
+            </Platforms>
         </BorlandProject>
         <ProjectFileVersion>12</ProjectFileVersion>
     </ProjectExtensions>
@@ -542,6 +587,12 @@
 [Exception Log]
 EurekaLog Version=7007
 Activate=0
+atVCL=1
 DeleteMapAfterCompile=0
 Encrypt Password=""
+idEurekaLog=1
+idEurekaLogDetailed=1
+idMSClassic=1
+idStepsToReproduce=1
+ProjectID="{E3D78DD1-B3F2-46B9-8461-C94C7C88B79B}"
 EurekaLog Last Line -->

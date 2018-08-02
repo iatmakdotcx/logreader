@@ -25,17 +25,10 @@ type
 var
   DBH: TDBH;
 
-procedure init;
-
 implementation
 
 uses
-  Winapi.Windows, System.SysUtils, SqlSvrHelper, loglog;
-
-procedure init;
-begin
-  DBH := TDBH.Create;
-end;
+  Winapi.Windows, System.SysUtils, loglog;
 
 { TDBH }
 

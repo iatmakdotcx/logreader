@@ -1037,6 +1037,9 @@ begin
 //  Loger.Add(GenSql);
 //  Loger.Add(GenXML);
   ApplySysDDLChange;
+
+  FLogSource.FProcCurLSN :=
+  FLogSource.saveToFile;
 end;
 
 function TSql2014logAnalyzer.GenSql: string;

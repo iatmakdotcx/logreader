@@ -12,6 +12,7 @@ type
 type
   TLogSource = class(TObject)
   private
+    FCfgFilePath:string;
     FRunCs: TCriticalSection;
     Fstatus:LS_STATUE;
     procedure ClrLogSource;
@@ -37,7 +38,7 @@ type
     procedure NotifySubscribe(lsn: Tlog_LSN; Raw: TMemory_data);
 
     function loadFromFile(aPath: string):Boolean;
-    function saveToFile(aPath: string):Boolean;
+    function saveToFile(aPath: string = ''):Boolean;
 
     /// <summary>
     ///
@@ -291,6 +292,8 @@ begin
             //init;
             Fstatus := tLS_NotConnectDB;
             Result := True;
+
+            FCfgFilePath := aPath;
           end;
         end;
       finally
@@ -315,49 +318,58 @@ var
   pathName:string;
 begin
   Result := False;
-  mmo := TMemoryStream.Create;
-  try
-    wter := TWriter.Create(mmo, 1);
-    wter.WriteInteger($FB);
-    wter.WriteStr('TDbDict v 1.0');
-    //连接信息
-    wter.WriteString(Fdbc.Host);
-    wter.WriteString(Fdbc.user);
-    wter.WriteString(Fdbc.PassWd);
-    wter.WriteString(Fdbc.dbName);
-    wter.WriteInteger(Fdbc.dbID);
-    wter.WriteInteger(Fdbc.dbVer_Major);
-    wter.WriteInteger(Fdbc.dbVer_Minor);
-    wter.WriteInteger(Fdbc.dbVer_BuildNumber);
-    wter.WriteInteger(FProcCurLSN.LSN_1);
-    wter.WriteInteger(FProcCurLSN.LSN_2);
-    wter.WriteInteger(FProcCurLSN.LSN_3);
-    //表结构
-    dictBin := Fdbc.dict.Serialize;
-    dictBin.seek(0, 0);
-    wter.Write(dictBin.Memory^, dictBin.Size);
-    dictBin.Free;
-    //
-    wter.FlushBuffer;
-    wter.Free;
+  if aPath = '' then
+    aPath := FCfgFilePath;
 
-    pathName := ExtractFilePath(aPath);
-    if not DirectoryExists(pathName) then
-    begin
-      Loger.Add('目录创建:' + BoolToStr(ForceDirectories(pathName), true) + ':' + pathName);
-    end;
+  if aPath <> '' then
+  begin
+    FCfgFilePath := aPath;
 
+    Result := False;
+    mmo := TMemoryStream.Create;
     try
-      mmo.SaveToFile(aPath);
-      Result := True;
-    except
-      on ee:Exception do
+      wter := TWriter.Create(mmo, 1);
+      wter.WriteInteger($FB);
+      wter.WriteStr('TDbDict v 1.0');
+      //连接信息
+      wter.WriteString(Fdbc.Host);
+      wter.WriteString(Fdbc.user);
+      wter.WriteString(Fdbc.PassWd);
+      wter.WriteString(Fdbc.dbName);
+      wter.WriteInteger(Fdbc.dbID);
+      wter.WriteInteger(Fdbc.dbVer_Major);
+      wter.WriteInteger(Fdbc.dbVer_Minor);
+      wter.WriteInteger(Fdbc.dbVer_BuildNumber);
+      wter.WriteInteger(FProcCurLSN.LSN_1);
+      wter.WriteInteger(FProcCurLSN.LSN_2);
+      wter.WriteInteger(FProcCurLSN.LSN_3);
+      //表结构
+      dictBin := Fdbc.dict.Serialize;
+      dictBin.seek(0, 0);
+      wter.Write(dictBin.Memory^, dictBin.Size);
+      dictBin.Free;
+      //
+      wter.FlushBuffer;
+      wter.Free;
+
+      pathName := ExtractFilePath(aPath);
+      if not DirectoryExists(pathName) then
       begin
-        Loger.Add('LogSource.saveToFile 配置保存失败！' + ee.message);
+        Loger.Add('目录创建:' + BoolToStr(ForceDirectories(pathName), true) + ':' + pathName);
       end;
+
+      try
+        mmo.SaveToFile(aPath);
+        Result := True;
+      except
+        on ee:Exception do
+        begin
+          Loger.Add('LogSource.saveToFile 配置保存失败！' + ee.message);
+        end;
+      end;
+    finally
+      mmo.Free;
     end;
-  finally
-    mmo.Free;
   end;
 end;
 
