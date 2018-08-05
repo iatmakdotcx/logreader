@@ -21,7 +21,7 @@ var
 implementation
 
 uses
-  loglog, System.Math;
+  System.Math;
 
 {$R *.dfm}
 

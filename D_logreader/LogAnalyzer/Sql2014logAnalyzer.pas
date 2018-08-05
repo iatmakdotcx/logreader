@@ -85,6 +85,7 @@ type
     TransId: TTrans_Id;
     TransBeginTime: TDateTime;
     TransCommitTime: TDateTime;
+    TransCommitLsn:Tlog_LSN;
     FLogSource: TLogSource;
     //每个事务开始要重新初始化以下对象
     FRows: TObjectList;
@@ -1038,7 +1039,7 @@ begin
 //  Loger.Add(GenXML);
   ApplySysDDLChange;
 
-  FLogSource.FProcCurLSN :=
+  FLogSource.FProcCurLSN := TransCommitLsn;
   FLogSource.saveToFile;
 end;
 
@@ -3720,6 +3721,7 @@ begin
     else if Rl.OpCode = LOP_COMMIT_XACT then
     begin
       Rlcx := tPkg.Raw.data;
+      TransCommitLsn := tPkg.LSN;
       TransCommitTime := Hvu_Hex2Datetime(Rlcx.Time);
     end
     else

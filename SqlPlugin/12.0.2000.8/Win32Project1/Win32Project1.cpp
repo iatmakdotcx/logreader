@@ -9,7 +9,8 @@
 using namespace std;
 
 ULONGLONG Sqlmin_PageRef_ModifyColumnsInternal_Ptr = 0;
-ULONGLONG Sqlmin_PageRef_ModifyColumnsInternal_Data = 0x415441575653F5FFL;
+void* Sqlmin_PageRef_ModifyColumnsInternal_Data = NULL;
+DWORD Sqlmin_PageRef_ModifyColumnsInternal_Len = 0;
 
 bool hooked = false;
 PTransPkg list_TransPkg = NULL;
@@ -26,12 +27,14 @@ INT64 CdbId = 0;
 
 
 void f_initialization() {
+	Sqlmin_PageRef_ModifyColumnsInternal_Data = malloc(0x100);
 	InitializeCriticalSection(&_critical);
 }
 
 void f_finalization() {
 	_Lc_unHook();
 	DeleteCriticalSection(&_critical);
+	free(Sqlmin_PageRef_ModifyColumnsInternal_Data);
 }
 
 bool checkRawPtr(UINT_PTR rawData) {
@@ -158,42 +161,99 @@ PVOID _Lc_Get_PaddingData(void) {
 	return NULL;
 }
 
-bool hook_sqlmin_PageRef_ModifyColumnsInternal_x64_hasHooked(UINT_PTR hook_Ptr) {
-	//000007FEF5B2F950 | FF F5 | push rbp |
-	//000007FEF5B2F952 | 53    | push rbx |
-	//000007FEF5B2F953 | 56    | push rsi | 
-	//000007FEF5B2F954 | 57    | push rdi |
-	//000007FEF5B2F955 | 41 54 | push r12 |
-	//000007FEF5B2F957 | 41 55 | push r13 | 
-	UINT_PTR nowdata = *(UINT_PTR*)hook_Ptr;
-	return Sqlmin_PageRef_ModifyColumnsInternal_Data != nowdata;
-}
-
-void hook_sqlmin_PageRef_ModifyColumnsInternal_x64_unhook() {
-	if (Sqlmin_PageRef_ModifyColumnsInternal_Ptr && hook_sqlmin_PageRef_ModifyColumnsInternal_x64_hasHooked(Sqlmin_PageRef_ModifyColumnsInternal_Ptr)) {
-		*(ULONGLONG*)Sqlmin_PageRef_ModifyColumnsInternal_Ptr = Sqlmin_PageRef_ModifyColumnsInternal_Data;
-		Sqlmin_PageRef_ModifyColumnsInternal_Ptr = 0;
+bool hook_sqlmin_PageRef_ModifyColumnsInternal_x64_hasHooked() {
+	if (Sqlmin_PageRef_ModifyColumnsInternal_Data!=NULL && 
+		Sqlmin_PageRef_ModifyColumnsInternal_Len>0 && 
+		Sqlmin_PageRef_ModifyColumnsInternal_Ptr>0 &&
+		memcmp(Sqlmin_PageRef_ModifyColumnsInternal_Data, (void*)Sqlmin_PageRef_ModifyColumnsInternal_Ptr, Sqlmin_PageRef_ModifyColumnsInternal_Len)!=0 )
+	{
+		return true;
+	}
+	else {
+		return false;
 	}
 }
 
-void hook_sqlmin_PageRef_ModifyColumnsInternal_x64(UINT_PTR hook_Ptr) {
-	if (!hook_sqlmin_PageRef_ModifyColumnsInternal_x64_hasHooked(hook_Ptr)) {
+void hook_sqlmin_PageRef_ModifyColumnsInternal_x64_unhook() {
+	if (hook_sqlmin_PageRef_ModifyColumnsInternal_x64_hasHooked()) {
+		*(UINT_PTR*)Sqlmin_PageRef_ModifyColumnsInternal_Ptr = *(UINT_PTR*)Sqlmin_PageRef_ModifyColumnsInternal_Data;		
+	}
+}
+
+void hook_sqlmin_PageRef_ModifyColumnsInternal_x64_near(UINT_PTR hook_Ptr) {
+	if (!hook_sqlmin_PageRef_ModifyColumnsInternal_x64_hasHooked()) {
+		Sqlmin_PageRef_ModifyColumnsInternal_Ptr = hook_Ptr;
+		*(UINT_PTR*)Sqlmin_PageRef_ModifyColumnsInternal_Data = *(UINT_PTR*)hook_Ptr;
+		Sqlmin_PageRef_ModifyColumnsInternal_Len = 5;
+
 		UINT_PTR hookfuncPnt = (UINT_PTR)&hookfunc;
 		UINT_PTR hookfuncPntEnd = (UINT_PTR)&hookfuncEnd;
 		
-		ULONG backPntData = (hook_Ptr & 0xFFFFFFFF) - (hookfuncPntEnd & 0xFFFFFFFF) ; // jmp code Length
+		ULONG backPntData = (hook_Ptr & 0xFFFFFFFF) - ((hookfuncPntEnd + Sqlmin_PageRef_ModifyColumnsInternal_Len) & 0xFFFFFFFF) ; // jmp code Length
 		ULONG hookPntData = (hookfuncPnt & 0xFFFFFFFF) - (hook_Ptr & 0xFFFFFFFF) - 5; // jmp code Length
 		DWORD dwOldP;
-		VirtualProtect((LPVOID)hookfuncPntEnd, 0x10, PAGE_EXECUTE_READWRITE, &dwOldP);
-		*(BYTE*)hookfuncPntEnd = 0xE9;
-		hookfuncPntEnd += 1;
-		*(DWORD*)hookfuncPntEnd = backPntData;
+		VirtualProtect((LPVOID)hookfuncPntEnd, 0x20, PAGE_EXECUTE_READWRITE, &dwOldP);
+		memcpy((void*)hookfuncPntEnd, (void*)hook_Ptr, Sqlmin_PageRef_ModifyColumnsInternal_Len);
+		*(BYTE*)(hookfuncPntEnd + Sqlmin_PageRef_ModifyColumnsInternal_Len) = 0xE9;
+		*(DWORD*)(hookfuncPntEnd + Sqlmin_PageRef_ModifyColumnsInternal_Len + 1) = backPntData;
 
-		VirtualProtect((LPVOID)hook_Ptr, 5, PAGE_EXECUTE_READWRITE, &dwOldP);
-		UINT_PTR interLockData = 0x41544100000000E9L | ((UINT_PTR)hookPntData << 8);
+		VirtualProtect((LPVOID)hook_Ptr, 8, PAGE_EXECUTE_READWRITE, &dwOldP);
+		UINT_PTR interLockData = ((*(UINT_PTR*)hook_Ptr & 0xFFFFFF0000000000) | 0xE9) | ((UINT_PTR)hookPntData << 8);
+		*(UINT_PTR*)hook_Ptr = interLockData;		
+	}
+}
+
+void hook_sqlmin_PageRef_ModifyColumnsInternal_x64_far(UINT_PTR hook_Ptr, UINT_PTR sqlminBase) {
+	if (!hook_sqlmin_PageRef_ModifyColumnsInternal_x64_hasHooked()) {
+		Sqlmin_PageRef_ModifyColumnsInternal_Ptr = hook_Ptr;
+		*(UINT_PTR*)Sqlmin_PageRef_ModifyColumnsInternal_Data = *(UINT_PTR*)hook_Ptr;
+
+		UINT_PTR hookfuncPnt = (UINT_PTR)&hookfunc;
+		UINT_PTR hookfuncPntEnd = (UINT_PTR)&hookfuncEnd;
+
+		*(UINT_PTR*)(sqlminBase + 0x20) = hookfuncPnt;
+
+		DWORD inlHCnt = 7;//改写的数量
+
+		DWORD dwOldP;
+		VirtualProtect((LPVOID)hookfuncPntEnd, 0x20, PAGE_EXECUTE_READWRITE, &dwOldP);
+		memcpy((void*)hookfuncPntEnd, (void*)hook_Ptr, inlHCnt);
+		*(DWORD*)(hookfuncPntEnd + inlHCnt) = 0x25FF;
+		*(WORD*)(hookfuncPntEnd + inlHCnt + 4) = 0;
+		*(UINT_PTR*)(hookfuncPntEnd + inlHCnt + 6) = (UINT_PTR)hook_Ptr + inlHCnt;
+
+		VirtualProtect((LPVOID)hook_Ptr, 8, PAGE_EXECUTE_READWRITE, &dwOldP);
+
+		UINT_PTR interLockData = (*(UINT_PTR*)hook_Ptr & 0xFFFF000000000000) | 0x25FF;
+		interLockData = interLockData | (sqlminBase + 0x20) << 16;
 		*(UINT_PTR*)hook_Ptr = interLockData;
 
-		Sqlmin_PageRef_ModifyColumnsInternal_Ptr = hook_Ptr;
+		Sqlmin_PageRef_ModifyColumnsInternal_Len = inlHCnt;
+	}
+}
+
+void hook_sqlmin_PageRef_ModifyColumnsInternal_x64(UINT_PTR hook_Ptr, UINT_PTR sqlminBase) {
+	UINT_PTR hookfuncPnt = (UINT_PTR)&hookfunc;
+	if (hook_Ptr > hookfuncPnt)
+	{
+		if (hook_Ptr - hookfuncPnt > 0x7FFFFF00)
+		{
+			//far
+			hook_sqlmin_PageRef_ModifyColumnsInternal_x64_far(hook_Ptr, sqlminBase);
+		}
+		else {
+			hook_sqlmin_PageRef_ModifyColumnsInternal_x64_near(hook_Ptr);
+		}
+	}
+	else {
+		if (hookfuncPnt - hook_Ptr > 0x7FFFFF00)
+		{
+			//far
+			hook_sqlmin_PageRef_ModifyColumnsInternal_x64_far(hook_Ptr, sqlminBase);
+		}
+		else {
+			hook_sqlmin_PageRef_ModifyColumnsInternal_x64_near(hook_Ptr);
+		}
 	}
 }
 
@@ -225,14 +285,14 @@ int _Lc_doHook(UINT_PTR mRowPtr) {
 		return 3;
 	}
 
-	testHookPnt = testHookPnt ^ (UINT_PTR)&_critical;	
+	/*testHookPnt = testHookPnt ^ (UINT_PTR)&_critical;	
 	if (testHookPnt >> 32)
 	{
 		//不在同一区域，hook失败！
 		LeaveCriticalSection(&_critical);
 		return 4;
-	}
-	hook_sqlmin_PageRef_ModifyColumnsInternal_x64((UINT_PTR)sqlminBase + mRowPtr);
+	}*/
+	hook_sqlmin_PageRef_ModifyColumnsInternal_x64((UINT_PTR)sqlminBase + mRowPtr, (UINT_PTR)sqlminBase);
 
 	hooked = true;
 	LeaveCriticalSection(&_critical);

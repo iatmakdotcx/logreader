@@ -10,7 +10,7 @@ uses
   FireDAC.Phys, FireDAC.VCLUI.Wait, FireDAC.Stan.ExprFuncs,
   FireDAC.Phys.SQLiteDef, FireDAC.Stan.Param, FireDAC.DatS, FireDAC.DApt.Intf,
   FireDAC.DApt, Data.DB, FireDAC.Comp.DataSet, FireDAC.Comp.Client,
-  FireDAC.Phys.SQLite, Data.Win.ADODB, Vcl.ExtCtrls;
+  FireDAC.Phys.SQLite, Data.Win.ADODB, Vcl.ExtCtrls, loglog;
 
 type
   Tfrm_main = class(TForm)
@@ -26,10 +26,14 @@ type
     procedure FormShow(Sender: TObject);
     procedure Button3Click(Sender: TObject);
   private
+    function getPageRef_ModifyColumnsInternalFromSymbols(
+      aPdbName: string): UINT_PTR;
+    function getPDBUrl(aName: string): string;
+    function downLocalPdb(pdbUrl: string): Boolean;
     { Private declarations }
   public
     { Public declarations }
-    procedure processLog(logStr:string);
+    procedure processLog(logStr:string; level: Integer = LOG_INFORMATION);
   end;
 
 var
@@ -38,10 +42,10 @@ var
 implementation
 
 uses
-  DbgHelp, loglog, dbcfg, dbhelper, HashHelper;
+  DbgHelp, dbcfg, dbhelper, HashHelper;
 {$R *.dfm}
 
-function getPDBUrl(aName: string): string;
+function Tfrm_main.getPDBUrl(aName: string): string;
 function Rva2Raw(imageBase: Pointer; RVA: Cardinal): Cardinal;
 var
   dosHeader: PImageDosHeader;
@@ -52,7 +56,7 @@ begin
   Result := 0;
   dosHeader := pImageDosHeader(imageBase);
   ntHeader := pImageNtHeaders(UINTPTR(imageBase) + UINTPTR(dosHeader._lfanew));
-  sectionHeader := PImageSectionHeader(LongInt(@ntHeader.OptionalHeader) + ntHeader.FileHeader.SizeOfOptionalHeader);
+  sectionHeader := PImageSectionHeader(UINTPTR(@ntHeader.OptionalHeader) + ntHeader.FileHeader.SizeOfOptionalHeader);
   for i := 0 to ntHeader.FileHeader.NumberOfSections - 1 do
   begin
     if (RVA > sectionHeader.VirtualAddress) and (RVA < sectionHeader.VirtualAddress + sectionHeader.Misc.VirtualSize) then
@@ -98,7 +102,11 @@ var
 begin
   Result := '';
   hh := CreateFile(PChar(aName), GENERIC_READ, FILE_SHARE_DELETE or FILE_SHARE_READ or FILE_SHARE_WRITE, nil, OPEN_EXISTING, 0, 0);
-
+  if hh=INVALID_HANDLE_VALUE then
+  begin
+    processLog('CreateFile fail!' + SysErrorMessage(GetLastError), LOG_ERROR or LOG_IMPORTANT);
+    Exit;
+  end;
   //CreateFileMapping(hh, nil, PAGE_READONLY, 0, 0, nil);
   fSize := GetFileSize(hh, nil);
   buf := GetMemory(fSize);
@@ -148,7 +156,11 @@ begin
           end;
         end;
       end;
+    end else begin
+      processLog('ReadFile check fail! 不是有效的Pe文件', LOG_ERROR or LOG_IMPORTANT);
     end;
+  end else begin
+    processLog('ReadFile fail!' + SysErrorMessage(GetLastError), LOG_ERROR or LOG_IMPORTANT);
   end;
   FreeMemory(buf);
   CloseHandle(hh);
@@ -213,7 +225,7 @@ begin
   Result := True;
 end;
 
-function getPageRef_ModifyColumnsInternalFromSymbols(aPdbName:string):UINT_PTR;
+function Tfrm_main.getPageRef_ModifyColumnsInternalFromSymbols(aPdbName:string):UINT_PTR;
 var
   FLoadedImg:UInt64;
   ModuleInfo: PImageHlpModule64;
@@ -223,7 +235,7 @@ begin
   FLoadedImg := SymLoadModuleEx(GetCurrentProcess, 0, PChar(aPdbName), nil, $40000000, GetFileSize(aPdbName), nil, 0);
   if FLoadedImg = 0 then
   begin
-    Loger.Add('getPageRef_ModifyColumnsInternalFromSymbols:SymLoadModuleEx fail!' + SysErrorMessage(GetLastError), LOG_ERROR or LOG_IMPORTANT);
+    processLog('getPageRef_ModifyColumnsInternalFromSymbols:SymLoadModuleEx fail!' + SysErrorMessage(GetLastError), LOG_ERROR or LOG_IMPORTANT);
     Exit;
   end;
   ModuleInfo := AllocMem(SizeOf(TImageHlpModule64));
@@ -231,7 +243,7 @@ begin
     ModuleInfo.SizeOfStruct := SizeOf(TImageHlpModule64);
     if not SymGetModuleInfo64(GetCurrentProcess, FLoadedImg, ModuleInfo^) then
     begin
-      Loger.Add('getPageRef_ModifyColumnsInternalFromSymbols:SymGetModuleInfo64 fail! ' + SysErrorMessage(GetLastError), LOG_ERROR or LOG_IMPORTANT);
+      processLog('getPageRef_ModifyColumnsInternalFromSymbols:SymGetModuleInfo64 fail! ' + SysErrorMessage(GetLastError), LOG_ERROR or LOG_IMPORTANT);
       Exit;
     end;
     New(ASymInfo);
@@ -241,7 +253,7 @@ begin
 
       if not SymFromName(GetCurrentProcess, 'PageRef::ModifyColumnsInternal', ASymInfo) then
       begin
-        Loger.Add('getPageRef_ModifyColumnsInternalFromSymbols:SymFromName fail!' + SysErrorMessage(GetLastError), LOG_ERROR or LOG_IMPORTANT);
+        processLog('getPageRef_ModifyColumnsInternalFromSymbols:SymFromName fail!' + SysErrorMessage(GetLastError), LOG_ERROR or LOG_IMPORTANT);
         Exit;
       end;
       Result := ASymInfo.Address - ASymInfo.ModBase;
@@ -271,6 +283,7 @@ var
   SqlrootPath:string;
   sqlMinPath:String;
   sqlminMD5 :string;
+  pdbPath: string;
 begin
   adoquery1.ConnectionString := dbcfg.getConnectionString(dbcfg_Host, dbcfg_user, dbcfg_pass);
   adoquery1.SQL.Text := 'declare @SmoRoot nvarchar(512)'+
@@ -301,6 +314,29 @@ begin
     Exit;
   end;
   processLog('---------------------------准备测试自动方案---------------------------');
+  pdbPath := getPDBUrl(sqlMinPath);
+  if pdbPath='' then
+  begin
+    processLog('!!!!!!!!!!!!!!!!!!!!!!!!!!!!获取Pdb信息失败!!!!!!!!!!!!!!!!!!!!!!!!!!!!');
+    Exit;
+  end;
+  processLog('pdbUrl:' + pdbPath);
+  downLocalPdb(pdbPath);
+
+
+end;
+
+function Tfrm_main.downLocalPdb(pdbUrl:string):Boolean;
+var
+  aPath:string;
+begin
+  aPath := ExtractFilePath(Application.ExeName) +'/sqlmin.pdb';
+  if FileExists(aPath) then
+  begin
+    //如果目录下有pdb先效验下版本
+
+  end;
+
 
 end;
 
@@ -328,10 +364,10 @@ begin
 end;
 
 
-procedure Tfrm_main.processLog(logStr: string);
+procedure Tfrm_main.processLog(logStr: string;level: Integer = LOG_INFORMATION);
 begin
   memo1.Lines.Add(logStr);
-  Loger.Add(logStr);
+  Loger.Add(logStr, level);
 end;
 
 end.

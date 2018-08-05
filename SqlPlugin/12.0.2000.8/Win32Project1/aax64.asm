@@ -78,10 +78,6 @@ hookfunc PROC
 	pop rax
 	pop rbp
 
-	push rbp
-	push rbx
-	push rsi
-    push rdi
 hookfunc ENDP
 
 hookfuncEnd PROC
@@ -93,7 +89,41 @@ hookfuncEnd PROC
 	nop
 	nop
 	nop
-	ret
+	nop
+	nop
+	nop
+	nop
+	nop
+	nop
+	nop
+	nop
+	nop
+	nop
+	nop
+	nop
+	nop
+	nop
+	nop
+	nop
+	nop
+	nop
+	nop
+	nop
+	nop
+	nop
+	nop
+	nop
+	nop
+	nop
+	nop
+	nop
+	nop
+	nop
+	nop
+	nop
+	nop
+	nop
+	nop	
 hookfuncEnd ENDP
 
 

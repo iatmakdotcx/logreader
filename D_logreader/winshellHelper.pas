@@ -5,27 +5,28 @@ interface
 /// <summary>
 /// 检测指定命令是否有全控制权限
 /// </summary>
-/// <param name="aDataPath"></param>
+/// <param name="aDataPath">目录</param>
+/// <param name="ServiceAccount">用户</param>
 /// <returns></returns>
-function Check_LrExtutils_DataPath_Authentication(aDataPath: string): Boolean;
+function Check_LrExtutils_DataPath_Authentication(aDataPath: string; ServiceAccount:string = 'NT SERVICE\MSSQLSERVER'): Boolean;
 
 implementation
 
 uses
   System.SysUtils, Winapi.Windows, System.Classes, MakCommonfuncs, loglog;
 
-procedure Set_LrExtutils_DataPath_Authentication(aDataPath: string);
+procedure Set_LrExtutils_DataPath_Authentication(aDataPath: string; ServiceAccount:string = 'NT SERVICE\MSSQLSERVER');
 var
   doCmdstr:string;
   strTmp: string;
 begin
-  doCmdstr := 'cacls "' + aDataPath + '" /T /e /g MSSQLSERVER:f';
+  doCmdstr := 'cacls "' + aDataPath + '" /T /e /g "'+ServiceAccount+'":f';
   strTmp := GetDosOutput(doCmdstr);
   strTmp := '===============================' + WIN_EOL + doCmdstr + WIN_EOL + '===============================' + WIN_EOL + strTmp + WIN_EOL + '===============================';
   loger.add(strTmp);
 end;
 
-function Check_LrExtutils_DataPath_Authentication(aDataPath: string): Boolean;
+function Check_LrExtutils_DataPath_Authentication(aDataPath: string; ServiceAccount:string = 'NT SERVICE\MSSQLSERVER'): Boolean;
 
   function CheckExistsAuthentication: Boolean;
   var
@@ -39,7 +40,7 @@ function Check_LrExtutils_DataPath_Authentication(aDataPath: string): Boolean;
       for i := 0 to slsl.Count - 1 do
       begin
       // NT SERVICE\MSSQLSERVER用户必须有子文件的全部访问权限
-        if (Pos('NT SERVICE\MSSQLSERVER', slsl[i]) > 0) and (Pos('(OI)(CI)F', slsl[i]) > 0) then
+        if (Pos(ServiceAccount, slsl[i]) > 0) and (Pos('(OI)(CI)F', slsl[i]) > 0) then
         begin
           Result := True;
           Break;

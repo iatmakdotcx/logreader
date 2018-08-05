@@ -102,8 +102,14 @@ begin
           end
           else
           begin
-            //本地数据不全，需要单独提取
-            Result := Pkg_Err_NoBegin;
+            if FItems.Count=0 then
+            begin
+              //没有前续内容的情况下，这里应该是刚启动
+              Result := Pkg_Ignored;
+            end else begin
+              //本地数据不全，需要单独提取（嵌套事务）
+              Result := Pkg_Err_NoBegin;
+            end;
           end;
         end;
       LOP_ABORT_XACT:  //回滚事务

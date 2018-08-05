@@ -96,13 +96,7 @@ begin
     3:
       Result := '数据捕获点不正确(位置不可读)';
     4:
-      Result := '数据捕获点不正确(内容效验失败)';
-    5:
-      Result := '数据捕获点区域效验失败';
-    6:
-      Result := '';
-    7:
-      Result := '';
+      Result := '区域跨度过大';
   else
     Result := '未定义的错误';
   end;
@@ -531,10 +525,6 @@ begin
         begin
           d_Set_Databases_0(pSrvProc);
         end
-//        else if action = 'C' then
-//        begin
-//
-//        end
         else if action = 'D' then
         begin
           savePageLog2;

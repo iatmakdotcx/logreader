@@ -479,7 +479,7 @@ begin
         //如果队列太大，这里暂停读取数据
         while pkgMgr.FpaddingPrisePkg.Count > paddingPrisePkgMaxSize do
         begin
-          loger.Add('缓冲区已满！暂停读取日志。将于30s后继续！');
+          loger.Add('缓冲区已满！暂停读取日志。将于30s后继续！', log_warning or LOG_IMPORTANT);
           for I := 0 to 30 - 1 do
           begin
             Sleep(1000);

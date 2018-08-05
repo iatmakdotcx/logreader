@@ -29,10 +29,6 @@ object frm_main: Tfrm_main
     ScrollBars = ssBoth
     TabOrder = 0
     WordWrap = False
-    ExplicitLeft = 8
-    ExplicitTop = 8
-    ExplicitWidth = 523
-    ExplicitHeight = 329
   end
   object Panel1: TPanel
     Left = 0
@@ -42,9 +38,6 @@ object frm_main: Tfrm_main
     Align = alBottom
     BevelOuter = bvNone
     TabOrder = 1
-    ExplicitLeft = 384
-    ExplicitTop = 368
-    ExplicitWidth = 185
     object Button1: TButton
       Left = 158
       Top = 6

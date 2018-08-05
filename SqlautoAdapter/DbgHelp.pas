@@ -292,7 +292,7 @@ function LoadDebugFunctions: Boolean;
 var
   hh:THandle;
 begin
-  hh := LoadLibrary('C:\Program Files (x86)\Windows Kits\10\Debuggers\x64\dbghelp.dll');
+  hh := LoadLibrary('dbghelp.dll');
   Result := LoadDebugFuncsFromLibrary(hh);
 end;
 

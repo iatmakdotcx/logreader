@@ -88,6 +88,11 @@ type
     /// </summary>
     /// <returns></returns>
     function CompareDict:string;
+    /// <summary>
+    /// 获取启动sqlserver服务的用户
+    /// </summary>
+    /// <returns></returns>
+    function GetServiceAccount:string;
   end;
 
 implementation
@@ -645,6 +650,24 @@ var
 begin
   Result := '';
   aSql := Format('select name from sys.schemas where schema_id=%d', [schema_id]);
+  if ExecSql(aSql, rDataset) then
+  begin
+    if not rDataset.Eof then
+      Result := rDataset.Fields[0].AsString;
+
+    rDataset.Free;
+  end;
+end;
+
+function TdatabaseConnection.GetServiceAccount: string;
+var
+  rDataset:TCustomADODataSet;
+  aSql:string;
+begin
+  Result := '';
+  aSql := 'declare @ServiceAccount nvarchar(512);'+
+          'EXEC master.sys.xp_instance_regread N''HKEY_LOCAL_MACHINE'', N''SYSTEM\CurrentControlSet\Services\MSSQLSERVER'', N''ObjectName'', @ServiceAccount OUTPUT;'+
+          'select @ServiceAccount';
   if ExecSql(aSql, rDataset) then
   begin
     if not rDataset.Eof then

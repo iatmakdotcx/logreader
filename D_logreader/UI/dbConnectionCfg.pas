@@ -161,6 +161,7 @@ end;
 procedure Tfrm_dbConnectionCfg.checkIptCfg;
 var
   appPath:string;
+  ServiceAccount:string;
 begin
   mon_EMsg.Hide;
   Application.ProcessMessages;
@@ -228,11 +229,14 @@ begin
     appPath := ExtractFilePath(GetModuleName(HInstance));
     if not DirectoryExists(appPath+'data') then
       ForceDirectories(appPath+'data');
-    if not Check_LrExtutils_DataPath_Authentication(appPath+'data') then
+    if not DirectoryExists(appPath+'cfg') then
+      ForceDirectories(appPath+'cfg');
+    ServiceAccount := logsource.Fdbc.GetServiceAccount;
+    if not Check_LrExtutils_DataPath_Authentication(appPath, ServiceAccount) then
     begin
       //Ä¿Â¼ÊÚÈ¨Ê§°Ü
       SetImgData(Image4,'img_err','IMG');
-      mon_EMsg.Text := 'Ä¿Â¼ÊÚÈ¨Ê§°Ü£¡' + appPath + 'data';
+      mon_EMsg.Text := 'Ä¿Â¼ÊÚÈ¨Ê§°Ü£¡' + appPath;
       mon_EMsg.Show;
       Exit;
     end;
