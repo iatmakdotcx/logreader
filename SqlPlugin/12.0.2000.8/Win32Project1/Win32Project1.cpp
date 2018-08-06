@@ -211,11 +211,12 @@ void hook_sqlmin_PageRef_ModifyColumnsInternal_x64_far(UINT_PTR hook_Ptr, UINT_P
 		UINT_PTR hookfuncPnt = (UINT_PTR)&hookfunc;
 		UINT_PTR hookfuncPntEnd = (UINT_PTR)&hookfuncEnd;
 
+		DWORD dwOldP;
+		VirtualProtect((LPVOID)(sqlminBase + 0x20), 8, PAGE_READWRITE, &dwOldP);
 		*(UINT_PTR*)(sqlminBase + 0x20) = hookfuncPnt;
 
 		DWORD inlHCnt = 7;//改写的数量
 
-		DWORD dwOldP;
 		VirtualProtect((LPVOID)hookfuncPntEnd, 0x20, PAGE_EXECUTE_READWRITE, &dwOldP);
 		memcpy((void*)hookfuncPntEnd, (void*)hook_Ptr, inlHCnt);
 		*(DWORD*)(hookfuncPntEnd + inlHCnt) = 0x25FF;
@@ -224,8 +225,9 @@ void hook_sqlmin_PageRef_ModifyColumnsInternal_x64_far(UINT_PTR hook_Ptr, UINT_P
 
 		VirtualProtect((LPVOID)hook_Ptr, 8, PAGE_EXECUTE_READWRITE, &dwOldP);
 
+		ULONG hookPntData = ((sqlminBase + 0x20 - hook_Ptr) & 0xFFFFFFFF) - 6; // jmp code Length
 		UINT_PTR interLockData = (*(UINT_PTR*)hook_Ptr & 0xFFFF000000000000) | 0x25FF;
-		interLockData = interLockData | (sqlminBase + 0x20) << 16;
+		interLockData = interLockData | ((UINT_PTR)hookPntData << 16);
 		*(UINT_PTR*)hook_Ptr = interLockData;
 
 		Sqlmin_PageRef_ModifyColumnsInternal_Len = inlHCnt;
