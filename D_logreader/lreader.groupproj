@@ -12,6 +12,9 @@
         <Projects Include="plugins\fullSync\lr_fullSync.dproj">
             <Dependencies/>
         </Projects>
+        <Projects Include="plugins\heteroSync\lr_heteroSync.dproj">
+            <Dependencies/>
+        </Projects>
     </ItemGroup>
     <ProjectExtensions>
         <Borland.Personality>Default.Personality.12</Borland.Personality>
@@ -49,14 +52,23 @@
     <Target Name="lr_fullSync:Make">
         <MSBuild Projects="plugins\fullSync\lr_fullSync.dproj" Targets="Make"/>
     </Target>
+    <Target Name="lr_heteroSync">
+        <MSBuild Projects="plugins\heteroSync\lr_heteroSync.dproj"/>
+    </Target>
+    <Target Name="lr_heteroSync:Clean">
+        <MSBuild Projects="plugins\heteroSync\lr_heteroSync.dproj" Targets="Clean"/>
+    </Target>
+    <Target Name="lr_heteroSync:Make">
+        <MSBuild Projects="plugins\heteroSync\lr_heteroSync.dproj" Targets="Make"/>
+    </Target>
     <Target Name="Build">
-        <CallTarget Targets="logReader;lr_logView;lr_fullSync"/>
+        <CallTarget Targets="logReader;lr_logView;lr_fullSync;lr_heteroSync"/>
     </Target>
     <Target Name="Clean">
-        <CallTarget Targets="logReader:Clean;lr_logView:Clean;lr_fullSync:Clean"/>
+        <CallTarget Targets="logReader:Clean;lr_logView:Clean;lr_fullSync:Clean;lr_heteroSync:Clean"/>
     </Target>
     <Target Name="Make">
-        <CallTarget Targets="logReader:Make;lr_logView:Make;lr_fullSync:Make"/>
+        <CallTarget Targets="logReader:Make;lr_logView:Make;lr_fullSync:Make;lr_heteroSync:Make"/>
     </Target>
     <Import Project="$(BDS)\Bin\CodeGear.Group.Targets" Condition="Exists('$(BDS)\Bin\CodeGear.Group.Targets')"/>
 </Project>

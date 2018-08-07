@@ -214,7 +214,7 @@ begin
     ItemIdx := StrToInt(ListView1.Selected.Caption) - 1;
     tlsObj := LogSourceList.Get(ItemIdx);
 {$IFDEF DEBUG}
-    setLsn(tlsObj);
+    //setLsn(tlsObj);
 {$ENDIF}
     tlsObj.Create_picker;
   end;
@@ -282,16 +282,37 @@ begin
 end;
 
 procedure TForm1.CreatePluginsMenus(items:TMenuItem; node:IXMLNode;PluginItem:TPluginItem);
+function getMenuCaption(caption:string):string;
+begin
+  Result := caption;
+  if Pos('(', Result)>0 then
+  begin
+    Result := Copy(Result, 0, Pos('(', Result)-1);
+  end;
+end;
 var
   caption:string;
   I:Integer;
   aitem:TPluginMenuActionItem;
   menuI:TMenuItem;
 begin
+  menuI := nil;
   caption := node.Attributes['caption'];
-  menuI := TMenuItem.Create(Self);
-  menuI.Caption := caption;
-  items.Add(menuI);
+  for I := 0 to items.Count-1 do
+  begin
+    if(getMenuCaption(items[i].Caption)=caption) then
+    begin
+      menuI := items[i];
+      Break;
+    end;
+  end;
+  if (menuI = nil) or node.HasAttribute('actionid') then
+  begin
+    //是要有事件，一律不允许重复
+    menuI := TMenuItem.Create(Self);
+    menuI.Caption := caption;
+    items.Add(menuI);
+  end;
   if node.HasAttribute('actionid') then
   begin
     aitem := TPluginMenuActionItem.Create;

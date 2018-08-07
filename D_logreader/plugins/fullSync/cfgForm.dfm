@@ -31,7 +31,7 @@ object frm_cfg: Tfrm_cfg
     Top = 31
     Width = 217
     Height = 74
-    Caption = 'GroupBox1'
+    Caption = #36830#25509#20449#24687
     TabOrder = 1
     object Edit1: TEdit
       Left = 8

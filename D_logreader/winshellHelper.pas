@@ -36,7 +36,9 @@ function Check_LrExtutils_DataPath_Authentication(aDataPath: string; ServiceAcco
     Result := false;
     slsl := TStringList.Create;
     try
+      ServiceAccount := UpperCase(ServiceAccount);
       slsl.Text := GetDosOutput('cacls "' + aDataPath + '"');
+      slsl.Text := UpperCase(slsl.Text);
       for i := 0 to slsl.Count - 1 do
       begin
       // NT SERVICE\MSSQLSERVER用户必须有子文件的全部访问权限
@@ -52,6 +54,11 @@ function Check_LrExtutils_DataPath_Authentication(aDataPath: string; ServiceAcco
   end;
 
 begin
+  if aDataPath[length(aDataPath)] = '\' then
+  begin
+    Delete(aDataPath,length(aDataPath),1);
+  end;
+
   //先看看是否有权限
   Result := CheckExistsAuthentication;
   if not Result then

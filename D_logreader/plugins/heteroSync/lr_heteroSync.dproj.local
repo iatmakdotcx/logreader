@@ -1,0 +1,12 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<BorlandProject>
+	<Transactions>
+    <Transaction>1899-12-30 00:00:00.000.621,=C:\Users\Chin\Documents\Embarcadero\Studio\Projects\Unit1.pas</Transaction>
+    <Transaction>1899-12-30 00:00:00.000.525,=C:\Users\Chin\Documents\Embarcadero\Studio\Projects\Unit1.pas</Transaction>
+    <Transaction>1899-12-30 00:00:00.000.575,=C:\Users\Chin\Documents\Embarcadero\Studio\Projects\Unit1.pas</Transaction>
+    <Transaction>1899-12-30 00:00:00.000.415,=C:\Users\Chin\Documents\Embarcadero\Studio\Projects\Unit1.pas</Transaction>
+    <Transaction>1899-12-30 00:00:00.000.767,C:\Users\Chin\Documents\Embarcadero\Studio\Projects\Project1.dproj=H:\Java\workspace\logreaderV2.0\D_logreader\plugins\heteroSync\heteroSync.dproj</Transaction>
+    <Transaction>1899-12-30 00:00:00.000.317,=C:\Users\Chin\Documents\Embarcadero\Studio\Projects\Unit1.pas</Transaction>
+    <Transaction>2018-08-06 22:18:26.056,H:\Java\workspace\logreaderV2.0\D_logreader\plugins\heteroSync\lr_heteroSync.dproj=H:\Java\workspace\logreaderV2.0\D_logreader\plugins\heteroSync\heteroSync.dproj</Transaction>
+  </Transactions>
+</BorlandProject>

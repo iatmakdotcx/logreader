@@ -2,7 +2,7 @@ object frm_main: Tfrm_main
   Left = 0
   Top = 0
   Caption = 'frm_main'
-  ClientHeight = 482
+  ClientHeight = 495
   ClientWidth = 901
   Color = clBtnFace
   Font.Charset = DEFAULT_CHARSET
@@ -20,7 +20,7 @@ object frm_main: Tfrm_main
     Left = 0
     Top = 0
     Width = 901
-    Height = 441
+    Height = 437
     Align = alClient
     BevelInner = bvNone
     BevelOuter = bvNone
@@ -29,31 +29,24 @@ object frm_main: Tfrm_main
     ScrollBars = ssBoth
     TabOrder = 0
     WordWrap = False
+    ExplicitHeight = 441
   end
   object Panel1: TPanel
     Left = 0
-    Top = 441
+    Top = 454
     Width = 901
     Height = 41
     Align = alBottom
     BevelOuter = bvNone
     TabOrder = 1
-    object Button1: TButton
-      Left = 158
-      Top = 6
-      Width = 75
-      Height = 25
-      Caption = 'Button1'
-      TabOrder = 0
-      OnClick = Button1Click
-    end
+    ExplicitTop = 447
     object Button2: TButton
       Left = 342
       Top = 6
       Width = 75
       Height = 25
       Caption = 'Button2'
-      TabOrder = 1
+      TabOrder = 0
       OnClick = Button2Click
     end
     object Button3: TButton
@@ -62,9 +55,19 @@ object frm_main: Tfrm_main
       Width = 75
       Height = 25
       Caption = 'start'
-      TabOrder = 2
+      TabOrder = 1
       OnClick = Button3Click
     end
+  end
+  object ProgressBar1: TProgressBar
+    Left = 0
+    Top = 437
+    Width = 901
+    Height = 17
+    Align = alBottom
+    TabOrder = 2
+    Visible = False
+    ExplicitTop = 24
   end
   object ADOQuery1: TADOQuery
     LockType = ltReadOnly

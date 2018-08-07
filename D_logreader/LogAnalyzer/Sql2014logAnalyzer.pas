@@ -962,6 +962,7 @@ var
   DMLitem: TDMLItem;
   TmpBinReader: TbinDataReader;
 begin
+  Loger.Add(FormatDateTime('====>yyyy-MM-dd HH:nn:ss.zzz',now), LOG_DEBUG);
   Loger.Add('TSql2014logAnalyzer.Execute ==> transId:%s, MinLsn:%s', [TranId2Str(FTranspkg.Ftransid),LSN2Str(TTransPkgItem(FTranspkg.Items[0]).lsn)],LOG_DEBUG);
   //通知插件
   serializeToBin(FTranspkg, mm);
@@ -3379,7 +3380,7 @@ begin
               OriginRowData := getUpdateSoltData(FLogSource.Fdbc, Rldo.normalData.PreviousLSN);
               if OriginRowData = nil then
               begin
-                //Loger.Add('获取行原始数据失败！' + lsn2str(tPkg.LSN) + ',pLSN:' + lsn2str(Rldo.normalData.PreviousLSN), LOG_WARNING or LOG_IMPORTANT);
+                Loger.Add('获取行原始数据失败！' + lsn2str(tPkg.LSN) + ',pLSN:' + lsn2str(Rldo.normalData.PreviousLSN), LOG_WARNING or LOG_IMPORTANT);
                 if (DataRow_buf.UniqueClusteredKeys = '') or (DbTable.Owner='sys') then   //sys表可能没有select权限，所以直接读page
                 begin
                   Loger.Add('表[%s]没有唯一聚合,对此表的Update操作将被忽略！如您不希望Update被忽略，请启用数据库插件.',[DbTable.getFullName]);
@@ -3621,21 +3622,28 @@ begin
               end
             end;
 
+            BinReader.SetRange(R_Info[3].Offset, R_Info[3].Length);
+            BinReader.skip(6);
+            TableId := BinReader.readInt;
+            DbTable := FLogSource.Fdbc.dict.tables.GetItemById(TableId);
+            if DbTable = nil then
+            begin
+              //忽略的表
+              Exit;
+            end;
             DataRow_buf := Tsql2014Opt.Create;
             try
-              BinReader.SetRange(R_Info[3].Offset, R_Info[3].Length);
-              BinReader.skip(6);
-              TableId := BinReader.readInt;
-              DbTable := FLogSource.Fdbc.dict.tables.GetItemById(TableId);
-              if DbTable = nil then
+              if (DbTable.UniqueClusteredKeys.Count>0) and (R_Info[2].Length > 0) then
               begin
-                //忽略的表
-                Exit;
+                //读取UniqueClusteredKeys
+                BinReader.SetRange(R_Info[2].Offset, R_Info[2].Length);
+                DataRow_buf.UniqueClusteredKeys := PriseRowLog_UniqueClusteredKeys(BinReader, DbTable);
               end;
+
               OriginRowData := getUpdateSoltData(FLogSource.Fdbc, Rldo.normalData.PreviousLSN);
               if OriginRowData = nil then
               begin
-                //Loger.Add('获取行原始数据失败！' + lsn2str(tPkg.LSN) + ',pLSN:' + lsn2str(Rldo.normalData.PreviousLSN), LOG_WARNING or LOG_IMPORTANT);
+                Loger.Add('获取行原始数据失败！' + lsn2str(tPkg.LSN) + ',pLSN:' + lsn2str(Rldo.normalData.PreviousLSN), LOG_WARNING or LOG_IMPORTANT);
                 if (DataRow_buf.UniqueClusteredKeys = '') or (DbTable.Owner='sys') then   //sys表可能没有select权限，所以直接读page
                 begin
                   Loger.Add('表[%s]没有唯一聚合,对此表的Update操作将被忽略！如您不希望Update被忽略，请启用数据库插件.',[DbTable.getFullName]);

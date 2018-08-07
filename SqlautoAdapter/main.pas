@@ -10,17 +10,18 @@ uses
   FireDAC.Phys, FireDAC.VCLUI.Wait, FireDAC.Stan.ExprFuncs,
   FireDAC.Phys.SQLiteDef, FireDAC.Stan.Param, FireDAC.DatS, FireDAC.DApt.Intf,
   FireDAC.DApt, Data.DB, FireDAC.Comp.DataSet, FireDAC.Comp.Client,
-  FireDAC.Phys.SQLite, Data.Win.ADODB, Vcl.ExtCtrls, loglog;
+  FireDAC.Phys.SQLite, Data.Win.ADODB, Vcl.ExtCtrls, loglog, IdIOHandler,
+  IdIOHandlerSocket, IdIOHandlerStack, IdSSL, IdSSLOpenSSL, IdBaseComponent,
+  IdComponent, IdTCPConnection, IdTCPClient, IdHTTP, Vcl.ComCtrls;
 
 type
   Tfrm_main = class(TForm)
-    Button1: TButton;
     Button2: TButton;
     ADOQuery1: TADOQuery;
     Memo1: TMemo;
     Button3: TButton;
     Panel1: TPanel;
-    procedure Button1Click(Sender: TObject);
+    ProgressBar1: TProgressBar;
     procedure FormCreate(Sender: TObject);
     procedure Button2Click(Sender: TObject);
     procedure FormShow(Sender: TObject);
@@ -28,8 +29,10 @@ type
   private
     function getPageRef_ModifyColumnsInternalFromSymbols(
       aPdbName: string): UINT_PTR;
-    function getPDBUrl(aName: string): string;
-    function downLocalPdb(pdbUrl: string): Boolean;
+    function getPDBUrl(aName: string; var PdbSig70: TGUID; var PdbAge: DWORD): string;
+    function downLocalPdb(pdbUrl: string; PdbSig70: TGUID; PdbAge: DWORD): Boolean;
+    procedure IdHTTP1Work(ASender: TObject; AWorkMode: TWorkMode;
+      AWorkCount: Int64);
     { Private declarations }
   public
     { Public declarations }
@@ -45,7 +48,7 @@ uses
   DbgHelp, dbcfg, dbhelper, HashHelper;
 {$R *.dfm}
 
-function Tfrm_main.getPDBUrl(aName: string): string;
+function Tfrm_main.getPDBUrl(aName: string; var PdbSig70: TGUID; var PdbAge: DWORD): string;
 function Rva2Raw(imageBase: Pointer; RVA: Cardinal): Cardinal;
 var
   dosHeader: PImageDosHeader;
@@ -146,6 +149,8 @@ begin
               PdbFileName := string(PAnsiChar(@pdb7Data.PdbFileName));
               result := Format('http://msdl.microsoft.com/download/symbols/%s/%s%d/%s',
                     [PdbFileName, guidtostring(pdb7Data.Guid), pdb7Data.Age, PdbFileName]);
+              PdbSig70 := pdb7Data.Guid;
+              PdbAge := pdb7Data.Age;
               break;
             end
             else if idebugDir._Type = IMAGE_DEBUG_TYPE_MISC then
@@ -165,16 +170,6 @@ begin
   FreeMemory(buf);
   CloseHandle(hh);
 end;
-
-procedure Tfrm_main.Button1Click(Sender: TObject);
-var
-  pdbPath:string;
-begin
-  //'http://msdl.microsoft.com/download/symbols/sqlmin.pdb/EF62962237614EF0B93B51D745D8662A2/sqlmin.pdb'
-  pdbPath := getPDBUrl('W:\x86\Setup\sql_engine_core_inst_msi\PFiles\SqlServr\MSSQL.X\MSSQL\Binn\sqlmin.dll');
-  memo1.lines.add(pdbPath);
-end;
-
 
 function GetFileSize(const AFileName: String): Int64;
 var
@@ -284,6 +279,9 @@ var
   sqlMinPath:String;
   sqlminMD5 :string;
   pdbPath: string;
+  PdbSig70: TGUID;
+  PdbAge: DWORD;
+  ModifyColumnsInternalAddr:Cardinal;
 begin
   adoquery1.ConnectionString := dbcfg.getConnectionString(dbcfg_Host, dbcfg_user, dbcfg_pass);
   adoquery1.SQL.Text := 'declare @SmoRoot nvarchar(512)'+
@@ -314,30 +312,120 @@ begin
     Exit;
   end;
   processLog('---------------------------准备测试自动方案---------------------------');
-  pdbPath := getPDBUrl(sqlMinPath);
+  pdbPath := getPDBUrl(sqlMinPath, PdbSig70, PdbAge);
   if pdbPath='' then
   begin
     processLog('!!!!!!!!!!!!!!!!!!!!!!!!!!!!获取Pdb信息失败!!!!!!!!!!!!!!!!!!!!!!!!!!!!');
     Exit;
   end;
   processLog('pdbUrl:' + pdbPath);
-  downLocalPdb(pdbPath);
+  downLocalPdb(pdbPath, PdbSig70, PdbAge);
+  pdbPath := ExtractFilePath(Application.ExeName) + '/sqlmin.pdb';
+  ModifyColumnsInternalAddr := getPageRef_ModifyColumnsInternalFromSymbols(pdbPath);
+  if ModifyColumnsInternalAddr = 0 then
+  begin
+    processLog('!!!!!!!!!!!!!!!!!!!!!!!!!!!!解析PDB失败!!!!!!!!!!!!!!!!!!!!!!!!!!!!');
+    Exit;
+  end;
+  processLog(Format('ModifyColumnsInternal:%08X', [ModifyColumnsInternalAddr]));
+  processLog('---------------------------测试ModifyColumnsInternal有效性---------------------------');
 
 
 end;
 
-function Tfrm_main.downLocalPdb(pdbUrl:string):Boolean;
+function Tfrm_main.downLocalPdb(pdbUrl:string; PdbSig70: TGUID; PdbAge: DWORD):Boolean;
 var
   aPath:string;
+  FLoadedImg:UInt64;
+  ModuleInfo: PImageHlpModule64;
+  NeedRedown:Boolean;
+  idh:Tidhttp;
+  vSSL: TIdSSLIOHandlerSocketOpenSSL;
+  mmo:TMemoryStream;
 begin
+  Result := False;
+  NeedRedown := True;
   aPath := ExtractFilePath(Application.ExeName) +'/sqlmin.pdb';
   if FileExists(aPath) then
   begin
     //如果目录下有pdb先效验下版本
-
+    FLoadedImg := SymLoadModuleEx(GetCurrentProcess, 0, PChar(aPath), nil, $40000000, GetFileSize(aPath), nil, 0);
+    if FLoadedImg > 0 then
+    begin
+      ModuleInfo := AllocMem(SizeOf(TImageHlpModule64));
+      try
+        ModuleInfo.SizeOfStruct := SizeOf(TImageHlpModule64);
+        if SymGetModuleInfo64(GetCurrentProcess, FLoadedImg, ModuleInfo^) then
+        begin
+          if (PdbSig70 = ModuleInfo.PdbSig70) and (PdbAge= ModuleInfo.PdbAge) then
+          begin
+            NeedRedown := False;
+            processLog('本地Pdb已存在.......');
+            //SymUnloadModule64(GetCurrentProcess, FLoadedImg);
+            //Exit;
+          end else begin
+            processLog('!!!!!!!!!!!!!!!本地PDB无效.Sig失败!!!!!!!!!!!!!!!!!!!!!!!!!!!!');
+          end;
+        end;
+      finally
+        FreeMemory(ModuleInfo);
+      end;
+    end else begin
+      processLog('!!!!!!!!!!!!!!!本地PDB无效!!!!!!!!!!!!!!!!!!!!!!!!!!!!');
+      DeleteFile(aPath);
+    end;
+    SymUnloadModule64(GetCurrentProcess, FLoadedImg);
   end;
-
-
+  if FileExists(aPath) and NeedRedown then
+  begin
+    processLog('!!!!!!!!!!!!!!!'+aPath+' 被占用!!!!!!!!!!!!!!!!!!!!!!!!!!!!');
+    Exit;
+  end;
+  if NeedRedown then
+  begin
+    idh := Tidhttp.Create(nil);
+    vSSL := TIdSSLIOHandlerSocketOpenSSL.Create(nil);
+    try
+      idh.OnWork := IdHTTP1Work;
+      idh.IOHandler := vSSL;
+      vSSL.SSLOptions.Method := sslvTLSv1;
+      while True do
+      begin
+        try
+          idh.Head(pdbUrl);
+          processLog(Format('PDB文件大小：%db(%fMB)', [idh.Response.ContentLength,idh.Response.ContentLength /(1024*1024)]));
+          ProgressBar1.Max := Integer(idh.Response.ContentLength);
+          ProgressBar1.Position := 0;
+          ProgressBar1.Show;
+        except
+          on EE:Exception do
+          begin
+            if ee.Message.StartsWith('HTTP/1.1 302') then
+            begin
+              pdbUrl := idh.Response.Location;
+              processLog('Url重定向：'+pdbUrl);
+              Continue;
+            end else begin
+              processLog('!!!!!!!!!!!!!!!'+ee.Message+'!!!!!!!!!!!!!!!!!!!!!!!!!!!!');
+            end;
+          end;
+        end;
+        Break;
+      end;
+      mmo := TMemoryStream.Create;
+      try
+        idh.Get(pdbUrl, mmo);
+        mmo.SaveToFile(aPath);
+        ProgressBar1.Hide;
+        processLog('PDB下载完成：'+aPath);
+      finally
+        mmo.Free;
+      end;
+    finally
+      idh.Free;
+      vSSL.Free;
+    end;
+  end;
 end;
 
 procedure Tfrm_main.FormCreate(Sender: TObject);
@@ -368,6 +456,13 @@ procedure Tfrm_main.processLog(logStr: string;level: Integer = LOG_INFORMATION);
 begin
   memo1.Lines.Add(logStr);
   Loger.Add(logStr, level);
+end;
+
+procedure Tfrm_main.IdHTTP1Work(ASender: TObject; AWorkMode: TWorkMode;
+  AWorkCount: Int64);
+begin
+  ProgressBar1.Position := Integer(AWorkCount);
+  Application.ProcessMessages;
 end;
 
 end.
