@@ -29,7 +29,6 @@ object frm_main: Tfrm_main
     ScrollBars = ssBoth
     TabOrder = 0
     WordWrap = False
-    ExplicitHeight = 441
   end
   object Panel1: TPanel
     Left = 0
@@ -39,7 +38,6 @@ object frm_main: Tfrm_main
     Align = alBottom
     BevelOuter = bvNone
     TabOrder = 1
-    ExplicitTop = 447
     object Button2: TButton
       Left = 342
       Top = 6
@@ -67,7 +65,6 @@ object frm_main: Tfrm_main
     Align = alBottom
     TabOrder = 2
     Visible = False
-    ExplicitTop = 24
   end
   object ADOQuery1: TADOQuery
     LockType = ltReadOnly

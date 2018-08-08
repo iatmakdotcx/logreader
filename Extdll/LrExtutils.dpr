@@ -31,8 +31,8 @@ uses
   logRecdItemReader in 'logRecdItemReader.pas',
   cfg in 'cfg.pas',
   LidxMgr in 'LidxMgr.pas',
-  loglog in 'H:\Delphi\通用的自定义单元\loglog.pas',
-  Log4D in 'H:\Delphi\通用的自定义单元\Log4D.pas',
+  loglog in '..\Common\loglog.pas',
+  Log4D in '..\Common\Log4D.pas',
   HashHelper in '..\Common\HashHelper.pas';
 
 {$R *.res}

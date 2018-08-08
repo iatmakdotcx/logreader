@@ -1,0 +1,48 @@
+﻿<Project xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+    <PropertyGroup>
+        <ProjectGuid>{67BF9775-8D67-4057-AE39-B3647B51996F}</ProjectGuid>
+    </PropertyGroup>
+    <ItemGroup>
+        <Projects Include="SqlautoAdapter.dproj">
+            <Dependencies/>
+        </Projects>
+        <Projects Include="Hooktest\Hooktest.dproj">
+            <Dependencies/>
+        </Projects>
+    </ItemGroup>
+    <ProjectExtensions>
+        <Borland.Personality>Default.Personality.12</Borland.Personality>
+        <Borland.ProjectType/>
+        <BorlandProject>
+            <Default.Personality/>
+        </BorlandProject>
+    </ProjectExtensions>
+    <Target Name="SqlautoAdapter">
+        <MSBuild Projects="SqlautoAdapter.dproj"/>
+    </Target>
+    <Target Name="SqlautoAdapter:Clean">
+        <MSBuild Projects="SqlautoAdapter.dproj" Targets="Clean"/>
+    </Target>
+    <Target Name="SqlautoAdapter:Make">
+        <MSBuild Projects="SqlautoAdapter.dproj" Targets="Make"/>
+    </Target>
+    <Target Name="Hooktest">
+        <MSBuild Projects="Hooktest\Hooktest.dproj"/>
+    </Target>
+    <Target Name="Hooktest:Clean">
+        <MSBuild Projects="Hooktest\Hooktest.dproj" Targets="Clean"/>
+    </Target>
+    <Target Name="Hooktest:Make">
+        <MSBuild Projects="Hooktest\Hooktest.dproj" Targets="Make"/>
+    </Target>
+    <Target Name="Build">
+        <CallTarget Targets="SqlautoAdapter;Hooktest"/>
+    </Target>
+    <Target Name="Clean">
+        <CallTarget Targets="SqlautoAdapter:Clean;Hooktest:Clean"/>
+    </Target>
+    <Target Name="Make">
+        <CallTarget Targets="SqlautoAdapter:Make;Hooktest:Make"/>
+    </Target>
+    <Import Project="$(BDS)\Bin\CodeGear.Group.Targets" Condition="Exists('$(BDS)\Bin\CodeGear.Group.Targets')"/>
+</Project>

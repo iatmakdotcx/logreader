@@ -1,0 +1,15 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<BorlandProject>
+	<Transactions>
+    <Transaction>1899-12-30 00:00:00.000.415,=C:\Users\Chin\Documents\Embarcadero\Studio\Projects\Unit1.pas</Transaction>
+    <Transaction>1899-12-30 00:00:00.000.317,=C:\Users\Chin\Documents\Embarcadero\Studio\Projects\Unit1.pas</Transaction>
+    <Transaction>1899-12-30 00:00:00.000.575,=C:\Users\Chin\Documents\Embarcadero\Studio\Projects\Unit1.pas</Transaction>
+    <Transaction>1899-12-30 00:00:00.000.525,=C:\Users\Chin\Documents\Embarcadero\Studio\Projects\Unit1.pas</Transaction>
+    <Transaction>1899-12-30 00:00:00.000.621,=C:\Users\Chin\Documents\Embarcadero\Studio\Projects\Unit1.pas</Transaction>
+    <Transaction>1899-12-30 00:00:00.000.535,C:\Users\Chin\Documents\Embarcadero\Studio\Projects\Project1.dproj=C:\Users\Chin\Desktop\Hooktest.dproj</Transaction>
+    <Transaction>2018-08-08 17:58:07.837,=H:\Java\workspace\logreaderV2.0\Common\Log4D.pas</Transaction>
+    <Transaction>2018-08-08 17:58:07.874,=H:\Java\workspace\logreaderV2.0\Common\loglog.pas</Transaction>
+    <Transaction>2018-08-08 21:08:51.067,=H:\Java\workspace\logreaderV2.0\Extdll\MsOdsApi.pas</Transaction>
+    <Transaction>2018-08-08 21:12:11.966,=H:\Java\workspace\logreaderV2.0\Extdll\SqlSvrHelper.pas</Transaction>
+  </Transactions>
+</BorlandProject>
