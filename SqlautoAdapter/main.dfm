@@ -39,7 +39,7 @@ object frm_main: Tfrm_main
     BevelOuter = bvNone
     TabOrder = 1
     object Button2: TButton
-      Left = 342
+      Left = 158
       Top = 6
       Width = 75
       Height = 25
@@ -55,6 +55,15 @@ object frm_main: Tfrm_main
       Caption = 'start'
       TabOrder = 1
       OnClick = Button3Click
+    end
+    object Button1: TButton
+      Left = 320
+      Top = 6
+      Width = 75
+      Height = 25
+      Caption = 'Button1'
+      TabOrder = 2
+      OnClick = Button1Click
     end
   end
   object ProgressBar1: TProgressBar

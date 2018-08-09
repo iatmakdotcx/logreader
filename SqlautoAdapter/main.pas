@@ -22,10 +22,12 @@ type
     Button3: TButton;
     Panel1: TPanel;
     ProgressBar1: TProgressBar;
+    Button1: TButton;
     procedure FormCreate(Sender: TObject);
     procedure Button2Click(Sender: TObject);
     procedure FormShow(Sender: TObject);
     procedure Button3Click(Sender: TObject);
+    procedure Button1Click(Sender: TObject);
   private
     function getPageRef_ModifyColumnsInternalFromSymbols(
       aPdbName: string): UINT_PTR;
@@ -266,6 +268,36 @@ begin
   SymUnloadModule64(GetCurrentProcess, FLoadedImg);
 end;
 
+procedure Tfrm_main.Button1Click(Sender: TObject);
+var
+  dllPath:string;
+begin
+  adoquery1.Close;
+  adoquery1.ConnectionString := dbcfg.getConnectionString(dbcfg_Host, dbcfg_user, dbcfg_pass);
+  adoquery1.SQL.Text := 'select IS_SRVROLEMEMBER(''sysadmin'')';
+  adoquery1.Open;
+  if adoquery1.Fields[0].AsString<>'1' then
+  begin
+    processLog('!!!!!!!!!!!!!!!!!!!用户必须是sysadmin成员!!!!!!!!!!!!!!!!!!!');
+    exit;
+  end;
+  adoquery1.Close;
+  adoquery1.SQL.Text := 'select object_id(''t_oo'',''X'')';
+  adoquery1.Open;
+  if adoquery1.Fields[0].AsString='' then
+  begin
+    processLog('!!!!!!!!!!!!!!!!!!!新增t_oo!!!!!!!!!!!!!!!!!!!');
+    dllPath := ExtractFilePath(GetModuleName(HInstance)) + 'Hooktest.dll';
+    adoquery1.Close;
+    adoquery1.SQL.Text := Format('exec sp_addextendedproc ''t_oo'',''%s'' ',[dllPath]);
+    adoquery1.ExecSQL;
+  end;
+  adoquery1.Close;
+  adoquery1.SQL.Text := Format('exec t_oo %d', [$5F950]);;
+  adoquery1.ExecSQL;
+
+end;
+
 procedure Tfrm_main.Button2Click(Sender: TObject);
 begin
   getPageRef_ModifyColumnsInternalFromSymbols('H:\Symbols\sqlmin.pdb\D1C97E280B0140E18A5ACD148315ED1A2\sqlmin.pdb')
@@ -283,6 +315,7 @@ var
   PdbAge: DWORD;
   ModifyColumnsInternalAddr:Cardinal;
 begin
+  adoquery1.Close;
   adoquery1.ConnectionString := dbcfg.getConnectionString(dbcfg_Host, dbcfg_user, dbcfg_pass);
   adoquery1.SQL.Text := 'declare @SmoRoot nvarchar(512)'+
     ' exec master.dbo.xp_instance_regread N''HKEY_LOCAL_MACHINE'', N''SOFTWARE\Microsoft\MSSQLServer\Setup'', N''SQLPath'', @SmoRoot OUTPUT; '+

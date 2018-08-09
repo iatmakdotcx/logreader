@@ -1,26 +1,13 @@
 ﻿<?xml version="1.0" encoding="utf-8"?>
 <BorlandProject>
 	<Transactions>
-    <Transaction>1899-12-30 00:00:00.000.621,=C:\Users\Chin\Documents\Embarcadero\Studio\Projects\Unit1.pas</Transaction>
-    <Transaction>1899-12-30 00:00:00.000.797,=C:\Users\Chin\Documents\Embarcadero\Studio\Projects\Unit1.pas</Transaction>
-    <Transaction>1899-12-30 00:00:00.000.432,H:\Java\workspace\logreaderV2.0\SqlautoAdapter\Unit2.pas=H:\Java\workspace\logreaderV2.0\SqlautoAdapter\dbcfg.pas</Transaction>
-    <Transaction>1899-12-30 00:00:00.000.010,=H:\Delphi\通用的自定义单元\Log4D.pas</Transaction>
-    <Transaction>1899-12-30 00:00:00.000.605,=H:\Java\workspace\logreaderV2.0\SqlautoAdapter\Unit2.pas</Transaction>
-    <Transaction>1899-12-30 00:00:00.000.317,=C:\Users\Chin\Documents\Embarcadero\Studio\Projects\Unit1.pas</Transaction>
-    <Transaction>1899-12-30 00:00:00.000.536,C:\Users\Chin\Documents\Embarcadero\Studio\Projects\Unit1.pas=C:\Users\Chin\Desktop\SymCheck\Unit1.pas</Transaction>
-    <Transaction>1899-12-30 00:00:00.000.575,=C:\Users\Chin\Documents\Embarcadero\Studio\Projects\Unit1.pas</Transaction>
-    <Transaction>1899-12-30 00:00:00.000.415,=C:\Users\Chin\Documents\Embarcadero\Studio\Projects\Unit1.pas</Transaction>
-    <Transaction>1899-12-30 00:00:00.000.525,=C:\Users\Chin\Documents\Embarcadero\Studio\Projects\Unit1.pas</Transaction>
-    <Transaction>1899-12-30 00:00:00.000.536,C:\Users\Chin\Documents\Embarcadero\Studio\Projects\Unit1.dfm=C:\Users\Chin\Desktop\SymCheck\Unit1.dfm</Transaction>
-    <Transaction>1899-12-30 00:00:00.000.424,H:\Java\workspace\logreaderV2.0\SqlautoAdapter\Unit1.pas=H:\Java\workspace\logreaderV2.0\SqlautoAdapter\main.pas</Transaction>
-    <Transaction>1899-12-30 00:00:00.000.433,H:\Java\workspace\logreaderV2.0\SqlautoAdapter\Unit2.dfm=H:\Java\workspace\logreaderV2.0\SqlautoAdapter\dbcfg.dfm</Transaction>
-    <Transaction>1899-12-30 00:00:00.000.424,H:\Java\workspace\logreaderV2.0\SqlautoAdapter\Unit1.dfm=H:\Java\workspace\logreaderV2.0\SqlautoAdapter\main.dfm</Transaction>
-    <Transaction>1899-12-30 00:00:00.000.311,=C:\Users\Chin\Desktop\SymCheck\Unit2.pas</Transaction>
-    <Transaction>1899-12-30 00:00:00.000.037,C:\Users\Chin\Desktop\SymCheck\Unit2.pas=C:\Users\Chin\Desktop\SymCheck\DbgHelp.pas</Transaction>
-    <Transaction>1899-12-30 00:00:00.000.483,C:\Users\Chin\Documents\Embarcadero\Studio\Projects\Project1.dproj=C:\Users\Chin\Desktop\SymCheck\Project1.dproj</Transaction>
-    <Transaction>1899-12-30 00:00:00.000.889,C:\Users\Chin\Desktop\SymCheck\SqlautoAdapter.dproj=C:\Users\Chin\Desktop\SymCheck\Project1.dproj</Transaction>
-    <Transaction>1899-12-30 00:00:00.000.042,=H:\Delphi\通用的自定义单元\loglog.pas</Transaction>
-    <Transaction>1899-12-30 00:00:00.000.013,=H:\Java\workspace\logreaderV2.0\Common\HashHelper.pas</Transaction>
-    <Transaction>1899-12-30 00:00:00.000.995,=H:\Java\workspace\logreaderV2.0\Extdll\dbhelper.pas</Transaction>
+    <Transaction>1899-12-30 00:00:00.000.483,C:\Users\Chin\Desktop\SymCheck\Project1.dproj=C:\Users\Chin\Documents\Embarcadero\Studio\Projects\Project1.dproj</Transaction>
+    <Transaction>1899-12-30 00:00:00.000.536,C:\Users\Chin\Desktop\SymCheck\Unit1.dfm=C:\Users\Chin\Documents\Embarcadero\Studio\Projects\Unit1.dfm</Transaction>
+    <Transaction>1899-12-30 00:00:00.000.424,H:\Java\workspace\logreaderV2.0\SqlautoAdapter\main.pas=H:\Java\workspace\logreaderV2.0\SqlautoAdapter\Unit1.pas</Transaction>
+    <Transaction>1899-12-30 00:00:00.000.889,C:\Users\Chin\Desktop\SymCheck\Project1.dproj=C:\Users\Chin\Desktop\SymCheck\SqlautoAdapter.dproj</Transaction>
+    <Transaction>1899-12-30 00:00:00.000.424,H:\Java\workspace\logreaderV2.0\SqlautoAdapter\main.dfm=H:\Java\workspace\logreaderV2.0\SqlautoAdapter\Unit1.dfm</Transaction>
+    <Transaction>1899-12-30 00:00:00.000.433,H:\Java\workspace\logreaderV2.0\SqlautoAdapter\dbcfg.dfm=H:\Java\workspace\logreaderV2.0\SqlautoAdapter\Unit2.dfm</Transaction>
+    <Transaction>1899-12-30 00:00:00.000.536,C:\Users\Chin\Desktop\SymCheck\Unit1.pas=C:\Users\Chin\Documents\Embarcadero\Studio\Projects\Unit1.pas</Transaction>
+    <Transaction>1899-12-30 00:00:00.000.037,C:\Users\Chin\Desktop\SymCheck\DbgHelp.pas=C:\Users\Chin\Desktop\SymCheck\Unit2.pas</Transaction>
   </Transactions>
 </BorlandProject>
