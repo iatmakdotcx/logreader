@@ -36,6 +36,8 @@ var
   dbcfg_pass: string;
 
 implementation
+uses
+  main;
 
 {$R *.dfm}
 
@@ -49,7 +51,6 @@ begin
   ADOConnection1.Close;
   ADOConnection1.ConnectionString := getConnectionString(Edit1.Text, Edit2.Text, Edit3.Text);
   ADOConnection1.Connected := True;
-
   if ADOConnection1.Connected then
   begin
     dbcfg_Host := Edit1.Text;

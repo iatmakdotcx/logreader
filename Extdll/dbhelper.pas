@@ -20,6 +20,7 @@ type
     destructor Destroy; override;
     function checkMd5(md5Str: string): Boolean;
     function cfg(md5Str: string; var pnt: Integer; var dll: string): Boolean;
+    procedure cfgAdd(md5Str: string; pnt: Integer; dllv: Integer);
   end;
 
 var
@@ -31,12 +32,20 @@ uses
   Winapi.Windows, System.SysUtils, loglog;
 
 { TDBH }
+procedure TDBH.cfgAdd(md5Str: string; pnt: Integer; dllv: Integer);
+var
+  sSQL: string;
+begin
+  sSQL := Format('insert into cfg(hash,pnt,bin,isAutoCfg)VALUES("%s",%d,%d,1)',[md5Str,pnt,dllv]);
+  Qry.Close;
+  Qry.ExecSQL(sSQL);
+end;
 
 function TDBH.cfg(md5Str: string; var pnt: Integer; var dll: string): Boolean;
 var
   sSQL: string;
 begin
-  sSQL := 'select a.pnt,b.dllpath from cfg a join dlls b on a.bin=b.id where `hash`="' + md5Str + '"';
+  sSQL := 'select a.pnt,b.dllpath from cfg a join dlls b on a.bin=b.v where `hash`="' + md5Str + '"';
   Qry.Close;
   Qry.Open(sSQL);
   if Qry.RecordCount > 0 then

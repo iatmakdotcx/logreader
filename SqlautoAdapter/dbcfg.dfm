@@ -78,8 +78,7 @@ object frm_dbcfg: Tfrm_dbcfg
     OnClick = Button2Click
   end
   object ADOConnection1: TADOConnection
-    LoginPrompt = False
-    Left = 169
-    Top = 144
+    Left = 200
+    Top = 152
   end
 end

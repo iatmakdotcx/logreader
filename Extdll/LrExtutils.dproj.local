@@ -8,11 +8,11 @@
     <File Path="..\..\logreaderV2.0"/>
     <File Path="..\Common"/>
     <File Path="..\Common\HashHelper.pas"/>
+    <File Path="..\Common\Log4D.pas"/>
+    <File Path="..\Common\loglog.pas"/>
     <File Path="H:"/>
     <File Path="H:\Delphi"/>
     <File Path="H:\Delphi\通用的自定义单元"/>
-    <File Path="H:\Delphi\通用的自定义单元\loglog.pas"/>
-    <File Path="H:\Delphi\通用的自定义单元\Log4D.pas"/>
     <File Path="H:\Delphi\通用的自定义单元\MakCommonfuncs.pas"/>
     <File Path="H:\Delphi\通用的自定义单元\Memory_Common.pas"/>
     <File Path="cfg.pas"/>

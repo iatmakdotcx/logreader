@@ -11,28 +11,82 @@ library Hooktest;
   using PChar or ShortString parameters. }
 
 uses
+  EMemLeaks,
+  EResLeaks,
+  EDialogWinAPIMSClassic,
+  EDialogWinAPIEurekaLogDetailed,
+  EDialogWinAPIStepsToReproduce,
+  EDebugExports,
+  EFixSafeCallException,
+  EMapWin32,
+  ExceptionLog7,
   System.SysUtils,
   System.Classes,
   Winapi.Windows,
   System.SyncObjs,
+  Winapi.Messages,
   Log4D in '..\..\Common\Log4D.pas',
   loglog in '..\..\Common\loglog.pas',
   MsOdsApi in '..\..\Extdll\MsOdsApi.pas',
   SqlSvrHelper in '..\..\Extdll\SqlSvrHelper.pas',
   disassembler in '..\..\Common\disassembler.pas',
-  Memory_Common in 'H:\Delphi\通用的自定义单元\Memory_Common.pas';
+  Memory_Common in 'H:\Delphi\通用的自定义单元\Memory_Common.pas',
+  p_structDefine in '..\..\D_logreader\p_structDefine.pas';
+
+type
+  PPipeBBData = ^TPipeBBData;
+  TPipeBBData=packed record
+    head:Byte;
+    dbid:Word;
+    lsn:Tlog_LSN;
+    rawdata:array[0..0] of Byte;
+  end;
+
+const
+  pipeName='\\.\pipe\hooktest';
 
 var
   _critical : TCriticalSection;
   Sqlmin_PageRef_ModifyColumnsInternal_Ptr:UInt_Ptr = 0;
   Sqlmin_PageRef_ModifyColumnsInternal_Data:Pointer = nil;
   Sqlmin_PageRef_ModifyColumnsInternal_Len:Cardinal = 0;
-
+  CfgViewFPipe:THandle = 0;
 
 procedure interLockSetVal_128(addr:Pointer;data:Pointer);
 asm
   movq xmm0,[rdx]
   movq [rcx],xmm0
+end;
+
+procedure llll_Send(aMsg:string);
+var
+  Data: TBytes;
+  nSent:Cardinal;
+  Rv:Byte;
+begin
+  if CfgViewFPipe=0 then
+  begin
+    CfgViewFPipe := CreateFile(pipeName, GENERIC_READ or GENERIC_WRITE,
+      FILE_SHARE_READ or FILE_SHARE_WRITE, nil, OPEN_EXISTING, 0, 0);
+    if CfgViewFPipe=INVALID_HANDLE_VALUE then
+    begin
+      loger.EnableCallback := False;
+      loger.Add('!!!!!!!!! 打开管道失败 '+SysErrorMessage(GetLastError), LOG_ERROR);
+      loger.EnableCallback := True;
+      CfgViewFPipe := 0;
+    end;
+  end;
+  if CfgViewFPipe>0 then
+  begin
+    Data := TEncoding.UTF8.GetBytes(aMsg);
+    WriteFile(CfgViewFPipe, Data[0], Length(Data), nSent, nil);
+    ReadFile(CfgViewFPipe, Rv, 1, nSent, nil);
+  end;
+end;
+
+procedure msgOut(aMsg: string; level: Integer);
+begin
+  llll_Send(aMsg);
 end;
 
 procedure domyWork_2(PageRef:Pointer; stackRsp:Pointer);stdcall;
@@ -41,62 +95,89 @@ var
   XdesRMFull:Pointer;
   rawdata:Pointer;
   dbid:Word;
-  LSN_1,LSN_2,LSN_3:Cardinal;
+  LSN:Plog_LSN;
   RawLen:WORD;
+  ResPnt:Pointer;
+  nSent:Cardinal;
+  Rv:Byte;
+  pbb:PPipeBBData;
 begin
-  if IsBadReadPtr(PageRef, 8) then
-  begin
-    Loger.Add('!!!!!!!!!!!!!!PageRef 无效!!!!!!!!!!!!!!!!!!', LOG_ERROR);
-    Exit;
-  end;
-  PageRef := Pointer(PUINT_PTR(PageRef)^);
-  if IsBadReadPtr(PageRef, 8) then
-  begin
-    Loger.Add('!!!!!!!!!!!!!!PageRef::base 无效!!!!!!!!!!!!!!!!!!', LOG_ERROR);
-    Exit;
-  end;
-  PageRef := Pointer(PUINT_PTR(PageRef)^);
-  if IsBadReadPtr(PageRef, 8) then
-  begin
-    Loger.Add('!!!!!!!!!!!!!!Page::data 无效!!!!!!!!!!!!!!!!!!', LOG_ERROR);
-    Exit;
-  end;
-  PageType := Pbyte(UINT_PTR(PageRef) + 1)^;
-  if (PageType <> 1) and (PageType <> 3) then
-  begin
-    Loger.Add('===================PageType:%d===================', [PageType], LOG_ERROR);
-    Exit;
-  end;
-  Loger.Add('PageRef.type 效验通过！', LOG_INFORMATION);
-  XdesRMFull := PPointer(UINT_PTR(stackRsp) + $E0)^;
-  rawdata := PPointer(UINT_PTR(stackRsp) + $108)^;
-  if IsBadReadPtr(XdesRMFull, $464) then
-  begin
-    Loger.Add('!!!!!!!!!!!!!!XdesRMFull 无效!!!!!!!!!!!!!!!!!!', LOG_ERROR);
-    Exit;
-  end;
-  dbid := PWord(UINT_PTR(XdesRMFull) + $460)^;
-  Loger.Add('dbid:%d', [dbid], LOG_INFORMATION);
-  LSN_1 := PDWord(UINT_PTR(XdesRMFull) + $32c)^;
-  LSN_2 := PDWord(UINT_PTR(XdesRMFull) + $330)^;
-  LSN_3 := PWord(UINT_PTR(XdesRMFull) + $334)^;
-  Loger.Add('LSN:%.8x:%.8x:%.4x', [LSN_1, LSN_2, LSN_3], LOG_INFORMATION);
-  if IsBadReadPtr(rawdata, $8) then
-  begin
-    Loger.Add('!!!!!!!!!!!!!!rawdata 无效!!!!!!!!!!!!!!!!!!', LOG_ERROR);
-    Exit;
-  end;
-  rawdata := PPointer(rawdata)^;
-  if IsBadReadPtr(rawdata, $10) then
-  begin
-    Loger.Add('!!!!!!!!!!!!!!rawdata:stack 无效!!!!!!!!!!!!!!!!!!', LOG_ERROR);
-    Exit;
-  end;
-  RawLen := PWord(UINT_PTR(rawdata) + 4)^;
-  Loger.Add('RawLen:%d(0x%.4x)', [RawLen, RawLen], LOG_INFORMATION);
-  rawdata := PPointer(UINT_PTR(rawdata) + 8)^;
+  try
+    if IsBadReadPtr(PageRef, 8) then
+    begin
+      Loger.Add('!!!!!!!!!!!!!!PageRef 无效!!!!!!!!!!!!!!!!!!', LOG_ERROR);
+      Exit;
+    end;
+    PageRef := Pointer(PUINT_PTR(PageRef)^);
+    if IsBadReadPtr(PageRef, 8) then
+    begin
+      Loger.Add('!!!!!!!!!!!!!!PageRef::base 无效!!!!!!!!!!!!!!!!!!', LOG_ERROR);
+      Exit;
+    end;
+    PageRef := Pointer(PUINT_PTR(PageRef)^);
+    if IsBadReadPtr(PageRef, 8) then
+    begin
+      Loger.Add('!!!!!!!!!!!!!!Page::data 无效!!!!!!!!!!!!!!!!!!', LOG_ERROR);
+      Exit;
+    end;
+    PageType := Pbyte(UINT_PTR(PageRef) + 1)^;
+    if (PageType <> 1) and (PageType <> 3) then
+    begin
+      Loger.Add('===================PageType:%d===================', [PageType], LOG_ERROR);
+      Exit;
+    end;
+    Loger.Add('PageRef.type 效验通过！', LOG_INFORMATION);
+    XdesRMFull := PPointer(UINT_PTR(stackRsp) + $E0)^;
+    rawdata := PPointer(UINT_PTR(stackRsp) + $108)^;
+    if IsBadReadPtr(XdesRMFull, $464) then
+    begin
+      Loger.Add('!!!!!!!!!!!!!!XdesRMFull 无效!!!!!!!!!!!!!!!!!!', LOG_ERROR);
+      Exit;
+    end;
+    dbid := PWord(UINT_PTR(XdesRMFull) + $460)^;
+    Loger.Add('dbid:%d', [dbid], LOG_INFORMATION);
+    if dbid=0 then
+    begin
+      Exit;
+    end;
+    LSN := Plog_LSN(UINT_PTR(XdesRMFull) + $32c);
+    Loger.Add('LSN:%.8x:%.8x:%.4x', [LSN.LSN_1, LSN.LSN_2, LSN.LSN_3], LOG_INFORMATION);
+    if IsBadReadPtr(rawdata, $8) then
+    begin
+      Loger.Add('!!!!!!!!!!!!!!rawdata 无效!!!!!!!!!!!!!!!!!!', LOG_ERROR);
+      Exit;
+    end;
+    rawdata := PPointer(rawdata)^;
+    if IsBadReadPtr(rawdata, $10) then
+    begin
+      Loger.Add('!!!!!!!!!!!!!!rawdata:stack 无效!!!!!!!!!!!!!!!!!!', LOG_ERROR);
+      Exit;
+    end;
+    RawLen := PWord(UINT_PTR(rawdata) + 4)^;
+    Loger.Add('RawLen:%d(0x%.4x)', [RawLen, RawLen], LOG_INFORMATION);
+    rawdata := PPointer(UINT_PTR(rawdata) + 8)^;
+    RawLen := PageRowCalcLength(rawdata);
+    Loger.Add('CalcRawLen:%d(0x%.4x)', [RawLen, RawLen], LOG_INFORMATION);
+    Loger.Add('=======================Dump=========================' + #$D#$A + bytestostr(rawdata, RawLen), LOG_INFORMATION);
 
-  Loger.Add('=======================Dump========================='+#$D#$A+bytestostr(rawdata,$2000));
+    ResPnt := GetMemory(RawLen+$10);
+    pbb:=PPipeBBData(ResPnt);
+    pbb.head := $bb;
+    pbb.dbid := dbid;
+    pbb.lsn := LSN^;
+    CopyMemory(@pbb.rawdata, rawdata, RawLen);
+    if CfgViewFPipe>0 then
+    begin
+      WriteFile(CfgViewFPipe, ResPnt^, RawLen+$10, nSent, nil);
+      ReadFile(CfgViewFPipe, Rv, 1, nSent, nil);
+    end;
+    FreeMem(ResPnt);
+  except
+    on eee:Exception do
+    begin
+      Loger.Add('=======================Exception========================='+eee.Message);
+    end;
+  end;
 end;
 
 procedure doWordEnd;
@@ -189,7 +270,7 @@ begin
     disStr := disStr + #$D#$A + dis.disassemble(TmpPnt, disDesc);
   end;
   dis.Free;
-  Loger.Add(disStr);
+  //Loger.Add(disStr);
   //SqlSvr_SendMsg(pSrvProc, disStr);
   //------------------------------
 
@@ -236,55 +317,14 @@ begin
   end;
 end;
 
-procedure hook_sqlmin_PageRef_ModifyColumnsInternal_x64_near(hook_Ptr, sqlminBase: UINT_PTR);
-const
-  MinOpcLen = 5; //最小需要的空间
-var
-  dis:TDisassembler;
-  TmpPnt:UINT_PTR;
-  I:Integer;
-  disStr,disDesc:string;
-  backPntData:UINT_PTR;
-  dwOldP:Cardinal;
-begin
-  if not hook_sqlmin_PageRef_ModifyColumnsInternal_x64_hasHooked then
-  begin
-    Sqlmin_PageRef_ModifyColumnsInternal_Ptr := sqlminBase + hook_Ptr;
-    CopyMemory(Sqlmin_PageRef_ModifyColumnsInternal_Data, Pointer(Sqlmin_PageRef_ModifyColumnsInternal_Ptr), $20);
-
-    TmpPnt := Sqlmin_PageRef_ModifyColumnsInternal_Ptr;
-    dis := TDisassembler.Create(SizeOf(Pointer) = 8);
-    for I := 0 to 10 do
-    begin
-      disStr := disStr +#$D#$A + dis.disassemble(TmpPnt, disDesc);
-      if TmpPnt-(Sqlmin_PageRef_ModifyColumnsInternal_Ptr) >= MinOpcLen then
-      begin
-        Break;
-      end;
-    end;
-    dis.Free;
-    Sqlmin_PageRef_ModifyColumnsInternal_Len := TmpPnt - (Sqlmin_PageRef_ModifyColumnsInternal_Ptr);
-    if Sqlmin_PageRef_ModifyColumnsInternal_Len > 8 then
-    begin
-      Loger.Add('==============near inline > 8=============' + disStr, LOG_WARNING);
-    end;
-
-    backPntData := (Sqlmin_PageRef_ModifyColumnsInternal_Ptr) - (UINT_PTR(@doWordEnd) + Sqlmin_PageRef_ModifyColumnsInternal_Len);
-    VirtualProtect(@doWordEnd, $20, PAGE_EXECUTE_READWRITE, dwOldP);
-    CopyMemory(@doWordEnd, Pointer(Sqlmin_PageRef_ModifyColumnsInternal_Ptr), Sqlmin_PageRef_ModifyColumnsInternal_Len);
-    Pbyte(UINT_PTR(@doWordEnd)+Sqlmin_PageRef_ModifyColumnsInternal_Len)^ := $E9;
-    PDWORD(UINT_PTR(@doWordEnd)+Sqlmin_PageRef_ModifyColumnsInternal_Len + 1)^ := (backPntData and $FFFFFFFF);
-  end;
-end;
-
-procedure hook_sqlmin_PageRef_ModifyColumnsInternal_x64_far(hook_Ptr, sqlminBase: UINT_PTR);
+procedure hook_sqlmin_PageRef_ModifyColumnsInternal_x64(hook_Ptr, sqlminBase: UINT_PTR);
 const
   MinOpcLen = 6; //最小需要的空间   jmp []
 var
   dis:TDisassembler;
   TmpPnt:UINT_PTR;
   I:Integer;
-  disStr,disDesc:string;
+  disDesc:string;
   hookPntData:UINT_PTR;
   dwOldP:Cardinal;
 begin
@@ -297,7 +337,7 @@ begin
     dis := TDisassembler.Create(SizeOf(Pointer) = 8);
     for I := 0 to 10 do
     begin
-      disStr := disStr +#$D#$A + dis.disassemble(TmpPnt, disDesc);
+      dis.disassemble(TmpPnt, disDesc);
       if TmpPnt-(Sqlmin_PageRef_ModifyColumnsInternal_Ptr) >= MinOpcLen then
       begin
         Break;
@@ -305,10 +345,6 @@ begin
     end;
     dis.Free;
     Sqlmin_PageRef_ModifyColumnsInternal_Len := TmpPnt - (Sqlmin_PageRef_ModifyColumnsInternal_Ptr);
-    if Sqlmin_PageRef_ModifyColumnsInternal_Len > 8 then
-    begin
-      Loger.Add('==============far inline > 8=============' + disStr, LOG_WARNING);
-    end;
     //
     VirtualProtect(Pointer(sqlminBase + $20), 8, PAGE_READWRITE, dwOldP);
 		PUINT_PTR(sqlminBase + $20)^ := UINT_PTR(@doWord);
@@ -329,34 +365,11 @@ begin
   end;
 end;
 
-procedure hook_sqlmin_PageRef_ModifyColumnsInternal_x64(hook_Ptr, sqlminBase: UINT_PTR);
-var
-  MciFunAddr:UINT_PTR;
-  doWordFuncAddr:UINT_PTR;
-begin
-  MciFunAddr := sqlminBase + hook_Ptr;
-  doWordFuncAddr := UINT_PTR(@doWord);
-  if MciFunAddr > doWordFuncAddr then
-  begin
-    if MciFunAddr - doWordFuncAddr > $7FFFFF00 then
-    begin
-      hook_sqlmin_PageRef_ModifyColumnsInternal_x64_far(hook_Ptr, sqlminBase);
-    end else begin
-      hook_sqlmin_PageRef_ModifyColumnsInternal_x64_near(hook_Ptr, sqlminBase);
-    end;
-  end else begin
-    if doWordFuncAddr - MciFunAddr > $7FFFFF00 then
-    begin
-      hook_sqlmin_PageRef_ModifyColumnsInternal_x64_far(hook_Ptr, sqlminBase);
-    end else begin
-      hook_sqlmin_PageRef_ModifyColumnsInternal_x64_near(hook_Ptr, sqlminBase);
-    end;
-  end;
-end;
-
 function hook(pSrvProc: SRV_PROC; hp: UINT_PTR): Integer;stdcall;
 var
   sqlminBase: Thandle;
+  Rv:Byte;
+  nSent:Cardinal;
 begin
   _critical.Enter;
   try
@@ -369,10 +382,20 @@ begin
     sqlminBase := GetModuleHandle('sqlmin.dll');
     if sqlminBase = 0 then
     begin
-      Loger.Add('hook Fail!!! Sqlmin load fail!', LOG_ERROR);
+      Loger.Add('hook 失败!!! Sqlmin 加载失败!', LOG_ERROR);
       Exit;
     end;
     hook_sqlmin_PageRef_ModifyColumnsInternal_x64(hp, sqlminBase);
+    if hook_sqlmin_PageRef_ModifyColumnsInternal_x64_hasHooked then
+    begin
+      Loger.Add('===================hook=====================', LOG_INFORMATION);
+      if CfgViewFPipe>0 then
+      begin
+        Rv := $bc;
+        WriteFile(CfgViewFPipe, Rv, 1, nSent, nil);
+        ReadFile(CfgViewFPipe, Rv, 1, nSent, nil);
+      end;
+    end;
     Result := SUCCEED;
   finally
     _critical.Leave;
@@ -407,14 +430,23 @@ begin
         if action=0 then
         begin
           //test hook point entry
+          if CfgViewFPipe>0 then
+          begin
+            CloseHandle(CfgViewFPipe);
+            CfgViewFPipe := 0;
+          end;
           tmpint := getParam_int(pSrvProc, 2);
-          TestHookEntry(pSrvProc, tmpint);
+          if TestHookEntry(pSrvProc, tmpint) then
+            hook(pSrvProc, tmpint);
         end else if action=1 then begin
           //hook
           tmpint := getParam_int(pSrvProc, 2);
           hook(pSrvProc, tmpint);
         end else if action=2 then begin
           unhook;
+          Loger.Add('=============unhook=============');
+        end else if action=100 then begin
+          SqlSvr_SendMsg(pSrvProc, 'ok');
         end;
       end;
     except
@@ -426,9 +458,7 @@ begin
   finally
     srv_senddone(pSrvProc, SRV_DONE_FINAL or SRV_DONE_COUNT, 0, 0);
   end;
-
 end;
-
 
 procedure DLLMainHandler(Reason: Integer);
 begin
@@ -437,11 +467,15 @@ begin
       begin
         Sqlmin_PageRef_ModifyColumnsInternal_Data := GetMemory($1000);
         _critical := TCriticalSection.Create;
+        loger.registerCallBack(msgOut);
       end;
     DLL_PROCESS_DETACH:
       begin
+        unhook;
         FreeMem(Sqlmin_PageRef_ModifyColumnsInternal_Data);
         _critical.Free;
+        if CfgViewFPipe>0 then
+         CloseHandle(CfgViewFPipe);
       end;
   end;
 end;

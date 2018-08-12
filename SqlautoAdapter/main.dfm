@@ -13,6 +13,7 @@ object frm_main: Tfrm_main
   OldCreateOrder = False
   Position = poMainFormCenter
   OnCreate = FormCreate
+  OnDestroy = FormDestroy
   OnShow = FormShow
   PixelsPerInch = 96
   TextHeight = 13
@@ -38,22 +39,13 @@ object frm_main: Tfrm_main
     Align = alBottom
     BevelOuter = bvNone
     TabOrder = 1
-    object Button2: TButton
-      Left = 158
-      Top = 6
-      Width = 75
-      Height = 25
-      Caption = 'Button2'
-      TabOrder = 0
-      OnClick = Button2Click
-    end
     object Button3: TButton
       Left = 24
       Top = 6
       Width = 75
       Height = 25
       Caption = 'start'
-      TabOrder = 1
+      TabOrder = 0
       OnClick = Button3Click
     end
     object Button1: TButton
@@ -62,7 +54,8 @@ object frm_main: Tfrm_main
       Width = 75
       Height = 25
       Caption = 'Button1'
-      TabOrder = 2
+      TabOrder = 1
+      Visible = False
       OnClick = Button1Click
     end
   end
@@ -80,5 +73,11 @@ object frm_main: Tfrm_main
     Parameters = <>
     Left = 112
     Top = 240
+  end
+  object Timer1: TTimer
+    Interval = 100
+    OnTimer = Timer1Timer
+    Left = 448
+    Top = 224
   end
 end

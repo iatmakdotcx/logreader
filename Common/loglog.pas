@@ -24,6 +24,7 @@ type
     lo4dLoger: TLogLogger;
     lo4dData: TLogLogger;
     lo4dImportant: TLogLogger;
+    FEnableCallback:Boolean;
   public
     procedure Add(aMsg: string; level: Integer = LOG_INFORMATION); overload;
     procedure Add(aMsg: string; const Args: array of const; level: Integer = LOG_INFORMATION); overload;
@@ -33,6 +34,7 @@ type
     destructor Destroy; override;
     procedure registerCallBack(afunc: TMsgCallBack);
     procedure removeCallBack(afunc: TMsgCallBack);
+    property EnableCallback:Boolean read FEnableCallback write FEnableCallback;
   end;
 
 procedure finalLoger;
@@ -103,6 +105,7 @@ begin
       lo4dImportant.Info(aMsg);
     end;
   end;
+  if FEnableCallback then  
   for I := 0 to FcallBackLst.Count - 1 do
   begin
     try
@@ -141,6 +144,7 @@ begin
   lo4dLoger := TLogLogger.GetLogger('main');
   lo4dData := TLogLogger.GetLogger('data');
   lo4dImportant := TLogLogger.GetLogger('important');
+  FEnableCallback := True;
   Add('eventRecorder init...');
 end;
 

@@ -3,11 +3,10 @@ unit p_structDefine;
 interface
 
 uses
-  Types;
+  Windows;
 
 type
   QWORD = UInt64;
-
   PQWORD = ^QWORD;
 
 type
@@ -174,7 +173,7 @@ function PageRowCalcLength(rawData: Pointer): Integer;
 implementation
 
 uses
-  SysUtils, Winapi.Windows;
+  SysUtils;
 
 function LSN2Str(lsn: Tlog_LSN): string;
 begin
