@@ -25,40 +25,13 @@ object Form1: TForm1
     TabOrder = 0
     OnClick = Button3Click
   end
-  object Button8: TButton
-    Left = 656
-    Top = 52
-    Width = 75
-    Height = 25
-    Caption = 'C_picker'
-    TabOrder = 1
-    OnClick = Button8Click
-  end
-  object Button9: TButton
-    Left = 656
-    Top = 83
-    Width = 75
-    Height = 25
-    Caption = 'S_Picker'
-    TabOrder = 2
-    OnClick = Button9Click
-  end
-  object Button10: TButton
-    Left = 656
-    Top = 8
-    Width = 75
-    Height = 25
-    Caption = 'RefreshDict'
-    TabOrder = 3
-    OnClick = Button10Click
-  end
   object GroupBox1: TGroupBox
     Left = 567
     Top = 139
     Width = 176
     Height = 153
     Caption = 'Test'
-    TabOrder = 4
+    TabOrder = 1
     object Button7: TButton
       Left = 3
       Top = 16
@@ -68,24 +41,6 @@ object Form1: TForm1
       TabOrder = 0
       OnClick = Button7Click
     end
-    object Button12: TButton
-      Left = 3
-      Top = 88
-      Width = 75
-      Height = 25
-      Caption = 'save'
-      TabOrder = 1
-      OnClick = Button12Click
-    end
-    object Button13: TButton
-      Left = 84
-      Top = 88
-      Width = 75
-      Height = 25
-      Caption = 'load'
-      TabOrder = 2
-      OnClick = Button13Click
-    end
   end
   object GroupBox2: TGroupBox
     Left = 8
@@ -93,7 +48,7 @@ object Form1: TForm1
     Width = 361
     Height = 338
     Caption = #21152#36733#24050#23384#22312
-    TabOrder = 5
+    TabOrder = 2
     object Button1: TButton
       Left = 15
       Top = 18
@@ -191,7 +146,7 @@ object Form1: TForm1
     Width = 75
     Height = 25
     Caption = 'addLog'
-    TabOrder = 6
+    TabOrder = 3
     OnClick = Button5Click
   end
   object Memo1: TMemo
@@ -201,7 +156,7 @@ object Form1: TForm1
     Height = 150
     Lines.Strings = (
       'Memo1')
-    TabOrder = 7
+    TabOrder = 4
   end
   object Button14: TButton
     Left = 375
@@ -209,7 +164,7 @@ object Form1: TForm1
     Width = 114
     Height = 39
     Caption = 'CompareDictFromdb'
-    TabOrder = 8
+    TabOrder = 5
     OnClick = Button14Click
   end
   object Edit1: TEdit
@@ -217,7 +172,7 @@ object Form1: TForm1
     Top = 368
     Width = 281
     Height = 21
-    TabOrder = 9
+    TabOrder = 6
     Text = '0000003f:00000038:0001'
   end
   object Button15: TButton
@@ -226,7 +181,7 @@ object Form1: TForm1
     Width = 106
     Height = 39
     Caption = 'AllTables'
-    TabOrder = 10
+    TabOrder = 7
     OnClick = Button15Click
   end
   object Button16: TButton
@@ -235,22 +190,14 @@ object Form1: TForm1
     Width = 75
     Height = 25
     Caption = 'Button16'
-    TabOrder = 11
+    TabOrder = 8
     OnClick = Button16Click
-  end
-  object Button17: TButton
-    Left = 688
-    Top = 368
-    Width = 75
-    Height = 25
-    Caption = 'Button17'
-    TabOrder = 12
   end
   object ImageList1: TImageList
     Left = 400
     Top = 224
     Bitmap = {
-      494C01010B001800900010001000FFFFFFFFFF10FFFFFFFFFFFFFFFF424D3600
+      494C01010B001800940010001000FFFFFFFFFF10FFFFFFFFFFFFFFFF424D3600
       0000000000003600000028000000400000003000000001002000000000000030
       000000000000000000000000000000000000FFFFFF00FFFFFF00F6821000F580
       0C00F4851600F67B0000F37B0500FFFFFF00FFFFFF00F47C0500F57A0000F284

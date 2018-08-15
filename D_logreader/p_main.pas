@@ -16,13 +16,8 @@ type
 type
   TForm1 = class(TForm)
     Button3: TButton;
-    Button8: TButton;
-    Button9: TButton;
-    Button10: TButton;
     GroupBox1: TGroupBox;
     Button7: TButton;
-    Button12: TButton;
-    Button13: TButton;
     GroupBox2: TGroupBox;
     Button1: TButton;
     Button2: TButton;
@@ -42,16 +37,10 @@ type
     MainMenu1: TMainMenu;
     N1: TMenuItem;
     N2: TMenuItem;
-    Button17: TButton;
     procedure FormCreate(Sender: TObject);
     procedure Button3Click(Sender: TObject);
     procedure FormDestroy(Sender: TObject);
     procedure Button7Click(Sender: TObject);
-    procedure Button8Click(Sender: TObject);
-    procedure Button9Click(Sender: TObject);
-    procedure Button12Click(Sender: TObject);
-    procedure Button13Click(Sender: TObject);
-    procedure Button10Click(Sender: TObject);
     procedure ReloadListClick(Sender: TObject);
     procedure Button5Click(Sender: TObject);
     procedure Button4Click(Sender: TObject);
@@ -68,7 +57,6 @@ type
     procedure PluginMenuItemClick(Sender: TObject);
     { Private declarations }
   public
-    logsource: TLogSource;
     { Public declarations }
   end;
 
@@ -83,11 +71,6 @@ uses
 
 {$R *.dfm}
 
-procedure TForm1.Button10Click(Sender: TObject);
-begin
-  logsource.Fdbc.refreshDict;
-end;
-
 procedure TForm1.Button11Click(Sender: TObject);
 var
   ItemIdx:Integer;
@@ -99,16 +82,6 @@ begin
     tlsObj := LogSourceList.Get(ItemIdx);
     tlsObj.Stop_picker;
   end;
-end;
-
-procedure TForm1.Button12Click(Sender: TObject);
-begin
-  logsource.saveToFile('d:\1.bin');
-end;
-
-procedure TForm1.Button13Click(Sender: TObject);
-begin
-  logsource.loadFromFile('d:\1.bin');
 end;
 
 procedure TForm1.Button14Click(Sender: TObject);
@@ -271,16 +244,6 @@ begin
   FreeMem(oum.data);
 end;
 
-procedure TForm1.Button8Click(Sender: TObject);
-begin
-  logsource.Create_picker;
-end;
-
-procedure TForm1.Button9Click(Sender: TObject);
-begin
-  logsource.Stop_picker;
-end;
-
 procedure TForm1.CreatePluginsMenus(items:TMenuItem; node:IXMLNode;PluginItem:TPluginItem);
 function getMenuCaption(caption:string):string;
 begin
@@ -367,13 +330,12 @@ end;
 procedure TForm1.FormCreate(Sender: TObject);
 begin
   menuActions := TobjectList.Create;
-  logsource := TLogSource.create;
+
   InitPluginsMenus;
 end;
 
 procedure TForm1.FormDestroy(Sender: TObject);
 begin
-  logsource.Free;
   menuActions.Free;
 end;
 

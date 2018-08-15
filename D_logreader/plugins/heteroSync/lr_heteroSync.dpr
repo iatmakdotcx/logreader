@@ -1,4 +1,5 @@
-library lr_heteroSync;
+//library lr_heteroSync;
+program lr_heteroSync;
 
 { Important note about DLL memory management: ShareMem must be the
   first unit in your library's USES clause AND your project's (select
@@ -12,8 +13,11 @@ library lr_heteroSync;
 
 uses
   System.SysUtils,
-  System.Classes;
-
+  System.Classes,
+  p_main in 'p_main.pas' {frm_main},
+  Vcl.Forms {Form3},
+  Log4D in '..\..\..\Common\Log4D.pas',
+  loglog in '..\..\..\Common\loglog.pas';
 
 const
   STATUS_SUCCESS = $00000000;   //³É¹¦
@@ -106,6 +110,8 @@ exports
 {$R *.res}
 
 begin
-
-
+  Application.Initialize;
+  Application.MainFormOnTaskbar := True;
+  Application.CreateForm(Tfrm_main, frm_main);
+  Application.Run;
 end.
