@@ -16,8 +16,8 @@ type
   end;
 
   TTableOptDef = class(TObject)
-    items: TObjectList;
   private
+    items: TObjectList;
     function defcfgName: string;
     function getItemByName(ObjName: string): TableOptDefItem;
   public

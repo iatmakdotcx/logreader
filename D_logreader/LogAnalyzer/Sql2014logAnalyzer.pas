@@ -656,7 +656,7 @@ function TSql2014logAnalyzer.DML_BuilderXML_SafeStr(aVal: string): string;
 begin
   if aVal <> '' then
   begin
-    result := aVal.Replace('<','').Replace('>','').Replace('&','').Replace('''','').Replace('"','');
+    result := aVal.Replace('&','&amp;').Replace('<','&lt;').Replace('>','&gt;').Replace('''','&apos;').Replace('"','&quot;');
   end else begin
     Result := ''
   end;
@@ -759,6 +759,39 @@ begin
       begin
         raw_old := aRowData.old_data.getField(aRowData.Table.Fields[i].Col_id);
         raw_new := aRowData.new_data.getField(aRowData.Table.Fields[i].Col_id);
+
+        Result := Result + '<'+raw_old.field.ColName+'>';
+        if raw_old = nil then
+        begin
+          Result := Result +'<OLD null="1"></OLD>';
+        end else begin
+          StrVal := Hvu_GetFieldStrValue(raw_old.field, raw_old.value);
+          StrVal := DML_BuilderXML_SafeStr(StrVal);
+          Result := Result + '<'+raw_old.field.ColName+'>';
+          if StrVal='NULL' then
+          begin
+            Result := Result +'<OLD null="1"></OLD>';
+          end else begin
+            Result := Result + Format('<OLD>%s</OLD>', [StrVal]);
+          end;
+        end;
+        if raw_new = nil then
+        begin
+          Result := Result +'<NEW null="1"></OLD>';
+        end else begin
+          StrVal := Hvu_GetFieldStrValue(raw_new.field, raw_new.value);
+          StrVal := DML_BuilderXML_SafeStr(StrVal);
+          if StrVal='NULL' then
+          begin
+            Result := Result +'<NEW null="1"></NEW>';
+          end else begin
+            Result := Result + Format('<NEW>%s</NEW>', [StrVal]);
+          end;
+        end;
+        Result := Result + '</'+raw_old.field.ColName+'>';
+
+
+       (*//只生产差异数据的xml
         if (raw_new=nil) and (raw_old=nil)then
         begin
 
@@ -801,7 +834,7 @@ begin
             Result := Result + Format('<NEW>%s</NEW>', [StrVal]);
           end;
           Result := Result + '</'+raw_old.field.ColName+'>';
-        end
+        end *)
       end;
     end else begin
       //没有old，根据新的全部字段生成update（除唯一聚合

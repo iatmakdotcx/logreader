@@ -14,10 +14,12 @@ program lr_heteroSync;
 uses
   System.SysUtils,
   System.Classes,
+  Vcl.Forms,
   p_main in 'p_main.pas' {frm_main},
-  Vcl.Forms {Form3},
   Log4D in '..\..\..\Common\Log4D.pas',
-  loglog in '..\..\..\Common\loglog.pas';
+  loglog in '..\..\..\Common\loglog.pas',
+  p_impl in 'p_impl.pas' {frm_impl},
+  dbcfg in 'dbcfg.pas' {frm_dbcfg};
 
 const
   STATUS_SUCCESS = $00000000;   //³É¹¦
@@ -112,6 +114,9 @@ exports
 begin
   Application.Initialize;
   Application.MainFormOnTaskbar := True;
+  Application.CreateForm(Tfrm_dbcfg, frm_dbcfg);
   Application.CreateForm(Tfrm_main, frm_main);
+  Application.CreateForm(Tfrm_impl, frm_impl);
+
   Application.Run;
 end.
