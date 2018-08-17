@@ -13,6 +13,7 @@ object frm_impl: Tfrm_impl
   Font.Name = 'Tahoma'
   Font.Style = []
   OldCreateOrder = False
+  Position = poOwnerFormCenter
   PixelsPerInch = 96
   TextHeight = 13
   object GroupBox1: TGroupBox
@@ -35,10 +36,17 @@ object frm_impl: Tfrm_impl
           Width = 120
         end
         item
+          Caption = 'DbName'
+          Width = 100
+        end
+        item
           Caption = 'State'
         end>
+      ReadOnly = True
+      RowSelect = True
       TabOrder = 0
       ViewStyle = vsReport
+      OnSelectItem = ListView1SelectItem
     end
   end
   object Button1: TButton
@@ -50,13 +58,14 @@ object frm_impl: Tfrm_impl
     TabOrder = 1
     OnClick = Button1Click
   end
-  object Button2: TButton
+  object btn_enable: TButton
     Left = 317
     Top = 72
     Width = 75
     Height = 25
     Caption = #20572#29992
     TabOrder = 2
+    OnClick = btn_enableClick
   end
   object Button3: TButton
     Left = 317

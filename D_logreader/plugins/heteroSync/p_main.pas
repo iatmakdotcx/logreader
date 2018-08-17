@@ -25,6 +25,7 @@ type
     destructor Destroy; override;
     procedure save(afile: string = '');
     procedure load(afile: string = '');
+    function Count: Integer;
   end;
 
 type
@@ -221,6 +222,11 @@ destructor TTableOptDef.Destroy;
 begin
   items.Free;
   inherited;
+end;
+
+function TTableOptDef.Count: Integer;
+begin
+  Result := items.Count;
 end;
 
 function TTableOptDef.getItemByName(ObjName: string): TableOptDefItem;

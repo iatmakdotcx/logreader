@@ -114,9 +114,9 @@ exports
 begin
   Application.Initialize;
   Application.MainFormOnTaskbar := True;
-  Application.CreateForm(Tfrm_dbcfg, frm_dbcfg);
-  Application.CreateForm(Tfrm_main, frm_main);
   Application.CreateForm(Tfrm_impl, frm_impl);
+  Application.CreateForm(Tfrm_main, frm_main);
+
 
   Application.Run;
 end.
