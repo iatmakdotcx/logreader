@@ -304,7 +304,7 @@ begin
   FLogSource := LogSource;
   FBeginLsn := BeginLsn;
 
-  pkgMgr := TTransPkgMgr.Create;
+  pkgMgr := TTransPkgMgr.Create(FLogSource);
   New(FvlfHeader);
   New(FlogBlock);
   New(Fvlf);

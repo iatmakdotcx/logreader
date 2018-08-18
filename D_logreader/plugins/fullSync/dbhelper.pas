@@ -6,11 +6,11 @@ const
   DESPASSWORD = 'ifuwants';
 
 var
-  dbconStr:string = '';
-  TransEnable:Boolean = False;
+  dbconStr:array[1..255] of string;
+  TransEnable:array[1..255] of Boolean;
 
-function RunSql(aSql:string): Boolean;
-procedure dbConfig;
+function RunSql(dbid:Integer;aSql:string): Boolean;
+procedure dbConfig(dbid:Integer);
 procedure SavedbConfig;
 
 
@@ -23,6 +23,7 @@ procedure loadcfg;
 var
   cfgfilepath:string;
   sl:Tstringlist;
+  I: Integer;
 begin
   cfgfilepath := ExtractFilePath(GetModuleName(HInstance))+'lr_fullSync.db';
   if not FileExists(cfgfilepath) then
@@ -34,9 +35,12 @@ begin
     sl := Tstringlist.Create;
     try
       sl.LoadFromFile(cfgfilepath);
-      sl.Text := DesDecryStr(TNetEncoding.Base64.Decode(sl.Text), DESPASSWORD);
-      TransEnable := sl.Values['enable'] = '1';
-      dbconStr := sl.Values['ConnStr'];
+      //sl.Text := DesDecryStr(TNetEncoding.Base64.Decode(sl.Text), DESPASSWORD);
+      for I := 1 to 255 do
+      begin
+        TransEnable[i] := sl.Values['enable_'+IntToStr(i)] = '1';
+        dbconStr[i] := sl.Values['ConnStr_'+IntToStr(i)];
+      end;
     finally
       sl.Free;
     end;
@@ -51,17 +55,21 @@ procedure SavedbConfig;
 var
   cfgfilepath: string;
   sl: Tstringlist;
+  I:Integer;
 begin
   try
     cfgfilepath := ExtractFilePath(GetModuleName(HInstance)) + 'lr_fullSync.db';
     sl := Tstringlist.Create;
     try
-      sl.Values['ConnStr'] := dbconStr;
-      if TransEnable then
-        sl.Values['enable'] := '1'
-      else
-        sl.Values['enable'] := '0';
-      sl.Text := TNetEncoding.Base64.Encode(DesEncryStr(sl.Text, DESPASSWORD));
+      for I := 1 to 255 do
+      begin
+        sl.Values['ConnStr_'+IntToStr(i)] := dbconStr[i];
+        if TransEnable[i] then
+          sl.Values['enable_'+IntToStr(i)] := '1'
+        else
+          sl.Values['enable_'+IntToStr(i)] := '0';
+      end;
+      //sl.Text := TNetEncoding.Base64.Encode(DesEncryStr(sl.Text, DESPASSWORD));
       sl.SaveToFile(cfgfilepath);
     finally
       sl.Free;
@@ -75,37 +83,33 @@ begin
   end;
 end;
 
-procedure dbConfig;
+procedure dbConfig(dbid:Integer);
 var
   TmpStr:string;
 begin
-  TmpStr := PromptDataSource(0, dbconStr);
+  TmpStr := PromptDataSource(0, dbconStr[dbid]);
 
-  if (TmpStr<>'') and (TmpStr<>dbconStr) then
+  if (TmpStr<>'') and (TmpStr<>dbconStr[dbid]) then
   begin
-    dbconStr := TmpStr;
+    dbconStr[dbid] := TmpStr;
     SavedbConfig;
   end;
 end;
 
-function RunSql(aSql:string): Boolean;
+function RunSql(dbid:Integer;aSql:string): Boolean;
 var
   adoq:TADOCommand;
 begin
   result := False;
-  if TransEnable then
+  if TransEnable[dbid] then
   begin
-    if dbconStr='' then
-    begin
-      loadcfg;
-    end;
-    if dbconStr<>'' then
+    if dbconStr[dbid]<>'' then
     begin
       try
         adoq := TADOCommand.Create(nil);
         try
           adoq.ParamCheck := False;
-          adoq.ConnectionString := dbconStr;
+          adoq.ConnectionString := dbconStr[dbid];
           adoq.CommandText := aSql;
           adoq.Execute;
           result := True;

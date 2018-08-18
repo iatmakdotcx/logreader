@@ -5,84 +5,56 @@ interface
 uses
   Winapi.Windows, Winapi.Messages, System.SysUtils, System.Variants, System.Classes,
   Vcl.Graphics, Vcl.Controls, Vcl.Forms, Vcl.Dialogs, Vcl.ComCtrls, Vcl.StdCtrls, System.Contnrs,
-  p_main;
-
-type
-  TImplsItemState = (Unconfigured, Normal, Pause);
-
-  TImplsItem = class(TObject)
-    uid:string;
-    Host:string;
-    user:string;
-    pass:string;
-    dbName:string;
-    TableOptDef: TTableOptDef;
-    Paused:Boolean;
-    constructor Create;
-    destructor Destroy; override;
-    function getState:TImplsItemState;
-  end;
-
-  TImplsManger = class(TObject)
-    items:TObjectList;
-    constructor Create;
-    destructor Destroy; override;
-    function find(Host:string;dbName:string):TImplsItem;
-  end;
+  plgSrcData, pppppp;
 
 type
   Tfrm_impl = class(TForm)
     ListView1: TListView;
     GroupBox1: TGroupBox;
-    Button1: TButton;
+    btn_add: TButton;
     btn_enable: TButton;
-    Button3: TButton;
-    procedure Button1Click(Sender: TObject);
+    btn_del: TButton;
+    btn_cfg: TButton;
+    procedure btn_addClick(Sender: TObject);
     procedure ListView1SelectItem(Sender: TObject; Item: TListItem;
       Selected: Boolean);
     procedure btn_enableClick(Sender: TObject);
+    procedure ListView1DblClick(Sender: TObject);
+    procedure btn_cfgClick(Sender: TObject);
+    procedure FormShow(Sender: TObject);
   private
+    ImplsManger : TImplsManger;
     procedure RefreshList;
     { Private declarations }
   public
+    source:Pplg_source;
     { Public declarations }
   end;
 
 var
   frm_impl: Tfrm_impl;
-  ImplsManger:TImplsManger;
+
 
 implementation
 
 uses
-  dbcfg;
+  dbcfg, Des, loglog, p_mainCfg;
 
 {$R *.dfm}
 
 
-{ TImplsManger }
-
-constructor TImplsManger.Create;
-begin
-  items := TObjectList.Create;
-end;
-
-destructor TImplsManger.Destroy;
-begin
-  items.Free;
-  inherited;
-end;
-
-function TImplsManger.find(Host, dbName: string): TImplsItem;
+procedure Tfrm_impl.btn_cfgClick(Sender: TObject);
 var
-  I: Integer;
+  frm_mainCfg: Tfrm_mainCfg;
 begin
-  result := nil;
-  for I := 0 to items.Count-1 do
+  if ListView1.Selected<>nil then
   begin
-    if (TImplsItem(items.Items[I]).Host = Host) and (TImplsItem(items.Items[I]).dbName = dbName) then
-    begin
-      Result := TImplsItem(items.Items[I]);
+    frm_mainCfg := Tfrm_mainCfg.Create(nil);
+    try
+      frm_mainCfg.implItem := TImplsItem(ListView1.Selected.Data);
+      frm_mainCfg.showmodal;
+    finally
+      frm_mainCfg.free;
     end;
   end;
 end;
@@ -91,19 +63,35 @@ procedure Tfrm_impl.btn_enableClick(Sender: TObject);
 var
   impItem:TImplsItem;
 begin
-  impItem := TImplsItem(ListView1.Selected.Data);
-  if btn_enable.Caption = '启用' then
+  if ListView1.Selected<>nil then
   begin
-    btn_enable.Caption := '停用';
-    impItem.Paused := False;
-  end else begin
-    btn_enable.Caption := '启用';
-    impItem.Paused := True;
+    impItem := TImplsItem(ListView1.Selected.Data);
+    if btn_enable.Caption = '启用' then
+    begin
+      btn_enable.Caption := '停用';
+      impItem.Paused := False;
+    end else begin
+      btn_enable.Caption := '启用';
+      impItem.Paused := True;
+    end;
+    RefreshList;
   end;
+end;
+
+procedure Tfrm_impl.FormShow(Sender: TObject);
+begin
+  ImplsManger := LrSvrJob.Get(source);
   RefreshList;
 end;
 
-procedure Tfrm_impl.Button1Click(Sender: TObject);
+function GUIDToString(const Guid: TGUID): string;
+begin
+  Result := Format('%.8x-%.4x-%.4x-%.2x%.2x-%.2x%.2x%.2x%.2x%.2x%.2x',   // do not localize
+    [Guid.D1, Guid.D2, Guid.D3, Guid.D4[0], Guid.D4[1], Guid.D4[2], Guid.D4[3],
+    Guid.D4[4], Guid.D4[5], Guid.D4[6], Guid.D4[7]])
+end;
+
+procedure Tfrm_impl.btn_addClick(Sender: TObject);
 var
   impItem:TImplsItem;
   uid:TGUID;
@@ -125,8 +113,8 @@ begin
       impItem.pass := frm_dbcfg.dbcfg_pass;
       impItem.dbName := frm_dbcfg.dbcfg_dbName;
       impItem.uid := GUIDToString(uid);
-      ImplsManger.items.Add(impItem);
-
+      ImplsManger.Add(impItem);
+      ImplsManger.save;
       RefreshList;
     end;
   finally
@@ -134,11 +122,19 @@ begin
   end;
 end;
 
-procedure Tfrm_impl.ListView1SelectItem(Sender: TObject; Item: TListItem;
-  Selected: Boolean);
+procedure Tfrm_impl.ListView1DblClick(Sender: TObject);
+begin
+  btn_cfg.Click;
+end;
+
+procedure Tfrm_impl.ListView1SelectItem(Sender: TObject; Item: TListItem; Selected: Boolean);
 var
   impItem:TImplsItem;
 begin
+  btn_enable.Enabled := true;
+  btn_del.Enabled := true;
+  btn_cfg.Enabled := true;
+
   impItem := TImplsItem(Item.Data);
   if impItem.getState = Pause then
   begin
@@ -154,7 +150,7 @@ var
   impItem:TImplsItem;
 begin
   ListView1.Clear;
-  for I := 0 to ImplsManger.items.Count-1 do
+  for I := 0 to ImplsManger.Count-1 do
   begin
     impItem := TImplsItem(ImplsManger.items[i]);
     with ListView1.Items.Add do
@@ -173,43 +169,6 @@ begin
     end;
   end;
 end;
-
-
-{ TImplsItem }
-
-constructor TImplsItem.Create;
-begin
-  TableOptDef := TTableOptDef.Create;
-  Paused := False;
-end;
-
-destructor TImplsItem.Destroy;
-begin
-  TableOptDef.Free;
-  inherited;
-end;
-
-function TImplsItem.getState: TImplsItemState;
-begin
-  if Paused then
-  begin
-    Result := Pause;
-  end else begin
-    if TableOptDef.Count = 0 then
-    begin
-      Result := Unconfigured
-    end else
-    begin
-      Result := Normal;
-    end;
-  end;
-end;
-
-initialization
-  ImplsManger := TImplsManger.Create;
-
-finalization
-  ImplsManger.Free;
 
 
 end.

@@ -3,7 +3,7 @@ unit plugins;
 interface
 
 uses
-  SysUtils, p_structDefine;
+  SysUtils, p_structDefine, plgSrcData;
 
 const
   PDK_VERSION = 100;
@@ -19,7 +19,7 @@ type
     nextid: integer;
     _Lr_PluginGetErrMsg: T_Lr_PluginGetErrMsg;
     _Lr_PluginRegLogRowRead: T_Lr_PluginRegLogRowRead;
-    _Lr_PluginRegTransPkg: T_Lr_PluginRegTransPkg;
+    _Lr_PluginRegTransPkg:T_Lr_PluginRegTransPkg;
     _Lr_PluginRegSQL:T_Lr_PluginRegSQL;
     _Lr_PluginRegXML:T_Lr_PluginRegXML;
     _Lr_PluginUnInit:T_Lr_PluginUnInit;
@@ -43,9 +43,9 @@ type
     property Items[pluginid: Integer]: TPluginItem read Getplugin; default;
     function Count: Integer;
 
-    procedure onTransPkgRev(mm:TMemory_data);
-    procedure onTranSql(data:string);
-    procedure onTransXml(data:string);
+    procedure onTransPkgRev(source:Pplg_source; mm:TMemory_data);
+    procedure onTranSql(source:Pplg_source;data:string);
+    procedure onTransXml(source:Pplg_source;data:string);
   end;
 
 var
@@ -120,6 +120,7 @@ var
   dlHandle: THandle;
   plgVers: Integer;
   plgName: PChar;
+  plgNameStr:string;
   resV: DWORD;
   I: Integer;
 begin
@@ -150,14 +151,15 @@ begin
       Exit;
     end;
     plgVers := _Lr_PluginInfo(plgName);
+    plgNameStr := string(plgName);
     if plgVers > PDK_VERSION then
     begin
-      Loger.Add('%s 插件 %s 不适用于当前版本。SysVers:%d, plgVers:%d', [dllname, strpas(plgName), PDK_VERSION, plgVers]);
+      Loger.Add('%s 插件 %s 不适用于当前版本。SysVers:%d, plgVers:%d', [dllname, plgNameStr, PDK_VERSION, plgVers]);
       FreeLibrary(dlHandle);
     end
     else
     begin
-      Loger.Add('%s 插件 %s 已加载.', [dllname, strpas(plgName)]);
+      Loger.Add('%s 插件 %s 已加载.', [dllname, plgNameStr]);
       _Lr_PluginGetErrMsg := GetProcAddress(dlHandle, '_Lr_PluginGetErrMsg');
       _Lr_PluginInit := GetProcAddress(dlHandle, '_Lr_PluginInit');
       if Assigned(_Lr_PluginInit) then
@@ -167,11 +169,11 @@ begin
         begin
           if not Assigned(_Lr_PluginGetErrMsg) then
           begin
-            Loger.Add('%s 插件 %s 已加载.但初始化失败！Code：%d', [dllname, strpas(plgName), resV]);
+            Loger.Add('%s 插件 %s 已加载.但初始化失败！Code：%d', [dllname, plgNameStr, resV]);
           end
           else
           begin
-            Loger.Add('%s 插件 %s 已加载.但初始化失败！Code：%d(%s)', [dllname, strpas(plgName), resV, strpas(_Lr_PluginGetErrMsg(resV))]);
+            Loger.Add('%s 插件 %s 已加载.但初始化失败！Code：%d(%s)', [dllname, plgNameStr, resV, string(_Lr_PluginGetErrMsg(resV))]);
           end;
           FreeLibrary(dlHandle);
         end;
@@ -185,7 +187,7 @@ begin
         plugins[Result].dllname := ExtractFileName(dllname);
         plugins[Result].filepath := dllname;
         plugins[Result].hmodule := dlHandle;
-        plugins[Result].name := plgName;
+        plugins[Result].name := plgNameStr;
         plugins[Result]._Lr_PluginGetErrMsg := _Lr_PluginGetErrMsg;
         plugins[Result]._Lr_PluginRegLogRowRead := GetProcAddress(dlHandle, '_Lr_PluginRegLogRowRead');
         plugins[Result]._Lr_PluginUnInit := GetProcAddress(dlHandle, '_Lr_PluginUnInit');
@@ -203,7 +205,7 @@ begin
   end;
 end;
 
-procedure TPluginsMgr.onTransPkgRev(mm: TMemory_data);
+procedure TPluginsMgr.onTransPkgRev(source:Pplg_source; mm: TMemory_data);
 var
   I: Integer;
 begin
@@ -214,7 +216,7 @@ begin
       try
         if Assigned(plugins[i]._Lr_PluginRegTransPkg) then
         begin
-          plugins[i]._Lr_PluginRegTransPkg(@mm);
+          plugins[i]._Lr_PluginRegTransPkg(source, @mm);
         end;
       except
       end;
@@ -224,7 +226,7 @@ begin
   end;
 end;
 
-procedure TPluginsMgr.onTranSql(data:string);
+procedure TPluginsMgr.onTranSql(source:Pplg_source;data:string);
 var
   I: Integer;
   begt:Cardinal;
@@ -238,7 +240,7 @@ begin
         begin
           try
             begt := GetTickCount;
-            plugins[i]._Lr_PluginRegSQL(PChar(data));
+            plugins[i]._Lr_PluginRegSQL(source, PChar(data));
             begt := GetTickCount-begt;
             if begt > 1000 then
             begin
@@ -255,7 +257,7 @@ begin
   end;
 end;
 
-procedure TPluginsMgr.onTransXml(data:string);
+procedure TPluginsMgr.onTransXml(source:Pplg_source;data:string);
 var
   I: Integer;
   begt:Cardinal;
@@ -269,7 +271,7 @@ begin
         begin
           try
             begt := GetTickCount;
-            plugins[I]._Lr_PluginRegXML(PChar(data));
+            plugins[I]._Lr_PluginRegXML(source, PChar(data));
             begt := GetTickCount-begt;
             if begt > 1000 then
             begin

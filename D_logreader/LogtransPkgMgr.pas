@@ -3,7 +3,8 @@ unit LogtransPkgMgr;
 interface
 
 uses
-  System.Contnrs, System.Classes, p_structDefine, LogtransPkg, Types;
+  System.Contnrs, System.Classes, p_structDefine, LogtransPkg, plgSrcData,
+  LogSource;
 
 const
   paddingPrisePkgMaxSize = 1000;
@@ -15,15 +16,16 @@ type
 type
   TTransPkgMgr = class(TObject)
   private
+    FLogSource: TLogSource;
     FItems: TObjectList;
     FSubs_func:TList;
     procedure DeleteTransPkg(transid: TTrans_Id);
     function GetTransPkg(transid: TTrans_Id): TTransPkg;
-    procedure NotifySubscribe(lsn: Tlog_LSN; Raw: TMemory_data);
+    procedure NotifySubscribe(source:Pplg_source; lsn: Tlog_LSN; Raw: TMemory_data);
     procedure RegLogRowRead;
   public
     FpaddingPrisePkg: TObjectQueue;    //按事务id打包好的日志
-    constructor Create;
+    constructor Create(FLogSource: TLogSource);
     destructor Destroy; override;
     /// <summary>
     ///
@@ -38,7 +40,7 @@ type
 implementation
 
 uses
-  OpCode, plugins, loglog;
+  OpCode, plugins, loglog, System.Types;
 
 { TTransPkgMgr }
 
@@ -52,7 +54,7 @@ begin
     Result := Pkg_Ignored;
   end else begin
     if not ExtQuery then
-      NotifySubscribe(lsn, Raw);
+      NotifySubscribe(FLogSource.Fdbc.GetPlgSrc,lsn, Raw);
     Result := Pkg_OK;
     RawLog := Raw.data;
     case RawLog.OpCode of
@@ -128,10 +130,10 @@ begin
 end;
 
 
-constructor TTransPkgMgr.Create;
+constructor TTransPkgMgr.Create(FLogSource: TLogSource);
 begin
   inherited create;
-
+  self.FLogSource :=FLogSource;
   FItems := TObjectList.Create;
   FSubs_func := TList.Create;
   FpaddingPrisePkg := TObjectQueue.Create;
@@ -202,7 +204,7 @@ begin
   end;
 end;
 
-procedure TTransPkgMgr.NotifySubscribe(lsn: Tlog_LSN; Raw: TMemory_data);
+procedure TTransPkgMgr.NotifySubscribe(source:Pplg_source; lsn: Tlog_LSN; Raw: TMemory_data);
 var
   I: Integer;
   pln:T_Lr_PluginRegLogRowRead;
@@ -213,7 +215,7 @@ begin
       @pln := FSubs_func[i];
       if Assigned(pln) then
       begin
-        pln(@lsn, @Raw);
+        pln(source, @lsn, @Raw);
       end;
     except
     end;

@@ -999,7 +999,7 @@ begin
   Loger.Add('TSql2014logAnalyzer.Execute ==> transId:%s, MinLsn:%s', [TranId2Str(FTranspkg.Ftransid),LSN2Str(TTransPkgItem(FTranspkg.Items[0]).lsn)],LOG_DEBUG);
   //Í¨Öª²å¼þ
   serializeToBin(FTranspkg, mm);
-  PluginsMgr.onTransPkgRev(mm);
+  PluginsMgr.onTransPkgRev(FLogSource.Fdbc.GetPlgSrc, mm);
   FreeMem(mm.data);
 
 //  if FTranspkg.Ftransid.Id1>=$83D then
@@ -1067,8 +1067,8 @@ begin
   end;
   DDLClear;
   DDLPretreatment;
-  PluginsMgr.onTranSql(GenSql);
-  PluginsMgr.onTransXml(GenXML);
+  PluginsMgr.onTranSql(FLogSource.Fdbc.GetPlgSrc, GenSql);
+  PluginsMgr.onTransXml(FLogSource.Fdbc.GetPlgSrc, GenXML);
 //  Loger.Add(GenSql);
 //  Loger.Add(GenXML);
   ApplySysDDLChange;

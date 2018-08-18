@@ -1,5 +1,5 @@
-//library lr_heteroSync;
-program lr_heteroSync;
+library lr_heteroSync;
+//program lr_heteroSync;
 
 { Important note about DLL memory management: ShareMem must be the
   first unit in your library's USES clause AND your project's (select
@@ -12,14 +12,27 @@ program lr_heteroSync;
   using PChar or ShortString parameters. }
 
 uses
+  EMemLeaks,
+  EResLeaks,
+  EDialogWinAPIMSClassic,
+  EDialogWinAPIEurekaLogDetailed,
+  EDialogWinAPIStepsToReproduce,
+  EDebugExports,
+  EFixSafeCallException,
+  EMapWin32,
+  EAppVCL,
+  ExceptionLog7,
   System.SysUtils,
   System.Classes,
   Vcl.Forms,
-  p_main in 'p_main.pas' {frm_main},
+  p_mainCfg in 'p_mainCfg.pas' {frm_mainCfg},
   Log4D in '..\..\..\Common\Log4D.pas',
   loglog in '..\..\..\Common\loglog.pas',
   p_impl in 'p_impl.pas' {frm_impl},
-  dbcfg in 'dbcfg.pas' {frm_dbcfg};
+  dbcfg in 'dbcfg.pas' {frm_dbcfg},
+  Des in 'H:\Delphi\À„∑®\Des.pas',
+  pppppp in 'pppppp.pas',
+  plgSrcData in '..\..\..\Common\plgSrcData.pas';
 
 const
   STATUS_SUCCESS = $00000000;   //≥…π¶
@@ -80,7 +93,7 @@ end;
 /// </summary>
 /// <param name="Sql"></param>
 /// <returns></returns>
-function _Lr_PluginRegXML(Xml: PChar): integer; stdcall;
+function _Lr_PluginRegXML(source:Pplg_source; Xml: PChar): integer; stdcall;
 begin
 
   Result := STATUS_SUCCESS;
@@ -92,11 +105,17 @@ begin
   Result := STATUS_SUCCESS;
 end;
 
-procedure _Lr_PluginMenuAction(actionId: PChar); stdcall;
+procedure _Lr_PluginMenuAction(source:Pplg_source; actionId: PChar); stdcall;
 begin
   if actionId = '1' then
   begin
-
+    frm_impl := Tfrm_impl.Create(nil);
+    try
+      frm_impl.source := source;
+      frm_impl.ShowModal;
+    finally
+      frm_impl.Free;
+    end;
   end;
 end;
 
@@ -115,8 +134,5 @@ begin
   Application.Initialize;
   Application.MainFormOnTaskbar := True;
   Application.CreateForm(Tfrm_impl, frm_impl);
-  Application.CreateForm(Tfrm_main, frm_main);
-
-
   Application.Run;
 end.

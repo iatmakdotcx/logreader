@@ -14,6 +14,7 @@ object frm_impl: Tfrm_impl
   Font.Style = []
   OldCreateOrder = False
   Position = poOwnerFormCenter
+  OnShow = FormShow
   PixelsPerInch = 96
   TextHeight = 13
   object GroupBox1: TGroupBox
@@ -42,37 +43,51 @@ object frm_impl: Tfrm_impl
         item
           Caption = 'State'
         end>
+      HideSelection = False
       ReadOnly = True
       RowSelect = True
       TabOrder = 0
       ViewStyle = vsReport
+      OnDblClick = ListView1DblClick
       OnSelectItem = ListView1SelectItem
     end
   end
-  object Button1: TButton
+  object btn_add: TButton
     Left = 317
     Top = 24
     Width = 75
     Height = 25
     Caption = #26032#22686
     TabOrder = 1
-    OnClick = Button1Click
+    OnClick = btn_addClick
   end
   object btn_enable: TButton
     Left = 317
-    Top = 72
+    Top = 109
     Width = 75
     Height = 25
     Caption = #20572#29992
+    Enabled = False
     TabOrder = 2
     OnClick = btn_enableClick
   end
-  object Button3: TButton
+  object btn_del: TButton
     Left = 317
-    Top = 120
+    Top = 152
     Width = 75
     Height = 25
     Caption = #21024#38500
+    Enabled = False
     TabOrder = 3
+  end
+  object btn_cfg: TButton
+    Left = 317
+    Top = 67
+    Width = 75
+    Height = 25
+    Caption = #37197#32622
+    Enabled = False
+    TabOrder = 4
+    OnClick = btn_cfgClick
   end
 end

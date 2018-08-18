@@ -18,7 +18,8 @@ uses
   Log4D in 'H:\Delphi\通用的自定义单元\Log4D.pas',
   loglog in 'H:\Delphi\通用的自定义单元\loglog.pas',
   Des in 'H:\Delphi\算法\Des.pas',
-  cfgForm in 'cfgForm.pas' {frm_cfg};
+  cfgForm in 'cfgForm.pas' {frm_cfg},
+  plgSrcData in '..\..\..\Common\plgSrcData.pas';
 
 const
   STATUS_SUCCESS = $00000000;   //成功
@@ -79,9 +80,9 @@ end;
 /// </summary>
 /// <param name="Sql"></param>
 /// <returns></returns>
-function _Lr_PluginRegSQL(Sql: PChar): integer; stdcall;
+function _Lr_PluginRegSQL(source:Pplg_source; Sql: PChar): integer; stdcall;
 begin
-  RunSql(Sql);
+  RunSql(source.dbID, Sql);
   Result := STATUS_SUCCESS;
 end;
 
@@ -91,11 +92,12 @@ begin
   Result := STATUS_SUCCESS;
 end;
 
-procedure _Lr_PluginMenuAction(actionId: PChar); stdcall;
+procedure _Lr_PluginMenuAction(source:Pplg_source; actionId: PChar); stdcall;
 begin
   if actionId = '1' then
   begin
-    frm_cfg:=Tfrm_cfg.Create(nil);
+    frm_cfg := Tfrm_cfg.Create(nil);
+    frm_cfg.source := source;
     frm_cfg.ShowModal;
     frm_cfg.Free;
   end;

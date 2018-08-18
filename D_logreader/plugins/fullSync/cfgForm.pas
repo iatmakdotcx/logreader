@@ -4,7 +4,7 @@ interface
 
 uses
   Winapi.Windows, Winapi.Messages, System.SysUtils, System.Variants, System.Classes,
-  Vcl.Graphics, Vcl.Controls, Vcl.Forms, Vcl.Dialogs, Vcl.StdCtrls;
+  Vcl.Graphics, Vcl.Controls, Vcl.Forms, Vcl.Dialogs, Vcl.StdCtrls, plgSrcData;
 
 type
   Tfrm_cfg = class(TForm)
@@ -21,6 +21,7 @@ type
   private
     { Private declarations }
   public
+    source:Pplg_source;
     { Public declarations }
   end;
 
@@ -36,13 +37,13 @@ uses
 
 procedure Tfrm_cfg.Button1Click(Sender: TObject);
 begin
-  dbConfig;
+  dbConfig(source.dbID);
   CheckBox1Click(nil);
 end;
 
 procedure Tfrm_cfg.Button2Click(Sender: TObject);
 begin
-  TransEnable := CheckBox1.Checked;
+  TransEnable[source.dbID] := CheckBox1.Checked;
   SavedbConfig;
   ShowMessage('±£´æ³É¹¦£¡');
   Self.ModalResult := mrOk;
@@ -58,7 +59,7 @@ begin
     ss := TStringList.Create;
     ss.StrictDelimiter := True;
     ss.Delimiter := ';';
-    ss.DelimitedText := dbconStr;
+    ss.DelimitedText := dbconStr[source.dbID];
     Edit1.Text := ss.Values['Data Source'];
     Edit2.Text := ss.Values['Initial Catalog'];
     ss.Free;
@@ -73,7 +74,7 @@ end;
 
 procedure Tfrm_cfg.FormCreate(Sender: TObject);
 begin
-  CheckBox1.Checked := TransEnable;
+  CheckBox1.Checked := TransEnable[source.dbID];
   CheckBox1Click(nil);
 end;
 

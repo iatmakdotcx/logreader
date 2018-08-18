@@ -1,7 +1,7 @@
-object frm_main: Tfrm_main
+object frm_mainCfg: Tfrm_mainCfg
   Left = 0
   Top = 0
-  Caption = 'frm_main'
+  Caption = #23454#20363#35774#32622
   ClientHeight = 515
   ClientWidth = 844
   Color = clBtnFace
@@ -11,8 +11,6 @@ object frm_main: Tfrm_main
   Font.Name = 'Tahoma'
   Font.Style = []
   OldCreateOrder = False
-  OnCreate = FormCreate
-  OnDestroy = FormDestroy
   PixelsPerInch = 96
   TextHeight = 13
   object Panel1: TPanel
@@ -41,8 +39,6 @@ object frm_main: Tfrm_main
     Align = alLeft
     Caption = 'Tables'
     TabOrder = 1
-    ExplicitLeft = -6
-    ExplicitTop = 47
     object edt_filter: TEdit
       Left = 2
       Top = 15
@@ -51,9 +47,6 @@ object frm_main: Tfrm_main
       Align = alTop
       TabOrder = 0
       OnKeyUp = edt_filterKeyUp
-      ExplicitLeft = 48
-      ExplicitTop = 80
-      ExplicitWidth = 121
     end
     object ListView1: TListView
       Left = 2
@@ -88,10 +81,6 @@ object frm_main: Tfrm_main
     BevelOuter = bvNone
     TabOrder = 2
     OnResize = pnl_optsResize
-    ExplicitLeft = 352
-    ExplicitTop = 232
-    ExplicitWidth = 185
-    ExplicitHeight = 41
     object Splitter1: TSplitter
       Left = 0
       Top = 170
@@ -118,7 +107,6 @@ object frm_main: Tfrm_main
       Align = alTop
       Caption = 'Insert'
       TabOrder = 0
-      ExplicitTop = 0
       object Memo_Insert: TMemo
         Left = 2
         Top = 15
@@ -128,9 +116,6 @@ object frm_main: Tfrm_main
         Lines.Strings = (
           'Memo_Insert')
         TabOrder = 0
-        ExplicitLeft = 1
-        ExplicitTop = 16
-        ExplicitHeight = 88
       end
     end
     object gb_Delete: TGroupBox
@@ -141,7 +126,6 @@ object frm_main: Tfrm_main
       Align = alTop
       Caption = 'Delete'
       TabOrder = 1
-      ExplicitTop = 110
       object Memo_Delete: TMemo
         Left = 2
         Top = 15
@@ -151,10 +135,6 @@ object frm_main: Tfrm_main
         Lines.Strings = (
           'Memo_Delete')
         TabOrder = 0
-        ExplicitLeft = 256
-        ExplicitTop = 64
-        ExplicitWidth = 185
-        ExplicitHeight = 89
       end
     end
     object gb_Update: TGroupBox
@@ -165,10 +145,6 @@ object frm_main: Tfrm_main
       Align = alClient
       Caption = 'Update'
       TabOrder = 2
-      ExplicitLeft = 432
-      ExplicitTop = 264
-      ExplicitWidth = 185
-      ExplicitHeight = 105
       object Memo_Update: TMemo
         Left = 2
         Top = 15
@@ -178,10 +154,6 @@ object frm_main: Tfrm_main
         Lines.Strings = (
           'Memo_Update')
         TabOrder = 0
-        ExplicitLeft = 264
-        ExplicitTop = 88
-        ExplicitWidth = 185
-        ExplicitHeight = 89
       end
     end
     object Panel2: TPanel
@@ -220,7 +192,7 @@ object frm_main: Tfrm_main
       'e;User ID=sa;Initial Catalog=dbt2;Data Source=.'
     LoginPrompt = False
     Provider = 'SQLOLEDB.1'
-    Left = 256
+    Left = 224
     Top = 8
   end
   object ADOQuery1: TADOQuery

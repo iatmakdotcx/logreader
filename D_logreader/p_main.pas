@@ -48,7 +48,6 @@ type
     procedure Button11Click(Sender: TObject);
     procedure Button14Click(Sender: TObject);
     procedure Button15Click(Sender: TObject);
-    procedure Button16Click(Sender: TObject);
     procedure N2Click(Sender: TObject);
   private
     menuActions:TobjectList;
@@ -116,11 +115,6 @@ begin
     end;
     Memo1.Lines.Add(tmpStr);
   end;
-end;
-
-procedure TForm1.Button16Click(Sender: TObject);
-begin
-  PluginsMgr.onTranSql('select 1');
 end;
 
 procedure TForm1.Button3Click(Sender: TObject);
@@ -347,11 +341,18 @@ end;
 procedure TForm1.PluginMenuItemClick(Sender: TObject);
 var
   aitem:TPluginMenuActionItem;
+  ItemIdx:Integer;
+  tlsObj:TLogSource;
 begin
-  if Sender is TMenuItem then
+  if ListView1.Selected <> nil then
   begin
-    aitem := TPluginMenuActionItem(menuActions[(Sender as TMenuItem).Tag]);
-    aitem.PluginItem._Lr_PluginMenuAction(Pchar(aitem.ActionId));
+    ItemIdx := StrToInt(ListView1.Selected.Caption) - 1;
+    tlsObj := LogSourceList.Get(ItemIdx);
+    if Sender is TMenuItem then
+    begin
+      aitem := TPluginMenuActionItem(menuActions[(Sender as TMenuItem).Tag]);
+      aitem.PluginItem._Lr_PluginMenuAction(tlsObj.Fdbc.GetPlgSrc, Pchar(aitem.ActionId));
+    end;
   end;
 end;
 

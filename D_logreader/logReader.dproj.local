@@ -14,8 +14,8 @@
     <Transaction>1899-12-30 00:00:00.000.pas,C:\Users\Chin\Desktop\logReadProject\Unit1.pas=C:\Users\Chin\Desktop\logReadProject\Sql2014LogReader.pas</Transaction>
     <Transaction>1899-12-30 00:00:00.000.pas,C:\Users\Chin\Desktop\logReadProject\logReader.pas=C:\Users\Chin\Desktop\logReadProject\p_main.pas</Transaction>
     <Transaction>1899-12-30 00:00:00.000.dfm,C:\Users\Chin\Documents\RAD Studio\Projects\Unit1.dfm=C:\Users\Chin\Desktop\logReadProject\logReader.dfm</Transaction>
-    <Transaction>1899-12-30 00:00:00.000.pas,C:\Users\Chin\Desktop\logReadProject\Unit1.pas=C:\Users\Chin\Desktop\logReadProject\I_logReader.pas</Transaction>
     <Transaction>1899-12-30 00:00:00.000.pas,C:\Users\Chin\Desktop\logReadProject\Unit1.pas=C:\Users\Chin\Desktop\logReadProject\I_LogProvider.pas</Transaction>
+    <Transaction>1899-12-30 00:00:00.000.pas,C:\Users\Chin\Desktop\logReadProject\Unit1.pas=C:\Users\Chin\Desktop\logReadProject\I_logReader.pas</Transaction>
     <Transaction>1899-12-30 00:00:00.000.pas,C:\Users\Chin\Desktop\logReadProject\Unit1.pas=C:\Users\Chin\Desktop\logReadProject\p_structDefine.pas</Transaction>
     <Transaction>1899-12-30 00:00:00.000.pas,C:\Users\Chin\Desktop\logReadProject\Unit1.pas=C:\Users\Chin\Desktop\logReadProject\LogSource.pas</Transaction>
   </Transactions>

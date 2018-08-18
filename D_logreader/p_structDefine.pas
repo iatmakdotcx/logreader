@@ -144,26 +144,6 @@ type
     Page: TPage_Id;
   end;
 
-type
-  T_Lr_PluginInfo = function(var shortname: PChar): integer; stdcall;
-
-  T_Lr_PluginInit = function(engineVersion: Integer): integer; stdcall;
-
-  T_Lr_PluginUnInit = function(): integer; stdcall;
-
-  T_Lr_PluginGetErrMsg = function(StatusCode: Cardinal): PChar; stdcall;
-
-  T_Lr_PluginRegLogRowRead = function(lsn: Plog_LSN; Raw: PMemory_data): integer; stdcall;
-
-  T_Lr_PluginRegTransPkg = function(TransPkg: PMemory_data): integer; stdcall;
-
-  T_Lr_PluginRegSQL = function(Sql: PChar): integer; stdcall;
-
-  T_Lr_PluginRegXML = function(Xml: PChar): integer; stdcall;
-
-  T_Lr_PluginMenu = function(var Xml: PChar): integer; stdcall;
-  T_Lr_PluginMenuAction = procedure(actionId: PChar); stdcall;
-
 function LSN2Str(lsn: Tlog_LSN): string;
 
 function TranId2Str(trans: TTrans_Id): string;

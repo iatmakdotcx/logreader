@@ -3,7 +3,7 @@ unit databaseConnection;
 interface
 
 uses
-  ADODB, Classes, p_structDefine, dbDict, System.SyncObjs;
+  ADODB, Classes, p_structDefine, dbDict, System.SyncObjs, plgSrcData;
 
 type
   TdatabaseConnection = class(TObject)
@@ -15,6 +15,7 @@ type
     AdoQCsMaster: TCriticalSection;
     AdoQMaster: TADOQuery;
     ADOConnMaster: TADOConnection;
+    FPlgSource:Pplg_source;
   public
      //手动设置部分
     Host: string;
@@ -93,6 +94,8 @@ type
     /// </summary>
     /// <returns></returns>
     function GetServiceAccount:string;
+
+    function GetPlgSrc:Pplg_source;
   end;
 
 implementation
@@ -154,6 +157,8 @@ begin
 
   dict := TDbDict.Create;
   FdBConfigOK := False;
+
+  FPlgSource := nil;
 end;
 
 destructor TdatabaseConnection.Destroy;
@@ -167,6 +172,10 @@ begin
   AdoQ.Free;
   ADOConn.Free;
   AdoQCs.Free;
+  if (FPlgSource <> nil) then
+  begin
+    Dispose(FPlgSource);
+  end;
   inherited;
 end;
 
@@ -721,6 +730,23 @@ begin
       Result := rDataset.Fields[0].AsInteger;
     rDataset.Free;
   end;
+end;
+
+function TdatabaseConnection.GetPlgSrc: Pplg_source;
+begin
+  if(FPlgSource=nil) then begin
+    new(FPlgSource);
+    FPlgSource.host := PChar(Host);
+    FPlgSource.user := PChar(user);
+    FPlgSource.pass := PChar(passwd);
+    FPlgSource.dbName:= PChar(dbName);
+    FPlgSource.dbID:= dbID;
+    FPlgSource.dbVer_Major:= dbVer_Major;
+    FPlgSource.dbVer_Minor:= dbVer_Minor;
+    FPlgSource.dbVer_BuildNumber:= dbVer_BuildNumber;
+    FPlgSource.dbIs64bit:= dbIs64bit;
+  end;
+  Result := FPlgSource;
 end;
 
 function TdatabaseConnection.CompareDict: string;
