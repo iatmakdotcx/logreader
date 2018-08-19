@@ -14,7 +14,7 @@ object frm_cfg: Tfrm_cfg
   Font.Style = []
   OldCreateOrder = False
   Position = poMainFormCenter
-  OnCreate = FormCreate
+  OnShow = FormShow
   PixelsPerInch = 96
   TextHeight = 13
   object CheckBox1: TCheckBox

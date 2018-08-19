@@ -43,7 +43,6 @@ uses
   dbFieldTypes in 'dbFieldTypes.pas',
   SqlDDLs in 'LogAnalyzer\SqlDDLs.pas',
   Vcl.Dialogs,
-  impConfig in 'impConfig.pas',
   ResHelper in 'res\ResHelper.pas',
   sqlextendedprocHelper in 'sqlextendedprocHelper.pas',
   winshellHelper in 'winshellHelper.pas',

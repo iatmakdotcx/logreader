@@ -8,7 +8,6 @@ uses
 type
   TdatabaseConnection = class(TObject)
   private
-    FdBConfigOK:Boolean;
     AdoQCs: TCriticalSection;
     AdoQ: TADOQuery;
     ADOConn: TADOConnection;
@@ -83,7 +82,6 @@ type
     function ExecSql(aSql: string; out resDataset: TCustomADODataSet;withOpen:Boolean=True): Boolean;
     function CheckIsSysadmin:Boolean;
     function getUpdateSQLfromSelect(table:TdbTableItem; wherekey: string): string;
-    property dbok:Boolean read FdBConfigOK;
     /// <summary>
     /// 从数据库对比字典差异
     /// </summary>
@@ -156,7 +154,6 @@ begin
   AdoQMaster.Connection := ADOConnMaster;
 
   dict := TDbDict.Create;
-  FdBConfigOK := False;
 
   FPlgSource := nil;
 end;
@@ -349,7 +346,6 @@ begin
   finally
     AdoQCsMaster.Leave
   end;
-  FdBConfigOK := True;
 end;
 
 function TdatabaseConnection.ExecSqlOnMaster(aSql:string;out resDataset:TCustomADODataSet;withOpen:Boolean=True):Boolean;

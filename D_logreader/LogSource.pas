@@ -14,7 +14,6 @@ type
   private
     FCfgFilePath:string;
     FRunCs: TCriticalSection;
-    Fstatus:LS_STATUE;
     procedure ClrLogSource;
   public
     FProcCurLSN: Tlog_LSN;  //当前处理的位置
@@ -100,7 +99,6 @@ end;
 constructor TLogSource.Create;
 begin
   inherited;
-  Fstatus := tLS_NotConfig;
   FProcCurLSN.LSN_1 := 0;
   FProcCurLSN.LSN_2 := 0;
   FProcCurLSN.LSN_3 := 0;
@@ -119,7 +117,6 @@ begin
     if ExistsRenew then
     begin
       FreeAndNil(FLogReader);
-      Fstatus := tLs_noLogReader;
     end else begin
       Exit;
     end;
@@ -129,7 +126,6 @@ begin
   begin
     //2008之后的版本都用这个读取方式
     FLogReader := TSql2014LogReader.Create(Self);
-    Fstatus := tLS_stopped;
     Result := True;
   end;
 end;
@@ -149,7 +145,6 @@ begin
       if FLogPicker = nil then
       begin
         FLogPicker := TSql2014LogPicker.Create(Self, FProcCurLSN);
-        Fstatus := tLS_running;
         Result := True;
       end;
     finally
@@ -198,10 +193,21 @@ end;
 
 function TLogSource.status: LS_STATUE;
 begin
-  if (Fstatus = tLS_NotConnectDB) and fdbc.dbok then
-    Result := tLs_noLogReader
-  else
-    Result := Fstatus;
+//LS_STATUE = (tLS_unknown, tLS_NotConfig, tLS_NotConnectDB, tLs_noLogReader,
+//             tLS_running, tLS_stopped, tLS_suspension);
+  if Fdbc = nil then
+  begin
+    Result := tLS_NotConfig;
+  end else if FLogReader = nil then
+  begin
+    Result := tLs_noLogReader;
+  end else if FLogPicker = nil then
+  begin
+    Result := tLS_stopped;
+  end else
+  begin
+    Result := tLS_running;
+  end;
 end;
 
 function TLogSource.init_Process(Pid, hdl: Cardinal): Boolean;
@@ -290,7 +296,6 @@ begin
             FProcCurLSN.LSN_3 := Rter.ReadInteger;
             Fdbc.dict.Deserialize(mmo);
             //init;
-            Fstatus := tLS_NotConnectDB;
             Result := True;
 
             FCfgFilePath := aPath;

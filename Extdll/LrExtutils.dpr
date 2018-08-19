@@ -197,6 +197,8 @@ begin
           pageCapture_init(dllPath);
           SqlSvr_SendMsg(pSrvProc, 'init:≥…π¶');
           Result := 1;
+        end else begin
+          SqlSvr_SendMsg(pSrvProc, '∂¡»°≈‰÷√ ß∞‹');
         end;
       end
       else

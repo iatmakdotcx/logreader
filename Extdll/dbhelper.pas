@@ -24,7 +24,7 @@ type
   end;
 
 var
-  DBH: TDBH;
+  DBH: TDBH=nil;
 
 implementation
 

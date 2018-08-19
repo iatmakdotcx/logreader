@@ -131,8 +131,8 @@ exports
 {$R *.res}
 
 begin
-  Application.Initialize;
-  Application.MainFormOnTaskbar := True;
-  Application.CreateForm(Tfrm_impl, frm_impl);
-  Application.Run;
+//  Application.Initialize;
+//  Application.MainFormOnTaskbar := True;
+//  Application.CreateForm(Tfrm_impl, frm_impl);
+//  Application.Run;
 end.

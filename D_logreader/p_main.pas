@@ -5,7 +5,7 @@ interface
 uses
   Windows, Messages, SysUtils, Variants, Classes, Graphics, Controls, Forms,
   Dialogs, StdCtrls, LogSource, Vcl.ComCtrls, System.ImageList, Vcl.ImgList,
-  Vcl.Menus, Xml.XMLIntf, System.Contnrs, plugins;
+  Vcl.Menus, Xml.XMLIntf, System.Contnrs, plugins, Vcl.ExtCtrls;
 
 type
   TPluginMenuActionItem = class(TObject)
@@ -15,40 +15,44 @@ type
 
 type
   TForm1 = class(TForm)
-    Button3: TButton;
+    btn_newCfg: TButton;
     GroupBox1: TGroupBox;
     Button7: TButton;
     GroupBox2: TGroupBox;
-    Button1: TButton;
-    Button2: TButton;
-    Mom_ExistsCfg: TMemo;
-    ReloadList: TButton;
+    btn_ReloadList: TButton;
     ListView1: TListView;
     Button5: TButton;
-    Memo1: TMemo;
+    MMO_LOG: TMemo;
     ImageList1: TImageList;
-    Button4: TButton;
-    Button6: TButton;
+    btn_jobStart: TButton;
     Button14: TButton;
-    Button11: TButton;
+    btn_jobStop: TButton;
     Edit1: TEdit;
     Button15: TButton;
-    Button16: TButton;
     MainMenu1: TMainMenu;
     N1: TMenuItem;
     N2: TMenuItem;
+    N3: TMenuItem;
+    N4: TMenuItem;
+    N5: TMenuItem;
+    Panel1: TPanel;
+    PopupMenu1: TPopupMenu;
+    N6: TMenuItem;
     procedure FormCreate(Sender: TObject);
-    procedure Button3Click(Sender: TObject);
+    procedure btn_newCfgClick(Sender: TObject);
     procedure FormDestroy(Sender: TObject);
     procedure Button7Click(Sender: TObject);
-    procedure ReloadListClick(Sender: TObject);
+    procedure btn_ReloadListClick(Sender: TObject);
     procedure Button5Click(Sender: TObject);
-    procedure Button4Click(Sender: TObject);
-    procedure Button6Click(Sender: TObject);
-    procedure Button11Click(Sender: TObject);
+    procedure btn_jobStartClick(Sender: TObject);
+    procedure btn_jobStopClick(Sender: TObject);
     procedure Button14Click(Sender: TObject);
     procedure Button15Click(Sender: TObject);
     procedure N2Click(Sender: TObject);
+    procedure N4Click(Sender: TObject);
+    procedure N5Click(Sender: TObject);
+    procedure N6Click(Sender: TObject);
+    procedure PopupMenu1Popup(Sender: TObject);
   private
     menuActions:TobjectList;
     procedure InitPluginsMenus;
@@ -70,7 +74,7 @@ uses
 
 {$R *.dfm}
 
-procedure TForm1.Button11Click(Sender: TObject);
+procedure TForm1.btn_jobStopClick(Sender: TObject);
 var
   ItemIdx:Integer;
   tlsObj:TLogSource;
@@ -92,7 +96,7 @@ begin
   begin
     ItemIdx := StrToInt(ListView1.Selected.Caption) - 1;
     tlsObj := LogSourceList.Get(ItemIdx);
-    Memo1.Text := tlsObj.CompareDict;
+    MMO_LOG.Lines.Add(tlsObj.CompareDict);
   end;
 end;
 
@@ -113,11 +117,11 @@ begin
       if tlsObj.Fdbc.dict.tables[i].Owner<>'sys' then
         tmpStr:= tmpStr +',['+inttostr(tlsObj.Fdbc.dict.tables[i].TableId)+']'+tlsObj.Fdbc.dict.tables[i].TableNmae;
     end;
-    Memo1.Lines.Add(tmpStr);
+    MMO_LOG.Lines.Add(tmpStr);
   end;
 end;
 
-procedure TForm1.Button3Click(Sender: TObject);
+procedure TForm1.btn_newCfgClick(Sender: TObject);
 var
   savePath:string;
   logsource:TLogSource;
@@ -146,7 +150,7 @@ begin
   end;
 end;
 
-procedure TForm1.Button4Click(Sender: TObject);
+procedure TForm1.btn_jobStartClick(Sender: TObject);
 procedure setLsn(tlsObj:TLogSource);
 var
   TmpLst :TStringList;
@@ -189,36 +193,13 @@ end;
 
 procedure msgOut(aMsg: string; level: Integer);
 begin
-  Form1.Memo1.Lines.add(FormatDateTime('yyyy-MM-dd HH:mm:ss', Now) + ' - ' + IntToStr(level) + ' >>' + aMsg);
+  Form1.mmo_log.Lines.add(FormatDateTime('yyyy-MM-dd HH:mm:ss', Now) + ' - ' + IntToStr(level) + ' >>' + aMsg);
 end;
 
 procedure TForm1.Button5Click(Sender: TObject);
 begin
   loger.registerCallBack(msgOut);
   loger.Add('=================loger callback======================');
-end;
-
-procedure TForm1.Button6Click(Sender: TObject);
-var
-  ItemIdx:Integer;
-  tlsObj:TLogSource;
-  LSN: Tlog_LSN;
-  OutBuffer: TMemory_data;
-begin
-  if ListView1.Selected <> nil then
-  begin
-    ItemIdx := StrToInt(ListView1.Selected.Caption) - 1;
-    tlsObj := LogSourceList.Get(ItemIdx);
-    LSN.LSN_1 := $200;
-    LSN.LSN_2 := $478;
-    LSN.LSN_3 := 1;
-
-    if tlsObj.GetRawLogByLSN(LSN, OutBuffer) and (OutBuffer.dataSize > 0) then
-    begin
-      ShowMessage(bytestostr(OutBuffer.data,OutBuffer.dataSize));
-      FreeMem(OutBuffer.data);
-    end;
-  end;
 end;
 
 procedure TForm1.Button7Click(Sender: TObject);
@@ -338,6 +319,28 @@ begin
   application.Terminate;
 end;
 
+procedure TForm1.N4Click(Sender: TObject);
+begin
+  btn_newCfg.Click;
+end;
+
+procedure TForm1.N5Click(Sender: TObject);
+begin
+  btn_ReloadList.Click;
+end;
+
+procedure TForm1.N6Click(Sender: TObject);
+begin
+  if N6.Caption = '开始' then
+  begin
+    btn_jobStart.Click;
+  end
+  else
+  begin
+    btn_jobStop.Click;
+  end;
+end;
+
 procedure TForm1.PluginMenuItemClick(Sender: TObject);
 var
   aitem:TPluginMenuActionItem;
@@ -356,7 +359,28 @@ begin
   end;
 end;
 
-procedure TForm1.ReloadListClick(Sender: TObject);
+procedure TForm1.PopupMenu1Popup(Sender: TObject);
+var
+  tlsObj : TLogSource;
+  ItemIdx:Integer;
+begin
+  if ListView1.Selected <> nil then
+  begin
+    ItemIdx := StrToInt(ListView1.Selected.Caption) - 1;
+    tlsObj := LogSourceList.Get(ItemIdx);
+    if tlsObj.status = tLS_running then
+    begin
+      N6.Caption := '停止';
+    end else begin
+      N6.Caption := '开始';
+    end;
+    N6.Enabled := True;
+  end else begin
+    N6.Enabled := False;
+  end;
+end;
+
+procedure TForm1.btn_ReloadListClick(Sender: TObject);
 var
   savePath:string;
   lst:TStringList;
@@ -368,7 +392,7 @@ begin
   lst := searchAllFileAdv(savePath);
   for I := 0 to lst.Count - 1 do
   begin
-    Mom_ExistsCfg.Lines.Add(lst[I]);
+    MMO_LOG.Lines.Add(lst[I]);
     Tmplogsource := TLogSource.Create;
     if Tmplogsource.loadFromFile(lst[I]) then
     begin

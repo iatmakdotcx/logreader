@@ -15,9 +15,9 @@ type
     Button1: TButton;
     Button2: TButton;
     procedure Button1Click(Sender: TObject);
-    procedure FormCreate(Sender: TObject);
     procedure CheckBox1Click(Sender: TObject);
     procedure Button2Click(Sender: TObject);
+    procedure FormShow(Sender: TObject);
   private
     { Private declarations }
   public
@@ -72,7 +72,7 @@ begin
   end;
 end;
 
-procedure Tfrm_cfg.FormCreate(Sender: TObject);
+procedure Tfrm_cfg.FormShow(Sender: TObject);
 begin
   CheckBox1.Checked := TransEnable[source.dbID];
   CheckBox1Click(nil);

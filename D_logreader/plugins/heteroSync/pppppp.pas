@@ -60,7 +60,7 @@ type
     destructor Destroy; override;
     function find(Host:string;dbName:string):TImplsItem;
     procedure save;
-    procedure load;
+    procedure load(afile:string='');
     function Add(vvv:TImplsItem):Integer;
     function Count: Integer;
   end;
@@ -82,7 +82,7 @@ var
 implementation
 
 uses
-  System.SysUtils, Xml.XMLIntf, Xml.XMLDoc, loglog, Des;
+  System.SysUtils, Xml.XMLIntf, Xml.XMLDoc, loglog, Des, System.Variants;
 
 
 function TImplsItem.Add(vvv: TableOptDefItem): Integer;
@@ -191,16 +191,25 @@ begin
     for I := 0 to ItemsNode.ChildNodes.Count-1 do
     begin
       RowNode := ItemsNode.ChildNodes[i];
-      if (RowNode<>nil) and (RowNode.NodeName='row') and (RowNode.HasAttribute('name')) then
+      if (RowNode <> nil) and (RowNode.NodeName = 'row') and (RowNode.HasAttribute('name')) then
       begin
         tod := TableOptDefItem.Create;
         tod.ObjName := RowNode.Attributes['name'];
-        tod.Insert := RowNode.ChildValues['Insert'];
-        tod.Delete := RowNode.ChildValues['Delete'];
-        tod.Update := RowNode.ChildValues['Update'];
-        tod.Insert := StringReplace(tod.Insert,#$A,#$D#$A,[rfreplaceAll]);
-        tod.Delete := StringReplace(tod.Delete,#$A,#$D#$A,[rfreplaceAll]);
-        tod.Update := StringReplace(tod.Update,#$A,#$D#$A,[rfreplaceAll]);
+        if not VarIsNull(RowNode.ChildValues['Insert']) then
+        begin
+          tod.Insert := RowNode.ChildValues['Insert'];
+          tod.Insert := StringReplace(tod.Insert, #$A, #$D#$A, [rfreplaceAll]);
+        end;
+        if not VarIsNull(RowNode.ChildValues['Delete']) then
+        begin
+          tod.Delete := RowNode.ChildValues['Delete'];
+          tod.Delete := StringReplace(tod.Delete, #$A, #$D#$A, [rfreplaceAll]);
+        end;
+        if not VarIsNull(RowNode.ChildValues['Update']) then
+        begin
+          tod.Update := RowNode.ChildValues['Update'];
+          tod.Update := StringReplace(tod.Update, #$A, #$D#$A, [rfreplaceAll]);
+        end;
         items.Add(tod);
       end;
     end;
@@ -314,7 +323,7 @@ begin
   end;
 end;
 
-procedure TImplsManger.load;
+procedure TImplsManger.load(afile:string);
 var
   cfgStr:TStringList;
   idxfile:string;
@@ -322,7 +331,10 @@ var
   I: Integer;
   impItem:TImplsItem;
 begin
-  idxfile := CfgPath + inttostr(dbid) + '.idx';
+  if afile='' then
+    idxfile := CfgPath + inttostr(dbid) + '.idx'
+  else
+    idxfile := afile;
   if FileExists(idxfile) then
   begin
     cfgStr := TStringList.Create;
@@ -332,6 +344,7 @@ begin
       user := cfgStr.Values['user'];
       pass := DesDecryStrHex(cfgStr.Values['pass'], DESPASSWORD);
       dbName := cfgStr.Values['dbName'];
+      dbid := StrToIntDef(cfgStr.Values['dbid'], 0);
       CfgCnt := strTointDef(cfgStr.Values['CfgCnt'], 0);
       for I := 0 to CfgCnt - 1 do
       begin
@@ -371,6 +384,7 @@ begin
     cfgStr.Values['user'] := user;
     cfgStr.Values['pass'] := DesEncryStrHex(pass, DESPASSWORD);
     cfgStr.Values['dbName'] := dbName;
+    cfgStr.Values['dbid'] := IntToStr(dbid);
     cfgStr.Values['CfgCnt'] := IntToStr(items.Count);
     for I := 0 to items.Count - 1 do
     begin
@@ -492,7 +506,7 @@ begin
     begin
       items[i] := TImplsManger.Create;
       items[i].CfgPath := CfgPath;
-      items[i].load;
+      items[i].load(fff);
     end;
   end;
 end;

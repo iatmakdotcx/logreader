@@ -53,6 +53,7 @@ begin
     try
       frm_mainCfg.implItem := TImplsItem(ListView1.Selected.Data);
       frm_mainCfg.showmodal;
+      RefreshList;
     finally
       frm_mainCfg.free;
     end;

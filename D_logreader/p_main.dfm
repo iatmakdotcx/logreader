@@ -16,22 +16,13 @@ object Form1: TForm1
   OnDestroy = FormDestroy
   PixelsPerInch = 96
   TextHeight = 13
-  object Button3: TButton
-    Left = 375
-    Top = 23
-    Width = 114
-    Height = 34
-    Caption = 'DBConnectionCfg'
-    TabOrder = 0
-    OnClick = Button3Click
-  end
   object GroupBox1: TGroupBox
-    Left = 567
-    Top = 139
-    Width = 176
-    Height = 153
-    Caption = 'Test'
-    TabOrder = 1
+    Left = 448
+    Top = 240
+    Width = 258
+    Height = 93
+    Caption = 'DEBUG'
+    TabOrder = 0
     object Button7: TButton
       Left = 3
       Top = 16
@@ -41,55 +32,48 @@ object Form1: TForm1
       TabOrder = 0
       OnClick = Button7Click
     end
+    object Button14: TButton
+      Left = 3
+      Top = 47
+      Width = 114
+      Height = 39
+      Caption = 'CompareDictFromdb'
+      TabOrder = 1
+      OnClick = Button14Click
+    end
+    object Button15: TButton
+      Left = 125
+      Top = 47
+      Width = 106
+      Height = 39
+      Caption = 'AllTables'
+      TabOrder = 2
+      OnClick = Button15Click
+    end
+    object Button5: TButton
+      Left = 93
+      Top = 16
+      Width = 75
+      Height = 25
+      Caption = 'addLog'
+      TabOrder = 3
+      OnClick = Button5Click
+    end
   end
   object GroupBox2: TGroupBox
-    Left = 8
-    Top = 23
-    Width = 361
-    Height = 338
-    Caption = #21152#36733#24050#23384#22312
-    TabOrder = 2
-    object Button1: TButton
-      Left = 15
-      Top = 18
-      Width = 122
-      Height = 47
-      Caption = #24320#22987#25235#26085#24535
-      TabOrder = 0
-    end
-    object Button2: TButton
-      Left = 143
-      Top = 18
-      Width = 122
-      Height = 47
-      Caption = #20572#27490#35299#26512#26085#24535
-      TabOrder = 1
-    end
-    object Mom_ExistsCfg: TMemo
-      Left = 15
-      Top = 71
-      Width = 330
-      Height = 89
-      Lines.Strings = (
-        'Mom_ExistsCfg')
-      ScrollBars = ssBoth
-      TabOrder = 2
-      WordWrap = False
-    end
-    object ReloadList: TButton
-      Left = 15
-      Top = 165
-      Width = 58
-      Height = 17
-      Caption = 'ReloadList'
-      TabOrder = 3
-      OnClick = ReloadListClick
-    end
+    Left = 0
+    Top = 0
+    Width = 770
+    Height = 234
+    Align = alTop
+    Caption = #37197#32622#21015#34920
+    TabOrder = 1
     object ListView1: TListView
-      Left = 3
-      Top = 188
-      Width = 355
-      Height = 115
+      Left = 2
+      Top = 56
+      Width = 766
+      Height = 176
+      Align = alClient
       Columns = <
         item
           Caption = 'id'
@@ -104,99 +88,88 @@ object Form1: TForm1
         end
         item
           Caption = 'status'
-          Width = 20
         end>
       ReadOnly = True
       RowSelect = True
+      PopupMenu = PopupMenu1
       SmallImages = ImageList1
-      TabOrder = 4
+      TabOrder = 0
       ViewStyle = vsReport
+      ExplicitLeft = 1
+      ExplicitTop = 55
     end
-    object Button4: TButton
-      Left = 3
-      Top = 308
-      Width = 75
-      Height = 25
-      Caption = 'start'
-      TabOrder = 5
-      OnClick = Button4Click
-    end
-    object Button6: TButton
-      Left = 194
-      Top = 308
-      Width = 63
-      Height = 20
-      Caption = 'GetlsnData'
-      TabOrder = 6
-      OnClick = Button6Click
-    end
-    object Button11: TButton
-      Left = 84
-      Top = 308
-      Width = 75
-      Height = 25
-      Caption = 'stop'
-      TabOrder = 7
-      OnClick = Button11Click
+    object Panel1: TPanel
+      Left = 2
+      Top = 15
+      Width = 766
+      Height = 41
+      Align = alTop
+      BevelOuter = bvNone
+      TabOrder = 1
+      ExplicitLeft = 304
+      ExplicitTop = 3
+      ExplicitWidth = 185
+      object btn_newCfg: TButton
+        Left = 103
+        Top = 9
+        Width = 94
+        Height = 32
+        Caption = 'DBConnectionCfg'
+        TabOrder = 0
+        OnClick = btn_newCfgClick
+      end
+      object btn_ReloadList: TButton
+        Left = 3
+        Top = 9
+        Width = 94
+        Height = 32
+        Caption = 'btn_ReloadList'
+        TabOrder = 1
+        OnClick = btn_ReloadListClick
+      end
+      object btn_jobStop: TButton
+        Left = 324
+        Top = 16
+        Width = 75
+        Height = 25
+        Caption = 'stop'
+        TabOrder = 2
+        OnClick = btn_jobStopClick
+      end
+      object btn_jobStart: TButton
+        Left = 243
+        Top = 16
+        Width = 75
+        Height = 25
+        Caption = 'start'
+        TabOrder = 3
+        OnClick = btn_jobStartClick
+      end
+      object Edit1: TEdit
+        Left = 461
+        Top = 11
+        Width = 153
+        Height = 21
+        TabOrder = 4
+        Text = '0000003f:00000038:0001'
+      end
     end
   end
-  object Button5: TButton
-    Left = 375
-    Top = 267
-    Width = 75
-    Height = 25
-    Caption = 'addLog'
-    TabOrder = 3
-    OnClick = Button5Click
-  end
-  object Memo1: TMemo
-    Left = 8
-    Top = 395
-    Width = 735
-    Height = 150
+  object MMO_LOG: TMemo
+    Left = 0
+    Top = 339
+    Width = 770
+    Height = 230
+    Align = alBottom
     Lines.Strings = (
       'Memo1')
-    TabOrder = 4
-  end
-  object Button14: TButton
-    Left = 375
-    Top = 298
-    Width = 114
-    Height = 39
-    Caption = 'CompareDictFromdb'
-    TabOrder = 5
-    OnClick = Button14Click
-  end
-  object Edit1: TEdit
-    Left = 16
-    Top = 368
-    Width = 281
-    Height = 21
-    TabOrder = 6
-    Text = '0000003f:00000038:0001'
-  end
-  object Button15: TButton
-    Left = 495
-    Top = 298
-    Width = 106
-    Height = 39
-    Caption = 'AllTables'
-    TabOrder = 7
-    OnClick = Button15Click
-  end
-  object Button16: TButton
-    Left = 384
-    Top = 360
-    Width = 75
-    Height = 25
-    Caption = 'Button16'
-    TabOrder = 8
+    TabOrder = 2
   end
   object ImageList1: TImageList
     Left = 400
     Top = 224
     Bitmap = {
-      494C01010B0018009C0010001000FFFFFFFFFF10FFFFFFFFFFFFFFFF424D3600
+      494C01010B001800A00010001000FFFFFFFFFF10FFFFFFFFFFFFFFFF424D3600
       0000000000003600000028000000400000003000000001002000000000000030
       000000000000000000000000000000000000FFFFFF00FFFFFF00F6821000F580
       0C00F4851600F67B0000F37B0500FFFFFF00FFFFFF00F47C0500F57A0000F284
@@ -604,10 +577,30 @@ object Form1: TForm1
     Top = 40
     object N1: TMenuItem
       Caption = #31243#24207
+      object N4: TMenuItem
+        Caption = #26032#22686#36830#25509
+        OnClick = N4Click
+      end
+      object N5: TMenuItem
+        Caption = #21047#26032#37197#32622
+        OnClick = N5Click
+      end
+      object N3: TMenuItem
+        Caption = '-'
+      end
       object N2: TMenuItem
         Caption = #36864#20986
         OnClick = N2Click
       end
+    end
+  end
+  object PopupMenu1: TPopupMenu
+    OnPopup = PopupMenu1Popup
+    Left = 304
+    Top = 152
+    object N6: TMenuItem
+      Caption = #24320#22987
+      OnClick = N6Click
     end
   end
 end
