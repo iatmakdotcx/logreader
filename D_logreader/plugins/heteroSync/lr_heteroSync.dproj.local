@@ -1,12 +1,12 @@
 ﻿<?xml version="1.0" encoding="utf-8"?>
 <BorlandProject>
 	<Transactions>
-    <Transaction>1899-12-30 00:00:00.000.767,H:\Java\workspace\logreaderV2.0\D_logreader\plugins\heteroSync\heteroSync.dproj=C:\Users\Chin\Documents\Embarcadero\Studio\Projects\Project1.dproj</Transaction>
-    <Transaction>1899-12-30 00:00:00.000.056,H:\Java\workspace\logreaderV2.0\D_logreader\plugins\heteroSync\heteroSync.dproj=H:\Java\workspace\logreaderV2.0\D_logreader\plugins\heteroSync\lr_heteroSync.dproj</Transaction>
-    <Transaction>1899-12-30 00:00:00.000.081,H:\Java\workspace\logreaderV2.0\D_logreader\plugins\heteroSync\p_impl.dfm=H:\Java\workspace\logreaderV2.0\D_logreader\plugins\heteroSync\Unit3.dfm</Transaction>
-    <Transaction>1899-12-30 00:00:00.000.029,H:\Java\workspace\logreaderV2.0\D_logreader\plugins\heteroSync\Unit3.dfm=H:\Java\workspace\logreaderV2.0\D_logreader\plugins\heteroSync\p_main.dfm</Transaction>
     <Transaction>1899-12-30 00:00:00.000.584,H:\Java\workspace\logreaderV2.0\D_logreader\plugins\heteroSync\lr_heteroSync.dproj=H:\Java\workspace\logreaderV2.0\D_logreader\plugins\heteroSync\lr_heteroSync1.dproj</Transaction>
     <Transaction>1899-12-30 00:00:00.000.517,H:\Java\workspace\logreaderV2.0\D_logreader\plugins\heteroSync\lr_heteroSync1.dproj=H:\Java\workspace\logreaderV2.0\D_logreader\plugins\heteroSync\lr_heteroSync.dproj</Transaction>
-    <Transaction>2018-08-18 17:51:37.049,H:\Java\workspace\logreaderV2.0\D_logreader\plugins\heteroSync\p_mainCfg.dfm=H:\Java\workspace\logreaderV2.0\D_logreader\plugins\heteroSync\p_main.dfm</Transaction>
+    <Transaction>1899-12-30 00:00:00.000.081,H:\Java\workspace\logreaderV2.0\D_logreader\plugins\heteroSync\p_impl.dfm=H:\Java\workspace\logreaderV2.0\D_logreader\plugins\heteroSync\Unit3.dfm</Transaction>
+    <Transaction>1899-12-30 00:00:00.000.049,H:\Java\workspace\logreaderV2.0\D_logreader\plugins\heteroSync\p_mainCfg.dfm=H:\Java\workspace\logreaderV2.0\D_logreader\plugins\heteroSync\p_main.dfm</Transaction>
+    <Transaction>1899-12-30 00:00:00.000.029,H:\Java\workspace\logreaderV2.0\D_logreader\plugins\heteroSync\Unit3.dfm=H:\Java\workspace\logreaderV2.0\D_logreader\plugins\heteroSync\p_main.dfm</Transaction>
+    <Transaction>1899-12-30 00:00:00.000.767,H:\Java\workspace\logreaderV2.0\D_logreader\plugins\heteroSync\heteroSync.dproj=C:\Users\Chin\Documents\Embarcadero\Studio\Projects\Project1.dproj</Transaction>
+    <Transaction>1899-12-30 00:00:00.000.056,H:\Java\workspace\logreaderV2.0\D_logreader\plugins\heteroSync\heteroSync.dproj=H:\Java\workspace\logreaderV2.0\D_logreader\plugins\heteroSync\lr_heteroSync.dproj</Transaction>
   </Transactions>
 </BorlandProject>

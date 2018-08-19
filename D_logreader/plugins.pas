@@ -25,6 +25,7 @@ type
     _Lr_PluginUnInit:T_Lr_PluginUnInit;
     _Lr_PluginMenu:T_Lr_PluginMenu;
     _Lr_PluginMenuAction:T_Lr_PluginMenuAction;
+    _Lr_PluginMainGridData:T_Lr_PluginMainGridData;
   end;
 
 type
@@ -198,6 +199,8 @@ begin
         //菜单
         plugins[Result]._Lr_PluginMenu := GetProcAddress(dlHandle, '_Lr_PluginMenu');
         plugins[Result]._Lr_PluginMenuAction := GetProcAddress(dlHandle, '_Lr_PluginMenuAction');
+        //主表格
+        plugins[Result]._Lr_PluginMainGridData := GetProcAddress(dlHandle, '_Lr_PluginMainGridData');
       finally
         pluginMREW.EndWrite;
       end;

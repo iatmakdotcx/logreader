@@ -95,8 +95,6 @@ object Form1: TForm1
       SmallImages = ImageList1
       TabOrder = 0
       ViewStyle = vsReport
-      ExplicitLeft = 1
-      ExplicitTop = 55
     end
     object Panel1: TPanel
       Left = 2
@@ -106,9 +104,6 @@ object Form1: TForm1
       Align = alTop
       BevelOuter = bvNone
       TabOrder = 1
-      ExplicitLeft = 304
-      ExplicitTop = 3
-      ExplicitWidth = 185
       object btn_newCfg: TButton
         Left = 103
         Top = 9
@@ -169,7 +164,7 @@ object Form1: TForm1
     Left = 400
     Top = 224
     Bitmap = {
-      494C01010B001800A00010001000FFFFFFFFFF10FFFFFFFFFFFFFFFF424D3600
+      494C01010B001800A40010001000FFFFFFFFFF10FFFFFFFFFFFFFFFF424D3600
       0000000000003600000028000000400000003000000001002000000000000030
       000000000000000000000000000000000000FFFFFF00FFFFFF00F6821000F580
       0C00F4851600F67B0000F37B0500FFFFFF00FFFFFF00F47C0500F57A0000F284

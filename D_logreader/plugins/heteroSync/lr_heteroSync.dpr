@@ -119,6 +119,15 @@ begin
   end;
 end;
 
+function _Lr_PluginMainGridData(source:Pplg_source; Xml: PChar): integer; stdcall;
+var
+  dd:string;
+begin
+  dd := PChar('<root><item caption="Òì¹¹Í¬²½">'+inttostr(Random(10000))+'</item></root>');
+  StrCopy(Xml, PChar(dd));
+  Result := STATUS_SUCCESS;
+end;
+
 exports
   _Lr_PluginInfo,
   _Lr_PluginInit,
@@ -126,7 +135,8 @@ exports
   _Lr_PluginGetErrMsg,
   _Lr_PluginRegXML,
   _Lr_PluginMenuAction,
-  _Lr_PluginMenu;
+  _Lr_PluginMenu,
+  _Lr_PluginMainGridData;
 
 {$R *.res}
 

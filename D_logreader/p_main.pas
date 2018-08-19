@@ -58,6 +58,7 @@ type
     procedure InitPluginsMenus;
     procedure CreatePluginsMenus(items: TMenuItem; node: IXMLNode;PluginItem:TPluginItem);
     procedure PluginMenuItemClick(Sender: TObject);
+    procedure ListViewRefresh;
     { Private declarations }
   public
     { Public declarations }
@@ -415,18 +416,81 @@ begin
     end;
   end;
   lst.Free;
+  ListViewRefresh;
+end;
+
+procedure TForm1.ListViewRefresh;
+var
+  I,J,K,L: Integer;
+  Tmplogsource : TLogSource;
+  pi:TPluginItem;
+  tmpAAStr:PChar;
+  Xml:IXMLDocument;
+  Rootnode:IXMLNode;
+  grid_caption:string;
+  grid_Value:string;
+  Col:TListColumn;
+  lv_row:TListItem;
+begin
   ListView1.clear;
   for I := 0 to LogSourceList.Count - 1 do
   begin
     Tmplogsource := LogSourceList.Get(i);
-    with ListView1.Items.Add do
+    lv_row := ListView1.Items.Add;
+
+    lv_row.ImageIndex := ord(Tmplogsource.status);
+    Caption := IntToStr(i + 1);
+    lv_row.SubItems.Add(Tmplogsource.Fdbc.Host);
+    lv_row.SubItems.Add(Tmplogsource.Fdbc.dbName);
+    lv_row.SubItems.Add(IntToStr(ord(Tmplogsource.status)));
+
+    for J:= 0 to PluginsMgr.Count-1 do
     begin
-      ImageIndex := ord(Tmplogsource.status);
-      Caption := IntToStr(i + 1);
-      SubItems.Add(Tmplogsource.Fdbc.Host);
-      SubItems.Add(Tmplogsource.Fdbc.dbName);
-      SubItems.Add(IntToStr(ord(Tmplogsource.status)));
+      pi := TPluginItem(PluginsMgr[J]);
+      if Assigned(pi._Lr_PluginMainGridData) then
+      begin
+        tmpAAStr := GetMemory($1000);
+        if pi._Lr_PluginMainGridData(Tmplogsource.Fdbc.GetPlgSrc, tmpAAStr) = 0 then
+        begin
+          Xml := TXMLDocument.Create(nil);
+          Xml.LoadFromXML(tmpAAStr);
+          Rootnode := Xml.DocumentElement;
+          for K := 0 to Rootnode.ChildNodes.Count-1 do
+          begin
+            if Rootnode.ChildNodes[K].HasAttribute('caption') then
+            begin
+              grid_caption := Rootnode.ChildNodes[K].Attributes['caption'];
+              if VarIsNull(Rootnode.ChildNodes[K].Text) then
+                grid_Value := ''
+              else
+                grid_Value := Rootnode.ChildNodes[K].Text;
+              Col := nil;
+              for L := 0 to ListView1.Columns.Count-1 do
+              begin
+                if ListView1.Column[L].Caption=grid_caption then
+                begin
+                  Col :=ListView1.Column[L];
+                  Break;
+                end;
+              end;
+              if Col = nil then
+              begin
+                Col := ListView1.Columns.Add;
+                Col.Caption := grid_caption;
+              end;
+              while lv_row.SubItems.Count <= Col.Index do
+              begin
+                lv_row.SubItems.Add('');
+              end;
+              lv_row.SubItems[Col.Index-1] := grid_Value;
+              Break;
+            end;
+          end;
+        end;
+        FreeMem(tmpAAStr);
+      end;
     end;
+
   end;
 end;
 

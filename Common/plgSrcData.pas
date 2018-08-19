@@ -45,6 +45,8 @@ type
   T_Lr_PluginMenu = function(var Xml: PChar): integer; stdcall;
   T_Lr_PluginMenuAction = procedure(source:Pplg_source; actionId: PChar); stdcall;
 
+  T_Lr_PluginMainGridData = function(source:Pplg_source; Xml: PChar): integer; stdcall;
+
 implementation
 
 end.
