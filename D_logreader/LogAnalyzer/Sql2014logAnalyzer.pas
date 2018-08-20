@@ -109,9 +109,11 @@ type
     function GenXML: string;
     function DML_BuilderXML(aRowData: Tsql2014Opt): string;
     function DML_BuilderXML_SafeStr(aVal:string): string;
+    function DML_BuilderXML_SafeNodeName(aVal:string): string;
     function DML_BuilderXML_Insert(aRowData: Tsql2014Opt): string;
     function DML_BuilderXML_Update(aRowData: Tsql2014Opt): string;
     function DML_BuilderXML_Delete(aRowData: Tsql2014Opt): string;
+    function DML_BuilderXML_Update2(aRowData: Tsql2014Opt): string;
     function Read_LCX_TEXT_MIX_DATA(tPkg: TTransPkgItem; BinReader: TbinDataReader): TBytes;
     procedure PriseDDLPkg(DataRow: Tsql2014Opt);
     procedure PriseDDLPkg_sysrscols(DataRow: Tsql2014Opt);
@@ -169,7 +171,7 @@ implementation
 
 uses
   loglog, plugins, OpCode, hexValUtils, contextCode, dbFieldTypes,
-  Memory_Common, sqlextendedprocHelper, Windows;
+  Memory_Common, sqlextendedprocHelper, Windows, Xml.XMLIntf,Xml.XMLDoc;
 
 type
   TRawElement = packed record
@@ -652,6 +654,34 @@ begin
   end;
 end;
 
+function TSql2014logAnalyzer.DML_BuilderXML_SafeNodeName(aVal: string): string;
+var
+  dstmpStr:string;
+  I: Integer;
+  wcc:Word;
+begin
+  dstmpStr := '';
+  for I := 1 to Length(aVal) do
+  begin
+    wcc := Word(aVal[I]);
+    if (wcc >= 48) and (wcc <= 57) then
+    begin
+      if I = 1 then
+        dstmpStr := '_';
+      dstmpStr := dstmpStr + aVal[I];
+    end
+    else if ((wcc >= 65) and (wcc <= 90)) or ((wcc >= 97) and (wcc <= 122)) or (wcc = 95) or (wcc > 255) then
+    begin
+      dstmpStr := dstmpStr + aVal[I];
+    end
+    else
+    begin
+      dstmpStr := dstmpStr + '_';
+    end;
+  end;
+  Result := dstmpStr;
+end;
+
 function TSql2014logAnalyzer.DML_BuilderXML_SafeStr(aVal: string): string;
 begin
   if aVal <> '' then
@@ -732,6 +762,106 @@ begin
 end;
 
 function TSql2014logAnalyzer.DML_BuilderXML_Update(aRowData: Tsql2014Opt): string;
+  function checkXmlNodeExists(node: IXMLNode; nodeName: string): Boolean;
+  var
+    I: Integer;
+  begin
+    Result := False;
+    for I := 0 to node.ChildNodes.Count - 1 do
+    begin
+      if node.ChildNodes[I].nodeName = nodeName then
+      begin
+        Result := True;
+        Break;
+      end;
+    end;
+  end;
+  function getDataTypeStr(field: TdbFieldItem): string;
+  begin
+    //TODO:数据类型
+    Result := '';
+  end;
+var
+  StrVal: string;
+  I,J,L: Integer;
+  isUniClustered:Boolean;
+  raw_old,raw_new: PdbFieldValue;
+
+  field: TdbFieldItem;
+  xml:IXMLDocument;
+  rootNode,fieldNode,TmpNode:IXMLNode;
+  nodeName:string;
+begin
+  xml := TXMLDocument.Create(nil);
+  xml.Active := True;
+  rootNode := xml.AddChild('opt');
+  rootNode.Attributes['type'] := 'update';
+  rootNode.Attributes['table'] := aRowData.Table.getFullName;
+  if (aRowData.new_data <> nil) and (aRowData.old_data <> nil) then
+  begin
+
+    for I := 0 to aRowData.Table.Fields.Count - 1 do
+    begin
+      raw_old := aRowData.old_data.getField(aRowData.Table.Fields[i].Col_id);
+      raw_new := aRowData.new_data.getField(aRowData.Table.Fields[i].Col_id);
+
+      nodeName := DML_BuilderXML_SafeNodeName(aRowData.Table.Fields[i].ColName);
+      if nodeName = '' then
+        nodeName := '_';
+      if checkXmlNodeExists(rootNode, nodeName) then
+      begin
+        for L := 0 to 10000 do
+        begin
+          if not checkXmlNodeExists(rootNode, nodeName + '_' + inttostr(L)) then
+          begin
+            nodeName := nodeName + '_' + inttostr(L);
+            Break;
+          end;
+        end;
+      end;
+      fieldNode := rootNode.AddChild(nodeName);
+      fieldNode.Attributes['dtype'] := getDataTypeStr(aRowData.Table.Fields[i]);
+      for J := 0 to aRowData.Table.UniqueClusteredKeys.Count-1 do
+      begin
+        if TdbFieldItem(aRowData.Table.UniqueClusteredKeys[j]).Col_id = aRowData.Table.Fields[i].Col_id then
+        begin
+          fieldNode.Attributes['iskey'] := '1';
+          Break;
+        end;
+      end;
+      TmpNode := fieldNode.AddChild('old');
+      if raw_old = nil then
+      begin
+        TmpNode.Attributes['null']:= '1';
+      end else begin
+        StrVal := Hvu_GetFieldStrValue(raw_old.field, raw_old.value);
+        if StrVal='NULL' then
+        begin
+          TmpNode.Attributes['null']:= '1';
+        end else begin
+          TmpNode.Text := StrVal;
+        end;
+      end;
+
+      TmpNode := fieldNode.AddChild('new');
+      if raw_new = nil then
+      begin
+        TmpNode.Attributes['null']:= '1';
+      end else begin
+        StrVal := Hvu_GetFieldStrValue(raw_new.field, raw_new.value);
+        if StrVal='NULL' then
+        begin
+          TmpNode.Attributes['null']:= '1';
+        end else begin
+          TmpNode.Text := StrVal;
+        end;
+      end;
+    end;
+  end;
+  Result := xml.XML.Text;
+end;
+
+function TSql2014logAnalyzer.DML_BuilderXML_Update2(aRowData: Tsql2014Opt): string;
 var
   StrVal: string;
   I,J: Integer;
@@ -900,6 +1030,7 @@ begin
   Result := Result + '</key>';
   Result := Result + '</opt>';
 end;
+
 
 function TSql2014logAnalyzer.DML_BuilderSql_Insert(aRowData: Tsql2014Opt): string;
 var

@@ -98,16 +98,19 @@ begin
     if (rowNode.NodeName = 'row') and rowNode.HasAttribute('type') and (rowNode.Attributes['type'] = 'dml') then
     begin
       OPT := rowNode.ChildNodes['opt'];
-      optType := OPT.Attributes['type'];
-      tableName := OPT.Attributes['table'];
-
-      dataN := OPT.ChildNodes['data'];
-      if not VarIsNull(dataN) then
+      if OPT.HasAttribute('type') then
       begin
-        for J := 0 to ImplsManger.items.Count-1 do
+        optType := OPT.Attributes['type'];
+        tableName := OPT.Attributes['table'];
+
+        dataN := OPT.ChildNodes['data'];
+        if not VarIsNull(dataN) then
         begin
-          impi := TImplsItem(ImplsManger.items[i]);
-          impi.RunSql(tableName, optType, dataN);
+          for J := 0 to ImplsManger.items.Count-1 do
+          begin
+            impi := TImplsItem(ImplsManger.items[i]);
+            impi.RunSql(tableName, optType, dataN);
+          end;
         end;
       end;
     end;
