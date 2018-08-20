@@ -24,13 +24,13 @@ type
   end;
 
 type
-  T_Lr_PluginInfo = function(var shortname: PChar): integer; stdcall;
+  T_Lr_PluginInfo = function(shortname: PChar): integer; stdcall;
 
   T_Lr_PluginInit = function(engineVersion: Integer): integer; stdcall;
 
   T_Lr_PluginUnInit = function(): integer; stdcall;
 
-  T_Lr_PluginGetErrMsg = function(StatusCode: Cardinal): PChar; stdcall;
+  T_Lr_PluginGetErrMsg = function(StatusCode: Cardinal;eMsg:PChar): integer; stdcall;
 
   //T_Lr_PluginRegLogRowRead = function(source:Pplg_source; lsn: Plog_LSN; Raw: PMemory_data): integer; stdcall;
   T_Lr_PluginRegLogRowRead = function(source:Pplg_source; lsn: Pointer; Raw: Pointer): integer; stdcall;
@@ -42,7 +42,7 @@ type
 
   T_Lr_PluginRegXML = function(source:Pplg_source; Xml: PChar): integer; stdcall;
 
-  T_Lr_PluginMenu = function(var Xml: PChar): integer; stdcall;
+  T_Lr_PluginMenu = function(Xml: PChar): integer; stdcall;
   T_Lr_PluginMenuAction = procedure(source:Pplg_source; actionId: PChar); stdcall;
 
   T_Lr_PluginMainGridData = function(source:Pplg_source; Xml: PChar): integer; stdcall;

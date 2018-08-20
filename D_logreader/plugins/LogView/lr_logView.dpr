@@ -32,9 +32,9 @@ const
 /// </summary>
 /// <param name="shortname">输出插件名称</param>
 /// <returns>当前插件版本</returns>
-function _Lr_PluginInfo(var shortname: PChar): integer; stdcall;
+function _Lr_PluginInfo(shortname: PChar): integer; stdcall;
 begin
-  shortname := 'lr_logView';
+  StrCopy(shortname, 'lr_logView');
   Result := CurrentPluginVersion;
 end;
 
@@ -64,18 +64,20 @@ end;
 /// <summary>
 /// 获取插件中单独定义的错误
 /// </summary>
-/// <param name="engineVersion">状态标识</param>
-/// <returns>状态标识的描述信息</returns>
-function _Lr_PluginGetErrMsg(StatusCode: Cardinal): PChar; stdcall;
+/// <param name="StatusCode">状态标识</param>
+/// <param name="eMsg">状态标识的描述信息</param>
+/// <returns></returns>
+function _Lr_PluginGetErrMsg(StatusCode: Cardinal; eMsg:PChar ): integer; stdcall;
 begin
   if StatusCode = STATUS_SUCCESS then
   begin
-    Result := '成功'
+    StrCopy(eMsg, '成功');
   end
   else
   begin
-    Result := '未定义的错误！！'
+    StrCopy(eMsg, '未定义的错误！！');
   end;
+  Result := STATUS_SUCCESS;
 end;
 
 /// <summary>

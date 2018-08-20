@@ -283,6 +283,7 @@ begin
   begin
     if Assigned(PluginsMgr.Items[i]._Lr_PluginMenu) then
     begin
+      menuXml := GetMemory($1000);
       resV := PluginsMgr.Items[i]._Lr_PluginMenu(menuXml);
       if not Succeeded(resV) then
       begin
@@ -299,6 +300,7 @@ begin
           end;
         end;
       end;
+      FreeMem(menuXml);
     end;
   end;
 end;
@@ -431,6 +433,7 @@ var
   grid_Value:string;
   Col:TListColumn;
   lv_row:TListItem;
+  tmpS:string;
 begin
   ListView1.clear;
   for I := 0 to LogSourceList.Count - 1 do
@@ -439,7 +442,7 @@ begin
     lv_row := ListView1.Items.Add;
 
     lv_row.ImageIndex := ord(Tmplogsource.status);
-    Caption := IntToStr(i + 1);
+    lv_row.Caption := IntToStr(i + 1);
     lv_row.SubItems.Add(Tmplogsource.Fdbc.Host);
     lv_row.SubItems.Add(Tmplogsource.Fdbc.dbName);
     lv_row.SubItems.Add(IntToStr(ord(Tmplogsource.status)));
@@ -450,14 +453,14 @@ begin
       if Assigned(pi._Lr_PluginMainGridData) then
       begin
         tmpAAStr := GetMemory($1000);
-        if pi._Lr_PluginMainGridData(Tmplogsource.Fdbc.GetPlgSrc, tmpAAStr) = 0 then
+        if (pi._Lr_PluginMainGridData(Tmplogsource.Fdbc.GetPlgSrc, tmpAAStr) = 0) and (tmpAAStr<>'') then
         begin
           Xml := TXMLDocument.Create(nil);
           Xml.LoadFromXML(tmpAAStr);
           Rootnode := Xml.DocumentElement;
           for K := 0 to Rootnode.ChildNodes.Count-1 do
           begin
-            if Rootnode.ChildNodes[K].HasAttribute('caption') then
+            if (Rootnode.ChildNodes[K].NodeName='item') and Rootnode.ChildNodes[K].HasAttribute('caption') then
             begin
               grid_caption := Rootnode.ChildNodes[K].Attributes['caption'];
               if VarIsNull(Rootnode.ChildNodes[K].Text) then
@@ -469,7 +472,7 @@ begin
               begin
                 if ListView1.Column[L].Caption=grid_caption then
                 begin
-                  Col :=ListView1.Column[L];
+                  Col := ListView1.Column[L];
                   Break;
                 end;
               end;
@@ -477,6 +480,20 @@ begin
               begin
                 Col := ListView1.Columns.Add;
                 Col.Caption := grid_caption;
+                if Rootnode.ChildNodes[K].HasAttribute('width') then
+                  Col.Width := StrToIntDef(Rootnode.ChildNodes[K].Attributes['width'], 60);
+                if Rootnode.ChildNodes[K].HasAttribute('align') then
+                begin
+                  tmpS := Rootnode.ChildNodes[K].Attributes['align'];
+                  if tmpS = 'center' then
+                  begin
+                    Col.Alignment := taCenter;
+                  end
+                  else if tmpS = 'right' then
+                  begin
+                    Col.Alignment := taRightJustify;
+                  end;
+                end;
               end;
               while lv_row.SubItems.Count <= Col.Index do
               begin
@@ -490,7 +507,6 @@ begin
         FreeMem(tmpAAStr);
       end;
     end;
-
   end;
 end;
 

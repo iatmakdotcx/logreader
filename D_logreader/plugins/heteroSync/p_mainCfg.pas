@@ -72,6 +72,10 @@ begin
     Ddd.Insert := Memo_Insert.Text;
     Ddd.Delete := Memo_Delete.Text;
     Ddd.Update := Memo_Update.Text;
+    if (Ddd.Insert = '') and (Ddd.Delete = '') and (Ddd.Update = '') then
+    begin
+      implItem.Remove(SeltnlName);
+    end;
     implItem.save;
     ShowMessage('ok');
   end;

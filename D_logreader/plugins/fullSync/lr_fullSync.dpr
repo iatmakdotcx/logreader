@@ -33,9 +33,9 @@ const
 /// </summary>
 /// <param name="shortname">输出插件名称</param>
 /// <returns>当前插件版本</returns>
-function _Lr_PluginInfo(var shortname: PChar): integer; stdcall;
+function _Lr_PluginInfo(shortname: PChar): integer; stdcall;
 begin
-  shortname := 'lr_fullSync';
+  StrCopy(shortname, 'lr_fullSync');
   Result := CurrentPluginVersion;
 end;
 
@@ -61,18 +61,20 @@ end;
 /// <summary>
 /// 获取插件中单独定义的错误
 /// </summary>
-/// <param name="engineVersion">状态标识</param>
-/// <returns>状态标识的描述信息</returns>
-function _Lr_PluginGetErrMsg(StatusCode: Cardinal): PChar; stdcall;
+/// <param name="StatusCode">状态标识</param>
+/// <param name="eMsg">状态标识的描述信息</param>
+/// <returns></returns>
+function _Lr_PluginGetErrMsg(StatusCode: Cardinal; eMsg:PChar ): integer; stdcall;
 begin
   if StatusCode = STATUS_SUCCESS then
   begin
-    Result := '成功'
+    StrCopy(eMsg, '成功');
   end
   else
   begin
-    Result := '未定义的错误！！'
+    StrCopy(eMsg, '未定义的错误！！');
   end;
+  Result := STATUS_SUCCESS;
 end;
 
 /// <summary>
@@ -86,9 +88,9 @@ begin
   Result := STATUS_SUCCESS;
 end;
 
-function _Lr_PluginMenu(var Xml: PChar): integer; stdcall;
+function _Lr_PluginMenu(Xml: PChar): integer; stdcall;
 begin
-  Xml := '<root><item caption="插件"><item caption="全库同步"><item caption="数据库设置" actionid="1"></item></item></item></root>';
+  StrCopy(Xml, '<root><item caption="插件"><item caption="全库同步"><item caption="数据库设置" actionid="1"></item></item></item></root>');
   Result := STATUS_SUCCESS;
 end;
 
@@ -103,6 +105,20 @@ begin
   end;
 end;
 
+function _Lr_PluginMainGridData(source:Pplg_source; Xml: PChar): integer; stdcall;
+var
+  dd:string;
+begin
+  if TransEnable[source.dbid] then
+  begin
+    dd := PChar('<root><item caption="整库同步">√</item></root>');
+  end else begin
+    dd := PChar('');
+  end;
+  StrCopy(Xml, PChar(dd));
+  Result := STATUS_SUCCESS;
+end;
+
 {$R *.res}
 
 exports
@@ -112,7 +128,8 @@ exports
   _Lr_PluginGetErrMsg,
   _Lr_PluginRegSQL,
   _Lr_PluginMenuAction,
-  _Lr_PluginMenu;
+  _Lr_PluginMenu,
+  _Lr_PluginMainGridData;
 
 begin
 

@@ -120,7 +120,7 @@ var
   _Lr_PluginGetErrMsg: T_Lr_PluginGetErrMsg;
   dlHandle: THandle;
   plgVers: Integer;
-  plgName: PChar;
+  plgBuf: PChar;
   plgNameStr:string;
   resV: DWORD;
   I: Integer;
@@ -151,8 +151,10 @@ begin
       FreeLibrary(dlHandle);
       Exit;
     end;
-    plgVers := _Lr_PluginInfo(plgName);
-    plgNameStr := string(plgName);
+    plgBuf := GetMemory($1000);
+    plgVers := _Lr_PluginInfo(plgBuf);
+    plgNameStr := string(plgBuf);
+    FreeMem(plgBuf);
     if plgVers > PDK_VERSION then
     begin
       Loger.Add('%s 插件 %s 不适用于当前版本。SysVers:%d, plgVers:%d', [dllname, plgNameStr, PDK_VERSION, plgVers]);
@@ -174,7 +176,10 @@ begin
           end
           else
           begin
-            Loger.Add('%s 插件 %s 已加载.但初始化失败！Code：%d(%s)', [dllname, plgNameStr, resV, string(_Lr_PluginGetErrMsg(resV))]);
+            plgBuf := GetMemory($1000);
+            _Lr_PluginGetErrMsg(resV, plgBuf);
+            Loger.Add('%s 插件 %s 已加载.但初始化失败！Code：%d(%s)', [dllname, plgNameStr, resV, string(plgBuf)]);
+            FreeMem(plgBuf);
           end;
           FreeLibrary(dlHandle);
         end;

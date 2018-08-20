@@ -43,6 +43,7 @@ type
     function getItemByName(ObjName: string): TableOptDefItem;
     function Count: Integer;
     function Add(vvv:TableOptDefItem):Integer;
+    procedure Remove(ObjName: string);
   end;
 
   TImplsManger = class(TObject)
@@ -212,6 +213,20 @@ begin
         end;
         items.Add(tod);
       end;
+    end;
+  end;
+end;
+
+procedure TImplsItem.Remove(ObjName: string);
+var
+  I: Integer;
+begin
+  for I := 0 to items.Count - 1 do
+  begin
+    if TableOptDefItem(items[I]).ObjName = ObjName then
+    begin
+      items.Delete(i);
+      Break;
     end;
   end;
 end;
