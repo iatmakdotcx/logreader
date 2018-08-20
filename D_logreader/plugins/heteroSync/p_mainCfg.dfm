@@ -11,6 +11,7 @@ object frm_mainCfg: Tfrm_mainCfg
   Font.Name = 'Tahoma'
   Font.Style = []
   OldCreateOrder = False
+  OnShow = FormShow
   PixelsPerInch = 96
   TextHeight = 13
   object Panel1: TPanel
@@ -21,13 +22,21 @@ object frm_mainCfg: Tfrm_mainCfg
     Align = alTop
     BevelOuter = bvNone
     TabOrder = 0
+    object lbl_TransInfo: TLabel
+      Left = 110
+      Top = 15
+      Width = 63
+      Height = 13
+      Caption = 'lbl_TransInfo'
+    end
     object Button1: TButton
-      Left = 64
+      Left = 24
       Top = 10
       Width = 75
       Height = 25
       Caption = 'RefreshTable'
       TabOrder = 0
+      Visible = False
       OnClick = Button1Click
     end
   end
@@ -67,6 +76,7 @@ object frm_mainCfg: Tfrm_mainCfg
       HideSelection = False
       ReadOnly = True
       RowSelect = True
+      PopupMenu = PopupMenu1
       TabOrder = 1
       ViewStyle = vsReport
       OnSelectItem = ListView1SelectItem
@@ -186,19 +196,17 @@ object frm_mainCfg: Tfrm_mainCfg
       end
     end
   end
-  object adoc_Src: TADOConnection
-    ConnectionString = 
-      'Provider=SQLOLEDB.1;Password=aa1234569;Persist Security Info=Tru' +
-      'e;User ID=sa;Initial Catalog=dbt2;Data Source=.'
-    LoginPrompt = False
-    Provider = 'SQLOLEDB.1'
-    Left = 224
-    Top = 8
-  end
   object ADOQuery1: TADOQuery
-    Connection = adoc_Src
     Parameters = <>
-    Left = 288
-    Top = 8
+    Left = 32
+    Top = 128
+  end
+  object PopupMenu1: TPopupMenu
+    Left = 88
+    Top = 256
+    object N1: TMenuItem
+      Caption = #21047#26032
+      OnClick = N1Click
+    end
   end
 end

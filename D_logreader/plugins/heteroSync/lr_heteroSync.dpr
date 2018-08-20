@@ -29,7 +29,6 @@ uses
   Log4D in '..\..\..\Common\Log4D.pas',
   loglog in '..\..\..\Common\loglog.pas',
   p_impl in 'p_impl.pas' {frm_impl},
-  dbcfg in 'dbcfg.pas' {frm_dbcfg},
   Des in 'H:\Delphi\算法\Des.pas',
   pppppp in 'pppppp.pas',
   plgSrcData in '..\..\..\Common\plgSrcData.pas';
@@ -103,7 +102,7 @@ end;
 
 function _Lr_PluginMenu(Xml: PChar): integer; stdcall;
 begin
-  StrCopy(Xml, '<root><item caption="插件"><item caption="异构同步"><item caption="数据库设置" actionid="1"></item></item></item></root>');
+  StrCopy(Xml, '<root><item caption="插件"><item caption="异构同步" actionid="1"></item></item></root>');
   Result := STATUS_SUCCESS;
 end;
 

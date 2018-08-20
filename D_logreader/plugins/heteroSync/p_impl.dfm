@@ -33,12 +33,8 @@ object frm_impl: Tfrm_impl
       Align = alClient
       Columns = <
         item
-          Caption = 'Host'
-          Width = 120
-        end
-        item
-          Caption = 'DbName'
-          Width = 100
+          Caption = 'DataSource'
+          Width = 200
         end
         item
           Caption = 'State'

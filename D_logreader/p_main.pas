@@ -358,6 +358,7 @@ begin
     begin
       aitem := TPluginMenuActionItem(menuActions[(Sender as TMenuItem).Tag]);
       aitem.PluginItem._Lr_PluginMenuAction(tlsObj.Fdbc.GetPlgSrc, Pchar(aitem.ActionId));
+      ListViewRefresh;
     end;
   end;
 end;

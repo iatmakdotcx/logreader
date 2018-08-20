@@ -116,9 +116,6 @@
         <DCCReference Include="p_impl.pas">
             <Form>frm_impl</Form>
         </DCCReference>
-        <DCCReference Include="dbcfg.pas">
-            <Form>frm_dbcfg</Form>
-        </DCCReference>
         <DCCReference Include="H:\Delphi\算法\Des.pas"/>
         <DCCReference Include="pppppp.pas"/>
         <DCCReference Include="..\..\..\Common\plgSrcData.pas"/>

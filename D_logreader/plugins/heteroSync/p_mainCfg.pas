@@ -5,11 +5,10 @@ interface
 uses
   Winapi.Windows, Winapi.Messages, System.SysUtils, System.Variants, System.Classes,
   Vcl.Graphics, Vcl.Controls, Vcl.Forms, Vcl.Dialogs, Vcl.ExtCtrls, Data.DB,
-  Data.Win.ADODB, Vcl.StdCtrls, System.Contnrs, Vcl.ComCtrls, pppppp;
+  Data.Win.ADODB, Vcl.StdCtrls, System.Contnrs, Vcl.ComCtrls, pppppp, Vcl.Menus;
 
 type
   Tfrm_mainCfg = class(TForm)
-    adoc_Src: TADOConnection;
     ADOQuery1: TADOQuery;
     Panel1: TPanel;
     GroupBox1: TGroupBox;
@@ -28,20 +27,26 @@ type
     Panel2: TPanel;
     lbl_tblName: TLabel;
     ListView1: TListView;
+    lbl_TransInfo: TLabel;
+    PopupMenu1: TPopupMenu;
+    N1: TMenuItem;
     procedure pnl_optsResize(Sender: TObject);
     procedure Button1Click(Sender: TObject);
     procedure edt_filterKeyUp(Sender: TObject; var Key: Word; Shift: TShiftState);
     procedure Button2Click(Sender: TObject);
     procedure ListView1SelectItem(Sender: TObject; Item: TListItem;
       Selected: Boolean);
+    procedure FormShow(Sender: TObject);
+    procedure N1Click(Sender: TObject);
   private
     SeltnlName:string;
     procedure InitTables;
     procedure RefreshTablelist;
     { Private declarations }
   public
-    implItem:TImplsItem;
-    { Public declarations }
+    ImplsManger: TImplsManger;
+    implItem: TImplsItem;
+        { Public declarations }
   end;
 
 
@@ -84,6 +89,12 @@ end;
 procedure Tfrm_mainCfg.edt_filterKeyUp(Sender: TObject; var Key: Word; Shift: TShiftState);
 begin
   RefreshTablelist;
+end;
+
+procedure Tfrm_mainCfg.FormShow(Sender: TObject);
+begin
+  lbl_TransInfo.Caption := ImplsManger.Host + ':' + ImplsManger.dbName + '  >>  ' + getDispConnStr(implItem.ConnStr, True);
+  Button1.Click;
 end;
 
 procedure Tfrm_mainCfg.RefreshTablelist;
@@ -135,6 +146,7 @@ end;
 procedure Tfrm_mainCfg.InitTables;
 begin
   ADOQuery1.Close;
+  ADOQuery1.ConnectionString := getConnectionString(ImplsManger.Host, ImplsManger.user, ImplsManger.pass, ImplsManger.dbName);
   ADOQuery1.SQL.Text := 'select tbl.name,tbl.object_id,SCHEMA_NAME(tbl.schema_id) from sys.tables tbl join ' + 
         'sys.indexes idx on idx.object_id = tbl.object_id  and ' + 
         '(idx.index_id < 2  or (tbl.is_memory_optimized = 1 and idx.index_id < 3)) order by 3,1';
@@ -165,6 +177,11 @@ begin
       Memo_Update.Text := '';
     end;
   end;
+end;
+
+procedure Tfrm_mainCfg.N1Click(Sender: TObject);
+begin
+  Button1.Click;
 end;
 
 procedure Tfrm_mainCfg.pnl_optsResize(Sender: TObject);

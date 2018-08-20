@@ -38,7 +38,7 @@ var
 implementation
 
 uses
-  dbcfg, Des, loglog, p_mainCfg;
+  Des, loglog, p_mainCfg, Data.Win.ADODB;
 
 {$R *.dfm}
 
@@ -51,6 +51,7 @@ begin
   begin
     frm_mainCfg := Tfrm_mainCfg.Create(nil);
     try
+      frm_mainCfg.ImplsManger := ImplsManger;
       frm_mainCfg.implItem := TImplsItem(ListView1.Selected.Data);
       frm_mainCfg.showmodal;
       RefreshList;
@@ -96,30 +97,24 @@ procedure Tfrm_impl.btn_addClick(Sender: TObject);
 var
   impItem:TImplsItem;
   uid:TGUID;
+  TmpStr:string;
 begin
-  frm_dbcfg := Tfrm_dbcfg.create(nil);
-  try
-    if frm_dbcfg.ShowModal = mrok then
+  TmpStr := PromptDataSource(0, '');
+  if TmpStr<>'' then
+  begin
+    impItem := ImplsManger.find(TmpStr);
+    if impItem <> nil then
     begin
-      impItem := ImplsManger.find(frm_dbcfg.dbcfg_Host, frm_dbcfg.dbcfg_dbName);
-      if impItem <> nil then
-      begin
-        MessageBox(Handle, '相同实例已存在！', '实例已存在', MB_OK + MB_ICONSTOP);
-        Exit;
-      end;
-      CreateGUID(uid);
-      impItem := TImplsItem.Create;
-      impItem.Host := frm_dbcfg.dbcfg_Host;
-      impItem.user := frm_dbcfg.dbcfg_user;
-      impItem.pass := frm_dbcfg.dbcfg_pass;
-      impItem.dbName := frm_dbcfg.dbcfg_dbName;
-      impItem.uid := GUIDToString(uid);
-      ImplsManger.Add(impItem);
-      ImplsManger.save;
-      RefreshList;
+      MessageBox(Handle, '相同实例已存在！', '实例已存在', MB_OK + MB_ICONSTOP);
+      Exit;
     end;
-  finally
-    frm_dbcfg.free;
+    CreateGUID(uid);
+    impItem := TImplsItem.Create;
+    impItem.ConnStr := TmpStr;
+    impItem.uid := GUIDToString(uid);
+    ImplsManger.Add(impItem);
+    ImplsManger.save;
+    RefreshList;
   end;
 end;
 
@@ -156,8 +151,7 @@ begin
     impItem := TImplsItem(ImplsManger.items[i]);
     with ListView1.Items.Add do
     begin
-      Caption := impItem.Host;
-      SubItems.Add(impItem.dbName);
+      Caption := getDispConnStr(impItem.ConnStr);
       case impItem.getState of
         Unconfigured:
           SubItems.Add('未配置');

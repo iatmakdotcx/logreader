@@ -22,17 +22,14 @@ type
   private
     FCfgPath:string;
     items: TObjectList;
-
     procedure saveBin(afile: string);
     procedure loadBin(afile: string);
     procedure loadXml(afile: string);
     procedure saveXml(afile: string);
   public
     uid:string;
-    Host:string;
-    user:string;
-    pass:string;
-    dbName:string;
+    //¥Ç¥¹¥Æ¥£¥Í©`¥·¥ç¥ó
+    ConnStr:string;
     Paused:Boolean;
     procedure save(afile: string = '');
     procedure load(afile: string = '');
@@ -47,19 +44,19 @@ type
   end;
 
   TImplsManger = class(TObject)
-  private
-    //¥Ç©`¥¿¥½©`¥¹
+  public
+   //¥Ç©`¥¿¥½©`¥¹
     Host:string;
     user:string;
     pass:string;
     dbName:string;
-    dbid:Integer;    
-  public
+    dbid:Integer;
+
     items:TObjectList; 
     CfgPath:string;
     constructor Create;
     destructor Destroy; override;
-    function find(Host:string;dbName:string):TImplsItem;
+    function find(ConnStr: string):TImplsItem;
     procedure save;
     procedure load(afile:string='');
     function Add(vvv:TImplsItem):Integer;
@@ -77,6 +74,9 @@ type
     function get(source:Pplg_source):TImplsManger;
   end;
 
+function getConnectionString(host, user, pwd, dbName: string): string;
+function getDispConnStr(ConnStr: string; fullSs: boolean = False): string;
+
 var
   LrSvrJob: TLrSvrJob;
 
@@ -85,6 +85,35 @@ implementation
 uses
   System.SysUtils, Xml.XMLIntf, Xml.XMLDoc, loglog, Des, System.Variants;
 
+function getConnectionString(host, user, pwd, dbName: string): string;
+begin
+  Result := Format('Provider=SQLOLEDB.1;Persist Security Info=True;Data Source=%s;User ID=%s;Password=%s;Initial Catalog=%s', [host, user, pwd, dbName]);
+end;
+
+function getDispConnStr(ConnStr: string; fullSs: boolean): string;
+var
+  ssss: TStringList;
+  ff:TstringList;
+begin
+  ssss := TStringList.Create;
+  try
+    ssss.StrictDelimiter := True;
+    ssss.Delimiter := ';';
+    ssss.DelimitedText := ConnStr;
+    Result := ssss.Values['Data Source'];
+    if (Result = '') or fullSs then
+    begin
+      ff:=TstringList.Create;
+      ff.Values['Data Source'] := ssss.Values['Data Source'];
+      ff.Values['Initial Catalog'] := ssss.Values['Initial Catalog'];
+      ff.Values['User ID'] := ssss.Values['User ID'];
+      Result := stringreplace(ff.Text, #$D#$A, ';', [rfReplaceAll]);
+      ff.Free;
+    end;
+  finally
+    ssss.Free;
+  end;
+end;
 
 function TImplsItem.Add(vvv: TableOptDefItem): Integer;
 begin
@@ -324,14 +353,14 @@ begin
   inherited;
 end;
 
-function TImplsManger.find(Host, dbName: string): TImplsItem;
+function TImplsManger.find(ConnStr: string): TImplsItem;
 var
   I: Integer;
 begin
   result := nil;
   for I := 0 to items.Count-1 do
   begin
-    if (TImplsItem(items.Items[I]).Host = Host) and (TImplsItem(items.Items[I]).dbName = dbName) then
+    if TImplsItem(items.Items[I]).ConnStr = ConnStr then
     begin
       Result := TImplsItem(items.Items[I]);
     end;
@@ -355,9 +384,6 @@ begin
     cfgStr := TStringList.Create;
     try
       cfgStr.LoadFromFile(idxfile);
-      Host := cfgStr.Values['Host'];
-      user := cfgStr.Values['user'];
-      pass := DesDecryStrHex(cfgStr.Values['pass'], DESPASSWORD);
       dbName := cfgStr.Values['dbName'];
       dbid := StrToIntDef(cfgStr.Values['dbid'], 0);
       CfgCnt := strTointDef(cfgStr.Values['CfgCnt'], 0);
@@ -366,10 +392,7 @@ begin
         try
           impItem := TImplsItem.Create;
           impItem.uid := cfgStr.Values['id_'+IntToStr(i)];
-          impItem.Host := cfgStr.Values['host_'+IntToStr(i)];
-          impItem.user := cfgStr.Values['user_'+IntToStr(i)];
-          impItem.pass := DesDecryStrHex(cfgStr.Values['pass_'+IntToStr(i)], DESPASSWORD);
-          impItem.dbName := cfgStr.Values['dbname_'+IntToStr(i)];
+          impItem.ConnStr := DesDecryStrHex(cfgStr.Values['connstr_'+IntToStr(i)], DESPASSWORD);
           impItem.Paused := cfgStr.Values['paused_' + IntToStr(I)] = '1';
           impItem.load(CfgPath + impItem.uid + '.db');
           items.add(impItem);
@@ -395,9 +418,6 @@ begin
   cfgStr := TStringList.Create;
   try
     cfgStr.Values['version'] := 'TImplsManger v 1.0';
-    cfgStr.Values['Host'] := Host;
-    cfgStr.Values['user'] := user;
-    cfgStr.Values['pass'] := DesEncryStrHex(pass, DESPASSWORD);
     cfgStr.Values['dbName'] := dbName;
     cfgStr.Values['dbid'] := IntToStr(dbid);
     cfgStr.Values['CfgCnt'] := IntToStr(items.Count);
@@ -405,10 +425,7 @@ begin
     begin
       impItem := TImplsItem(items[i]);
       cfgStr.Values['id_'+IntToStr(i)] := impItem.uid;
-      cfgStr.Values['host_'+IntToStr(i)] := impItem.Host;
-      cfgStr.Values['user_'+IntToStr(i)] := impItem.user;
-      cfgStr.Values['pass_'+IntToStr(i)] := DesEncryStrHex(impItem.pass, DESPASSWORD);
-      cfgStr.Values['dbname_'+IntToStr(i)] := impItem.dbName;
+      cfgStr.Values['connstr_'+IntToStr(i)] := DesEncryStrHex(impItem.connstr, DESPASSWORD);
       if impItem.Paused then
         cfgStr.Values['paused_' + IntToStr(I)] := '1'
       else
@@ -493,13 +510,13 @@ begin
     begin
       items[source.dbid] := TImplsManger.Create;
       items[source.dbid].CfgPath := defcfgPath;
-      items[source.dbid].Host := source.host;
-      items[source.dbid].user := source.user;
-      items[source.dbid].pass := source.pass;
-      items[source.dbid].dbName := source.dbName;
-      items[source.dbid].dbid := source.dbid;
       Result := items[source.dbid];
     end;
+    Result.Host := source.host;
+    Result.user := source.user;
+    Result.pass := source.pass;
+    Result.dbName := source.dbName;
+    Result.dbid := source.dbid;
   end
   else
   begin
