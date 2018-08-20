@@ -669,8 +669,8 @@ var
   fieldval: PdbFieldValue;
   StrVal: string;
 begin
-  Result := '<OPT TYPE="DELETE" table="'+aRowData.Table.getFullName+'">';
-  Result := Result + '<DATA>';
+  Result := '<opt type="delete" table="'+aRowData.Table.getFullName+'">';
+  Result := Result + '<data>';
   if aRowData.R1<>nil then
   begin
     //Update再delete
@@ -690,8 +690,8 @@ begin
       Result := Result + Format('<%s>%s</%s>', [fieldval.field.ColName,StrVal,fieldval.field.ColName]);
     end;
   end;
-  Result := Result + '</DATA>';
-  Result := Result + '<KEY>';
+  Result := Result + '</data>';
+  Result := Result + '<key>';
   if aRowData.table.UniqueClusteredKeys.Count>0 then
   begin
     for I := 0 to aRowData.table.UniqueClusteredKeys.Count-1 do
@@ -710,8 +710,8 @@ begin
       end;
     end;
   end;
-  Result := Result + '</KEY>';
-  Result := Result + '</OPT>';
+  Result := Result + '</key>';
+  Result := Result + '</opt>';
 end;
 
 function TSql2014logAnalyzer.DML_BuilderXML_Insert(aRowData: Tsql2014Opt): string;
@@ -720,7 +720,7 @@ var
   I: Integer;
   fieldval: PdbFieldValue;
 begin
-  Result := '<OPT TYPE="INSERT" table="'+aRowData.Table.getFullName+'">';
+  Result := '<opt type="insert" table="'+aRowData.Table.getFullName+'">';
   for I := 0 to aRowData.new_data.Fields.Count - 1 do
   begin
     fieldval := PdbFieldValue(aRowData.new_data.Fields[I]);
@@ -728,7 +728,7 @@ begin
     StrVal := DML_BuilderXML_SafeStr(StrVal);
     Result := Result + Format('<%s>%s</%s>', [fieldval.field.ColName,StrVal,fieldval.field.ColName]);
   end;
-  Result := Result + '</OPT>';
+  Result := Result + '</opt>';
 end;
 
 function TSql2014logAnalyzer.DML_BuilderXML_Update(aRowData: Tsql2014Opt): string;
@@ -740,8 +740,8 @@ var
 
   field: TdbFieldItem;
 begin
-  Result := '<OPT TYPE="UPDATE" table="'+aRowData.Table.getFullName+'">';
-  Result := Result + '<DATA>';
+  Result := '<opt type="update" table="'+aRowData.Table.getFullName+'">';
+  Result := Result + '<data>';
   if aRowData.new_data = nil then
   begin
     //没有新数据。使用select封装
@@ -763,29 +763,28 @@ begin
         Result := Result + '<'+raw_old.field.ColName+'>';
         if raw_old = nil then
         begin
-          Result := Result +'<OLD null="1"></OLD>';
+          Result := Result +'<old null="1"></old>';
         end else begin
           StrVal := Hvu_GetFieldStrValue(raw_old.field, raw_old.value);
           StrVal := DML_BuilderXML_SafeStr(StrVal);
-          Result := Result + '<'+raw_old.field.ColName+'>';
           if StrVal='NULL' then
           begin
-            Result := Result +'<OLD null="1"></OLD>';
+            Result := Result +'<old null="1"></old>';
           end else begin
-            Result := Result + Format('<OLD>%s</OLD>', [StrVal]);
+            Result := Result + Format('<old>%s</old>', [StrVal]);
           end;
         end;
         if raw_new = nil then
         begin
-          Result := Result +'<NEW null="1"></OLD>';
+          Result := Result +'<new null="1"></new>';
         end else begin
           StrVal := Hvu_GetFieldStrValue(raw_new.field, raw_new.value);
           StrVal := DML_BuilderXML_SafeStr(StrVal);
           if StrVal='NULL' then
           begin
-            Result := Result +'<NEW null="1"></NEW>';
+            Result := Result +'<new null="1"></new>';
           end else begin
-            Result := Result + Format('<NEW>%s</NEW>', [StrVal]);
+            Result := Result + Format('<new>%s</new>', [StrVal]);
           end;
         end;
         Result := Result + '</'+raw_old.field.ColName+'>';
@@ -857,15 +856,15 @@ begin
           if raw_new = nil then
           begin
             //var 值 ————>  null
-            Result := Result +'<NEW null="1"></NEW>';
+            Result := Result +'<new null="1"></new>';
           end else begin
             StrVal := Hvu_GetFieldStrValue(raw_new.field, raw_new.value);
             StrVal := DML_BuilderXML_SafeStr(StrVal);
             if StrVal='NULL' then
             begin
-              Result := Result +'<NEW null="1"></NEW>';
+              Result := Result +'<new null="1"></new>';
             end else begin
-              Result := Result + Format('<NEW>%s</NEW>', [StrVal]);
+              Result := Result + Format('<new>%s</new>', [StrVal]);
             end;
           end;
           Result := Result + '</'+aRowData.Table.Fields[i].ColName+'>';
@@ -873,8 +872,8 @@ begin
       end;
     end
   end;
-  Result := Result + '</DATA>';
-  Result := Result + '<KEY>';
+  Result := Result + '</data>';
+  Result := Result + '<key>';
   if aRowData.table.UniqueClusteredKeys.Count>0 then
   begin
     for I := 0 to aRowData.table.UniqueClusteredKeys.Count-1 do
@@ -898,8 +897,8 @@ begin
       end;
     end;
   end;
-  Result := Result + '</KEY>';
-  Result := Result + '</OPT>';
+  Result := Result + '</key>';
+  Result := Result + '</opt>';
 end;
 
 function TSql2014logAnalyzer.DML_BuilderSql_Insert(aRowData: Tsql2014Opt): string;

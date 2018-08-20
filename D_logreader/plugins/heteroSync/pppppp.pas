@@ -3,7 +3,7 @@ unit pppppp;
 interface
 
 uses
-  System.Contnrs, System.Classes, plgSrcData;
+  System.Contnrs, System.Classes, plgSrcData, Xml.XMLIntf;
 
 const
   DESPASSWORD = 'lkjhyuio';
@@ -26,6 +26,7 @@ type
     procedure loadBin(afile: string);
     procedure loadXml(afile: string);
     procedure saveXml(afile: string);
+    function getSqlTemplate(objName:string; typeStr:string):string;
   public
     uid:string;
     //¥Ç¥¹¥Æ¥£¥Í©`¥·¥ç¥ó
@@ -41,6 +42,7 @@ type
     function Count: Integer;
     function Add(vvv:TableOptDefItem):Integer;
     procedure Remove(ObjName: string);
+    function RunSql(objName, typeStr: string; dataN: IXMLNode):string;
   end;
 
   TImplsManger = class(TObject)
@@ -76,6 +78,9 @@ type
 
 function getConnectionString(host, user, pwd, dbName: string): string;
 function getDispConnStr(ConnStr: string; fullSs: boolean = False): string;
+function getXmlTextWithTureEol(node:IXMLNode): string;
+function getSqlParams(aSql:string):TStringList;
+
 
 var
   LrSvrJob: TLrSvrJob;
@@ -83,11 +88,44 @@ var
 implementation
 
 uses
-  System.SysUtils, Xml.XMLIntf, Xml.XMLDoc, loglog, Des, System.Variants;
+  System.SysUtils, Xml.XMLDoc, loglog, Des, System.Variants, Data.Win.ADODB,
+  RegularExpressions;
 
 function getConnectionString(host, user, pwd, dbName: string): string;
 begin
   Result := Format('Provider=SQLOLEDB.1;Persist Security Info=True;Data Source=%s;User ID=%s;Password=%s;Initial Catalog=%s', [host, user, pwd, dbName]);
+end;
+
+function getXmlTextWithTureEol(node:IXMLNode): string;
+begin
+  result := '';
+  if not VarIsNull(node) then
+  begin
+    result := node.Text;
+    if Pos(#$A, Result) > 0 then
+    begin
+      if Pos(#$D#$A, node.XML) > 0 then
+      begin
+        result := StringReplace(result, #$A, #$D#$A, [rfreplaceAll]);
+      end;
+    end;
+  end;
+end;
+
+function getSqlParams(aSql:string):TStringList;
+var
+  ms:TMatchCollection;
+  I: Integer;
+begin
+  Result := TStringList.Create;
+  ms := TRegEx.Matches(aSql,'(\@[\w|\$]+)',[roMultiLine]);
+  for I := 0 to ms.Count-1 do
+  begin
+    if Result.IndexOf(ms[i].Value)=-1 then
+    begin
+      Result.Add(ms[i].Value);
+    end;
+  end;
 end;
 
 function getDispConnStr(ConnStr: string; fullSs: boolean): string;
@@ -210,7 +248,6 @@ var
   xml:IXMLDocument;
   Root,ItemsNode,RowNode : IXMLNode;
 begin
-
   Xml := TXMLDocument.Create(nil);
   Xml.LoadFromFile(afile);
   xml.Active := True;
@@ -225,21 +262,9 @@ begin
       begin
         tod := TableOptDefItem.Create;
         tod.ObjName := RowNode.Attributes['name'];
-        if not VarIsNull(RowNode.ChildValues['Insert']) then
-        begin
-          tod.Insert := RowNode.ChildValues['Insert'];
-          tod.Insert := StringReplace(tod.Insert, #$A, #$D#$A, [rfreplaceAll]);
-        end;
-        if not VarIsNull(RowNode.ChildValues['Delete']) then
-        begin
-          tod.Delete := RowNode.ChildValues['Delete'];
-          tod.Delete := StringReplace(tod.Delete, #$A, #$D#$A, [rfreplaceAll]);
-        end;
-        if not VarIsNull(RowNode.ChildValues['Update']) then
-        begin
-          tod.Update := RowNode.ChildValues['Update'];
-          tod.Update := StringReplace(tod.Update, #$A, #$D#$A, [rfreplaceAll]);
-        end;
+        tod.Insert := getXmlTextWithTureEol(RowNode.ChildNodes['Insert']);
+        tod.Delete := getXmlTextWithTureEol(RowNode.ChildNodes['Delete']);
+        tod.Update := getXmlTextWithTureEol(RowNode.ChildNodes['Update']);
         items.Add(tod);
       end;
     end;
@@ -257,6 +282,30 @@ begin
       items.Delete(i);
       Break;
     end;
+  end;
+end;
+
+function TImplsItem.RunSql(objName, typeStr: string; dataN: IXMLNode): string;
+var
+  SqlTemplate:string;
+  adoq:TADOQuery;
+  ParamLst:TStringList;
+begin
+  SqlTemplate := getSqlTemplate(objName, typeStr);
+  if SqlTemplate <> '' then
+  begin
+    ParamLst := getSqlParams(SqlTemplate);
+    adoq := TADOQuery.Create(nil);
+    try
+      adoq.Close;
+      adoq.SQL.Text := SqlTemplate;
+      adoq.ConnectionString := ConnStr;
+
+    finally
+      adoq.Free;
+      ParamLst.Free;
+    end;
+
   end;
 end;
 
@@ -311,7 +360,6 @@ begin
 
   xml.DocumentElement := Xml.AddChild('OptDef');
   ItemsNode := xml.DocumentElement.AddChild('items');
-
   for I := 0 to items.Count - 1 do
   begin
     tod := TableOptDefItem(items[I]);
@@ -326,6 +374,7 @@ begin
 
     tmpNode := RowNode.AddChild('Update');
     tmpNode.Text := tod.Update;
+
   end;
   xml.SaveToFile(afile);
 end;
@@ -451,6 +500,29 @@ destructor TImplsItem.Destroy;
 begin
   items.Free;
   inherited;
+end;
+
+function TImplsItem.getSqlTemplate(objName, typeStr: string): string;
+var
+  dii: TableOptDefItem;
+begin
+  Result := '';
+  dii := getItemByName(objName);
+  if dii <> nil then
+  begin
+    if typeStr = 'insert' then
+    begin
+      Result := dii.Insert;
+    end
+    else if typeStr = 'delete' then
+    begin
+      Result := dii.Delete;
+    end
+    else if typeStr = 'update' then
+    begin
+      Result := dii.Update;
+    end;
+  end;
 end;
 
 function TImplsItem.getState: TImplsItemState;

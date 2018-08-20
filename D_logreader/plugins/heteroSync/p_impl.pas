@@ -15,6 +15,7 @@ type
     btn_enable: TButton;
     btn_del: TButton;
     btn_cfg: TButton;
+    Button1: TButton;
     procedure btn_addClick(Sender: TObject);
     procedure ListView1SelectItem(Sender: TObject; Item: TListItem;
       Selected: Boolean);
@@ -22,6 +23,7 @@ type
     procedure ListView1DblClick(Sender: TObject);
     procedure btn_cfgClick(Sender: TObject);
     procedure FormShow(Sender: TObject);
+    procedure Button1Click(Sender: TObject);
   private
     ImplsManger : TImplsManger;
     procedure RefreshList;
@@ -38,7 +40,7 @@ var
 implementation
 
 uses
-  Des, loglog, p_mainCfg, Data.Win.ADODB;
+  Des, loglog, p_mainCfg, Data.Win.ADODB, Xml.XMLIntf, Xml.XMLDoc;
 
 {$R *.dfm}
 
@@ -77,6 +79,45 @@ begin
       impItem.Paused := True;
     end;
     RefreshList;
+  end;
+end;
+
+
+procedure Tfrm_impl.Button1Click(Sender: TObject);
+var
+  Xml:IXMLDocument;
+  Rootnode:IXMLNode;
+  details,rowNode,OPT,dataN:IXMLNode;
+  I: Integer;
+  optType:string;
+  tableName:string;
+begin
+  Xml := TXMLDocument.Create(nil);
+  //Xml.LoadFromXML(tmpAAStr);
+  Xml.LoadFromFile('d:\dd.xml');
+  Rootnode := Xml.DocumentElement;
+  details := Rootnode.ChildNodes['details'];
+  for I := 0 to details.ChildNodes.Count-1 do
+  begin
+    rowNode := details.ChildNodes[i];
+    if (rowNode.NodeName = 'row') and rowNode.HasAttribute('type') and (rowNode.Attributes['type'] = 'dml') then
+    begin
+      OPT := rowNode.ChildNodes['opt'];
+      optType := OPT.Attributes['type'];
+      tableName := OPT.Attributes['table'];
+
+
+
+      dataN := OPT.ChildNodes['data'];
+      if VarIsNull(dataN) then
+      begin
+
+
+      end;
+
+
+
+    end;
   end;
 end;
 

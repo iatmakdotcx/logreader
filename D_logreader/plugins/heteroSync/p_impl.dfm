@@ -86,4 +86,13 @@ object frm_impl: Tfrm_impl
     TabOrder = 4
     OnClick = btn_cfgClick
   end
+  object Button1: TButton
+    Left = 341
+    Top = 277
+    Width = 75
+    Height = 25
+    Caption = 'Button1'
+    TabOrder = 5
+    OnClick = Button1Click
+  end
 end

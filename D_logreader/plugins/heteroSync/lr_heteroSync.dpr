@@ -12,26 +12,18 @@ library lr_heteroSync;
   using PChar or ShortString parameters. }
 
 uses
-  EMemLeaks,
-  EResLeaks,
-  EDialogWinAPIMSClassic,
-  EDialogWinAPIEurekaLogDetailed,
-  EDialogWinAPIStepsToReproduce,
-  EDebugExports,
-  EFixSafeCallException,
-  EMapWin32,
-  EAppVCL,
-  ExceptionLog7,
   System.SysUtils,
   System.Classes,
   Vcl.Forms,
+  System.Contnrs,
   p_mainCfg in 'p_mainCfg.pas' {frm_mainCfg},
   Log4D in '..\..\..\Common\Log4D.pas',
   loglog in '..\..\..\Common\loglog.pas',
   p_impl in 'p_impl.pas' {frm_impl},
   Des in 'H:\Delphi\À„∑®\Des.pas',
   pppppp in 'pppppp.pas',
-  plgSrcData in '..\..\..\Common\plgSrcData.pas';
+  plgSrcData in '..\..\..\Common\plgSrcData.pas', Xml.XMLIntf, Xml.XMLDoc,
+  System.Variants;
 
 const
   STATUS_SUCCESS = $00000000;   //≥…π¶
@@ -89,14 +81,51 @@ begin
   Result := STATUS_SUCCESS;
 end;
 
+procedure dd(ImplsManger:TImplsManger;XmlStr:string);
+var
+  Xml: IXMLDocument;
+  details, rowNode, OPT, dataN: IXMLNode;
+  optType, tableName: string;
+  I,J:Integer;
+  impi: TImplsItem;
+begin
+  Xml := TXMLDocument.Create(nil);
+  Xml.LoadFromXML(XmlStr);
+  details := Xml.DocumentElement.ChildNodes['details'];
+  for I := 0 to details.ChildNodes.Count-1 do
+  begin
+    rowNode := details.ChildNodes[i];
+    if (rowNode.NodeName = 'row') and rowNode.HasAttribute('type') and (rowNode.Attributes['type'] = 'dml') then
+    begin
+      OPT := rowNode.ChildNodes['opt'];
+      optType := OPT.Attributes['type'];
+      tableName := OPT.Attributes['table'];
+
+      dataN := OPT.ChildNodes['data'];
+      if not VarIsNull(dataN) then
+      begin
+        for J := 0 to ImplsManger.items.Count-1 do
+        begin
+          impi := TImplsItem(ImplsManger.items[i]);
+          impi.RunSql(tableName, optType, dataN);
+        end;
+      end;
+    end;
+  end;
+end;
+
 /// <summary>
 /// Sql”Ôæ‰
 /// </summary>
 /// <param name="Sql"></param>
 /// <returns></returns>
 function _Lr_PluginRegXML(source:Pplg_source; Xml: PChar): integer; stdcall;
+var
+  ImplsManger:TImplsManger;
 begin
-
+  loger.add(xml);
+  ImplsManger := LrSvrJob.Get(source);
+  dd(ImplsManger, Xml);
   Result := STATUS_SUCCESS;
 end;
 
