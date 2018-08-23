@@ -38,7 +38,53 @@ type
       XML = 241;
   end;
 
+function getSingleDataTypeStr(type_id: Integer): string;
+
 implementation
+
+
+function getSingleDataTypeStr(type_id: Integer): string;
+begin
+  case type_id of
+    MsTypes.TINYINT,
+    MsTypes.SMALLINT,
+    MsTypes.INT,
+    MsTypes.BIGINT:
+      Result := 'int';
+    MsTypes.REAL,
+    MsTypes.MONEY,
+    MsTypes.FLOAT,
+    MsTypes.DECIMAL,
+    MsTypes.NUMERIC,
+    MsTypes.SMALLMONEY:
+      Result := 'float';
+    MsTypes.UNIQUEIDENTIFIER,
+    MsTypes.TEXT,
+    MsTypes.NTEXT,
+    MsTypes.NVARCHAR,
+    MsTypes.NCHAR,
+    MsTypes.CHAR,
+    MsTypes.VARCHAR:
+      Result := 'string';
+    MsTypes.BIT:
+      Result := 'bool';
+    MsTypes.DATE,
+    MsTypes.TIME,
+    MsTypes.DATETIME2,
+    MsTypes.DATETIMEOFFSET,
+    MsTypes.SMALLDATETIME,
+    MsTypes.DATETIME:
+      Result := 'datetime';
+    MsTypes.IMAGE,
+    MsTypes.SQL_VARIANT,
+    MsTypes.VARBINARY,
+    MsTypes.BINARY,
+    MsTypes.TIMESTAMP,
+    MsTypes.GEOGRAPHY,
+    MsTypes.XML:
+      Result := 'bin';
+  end;
+end;
 
 end.
 

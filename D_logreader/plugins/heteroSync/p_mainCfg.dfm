@@ -11,6 +11,8 @@ object frm_mainCfg: Tfrm_mainCfg
   Font.Name = 'Tahoma'
   Font.Style = []
   OldCreateOrder = False
+  Position = poOwnerFormCenter
+  OnCreate = FormCreate
   OnShow = FormShow
   PixelsPerInch = 96
   TextHeight = 13
@@ -24,7 +26,7 @@ object frm_mainCfg: Tfrm_mainCfg
     TabOrder = 0
     object lbl_TransInfo: TLabel
       Left = 110
-      Top = 15
+      Top = 14
       Width = 63
       Height = 13
       Caption = 'lbl_TransInfo'
@@ -126,6 +128,8 @@ object frm_mainCfg: Tfrm_mainCfg
         Lines.Strings = (
           'Memo_Insert')
         TabOrder = 0
+        OnClick = Memo_InsertClick
+        OnKeyUp = Memo_InsertKeyUp
       end
     end
     object gb_Delete: TGroupBox
@@ -145,6 +149,7 @@ object frm_mainCfg: Tfrm_mainCfg
         Lines.Strings = (
           'Memo_Delete')
         TabOrder = 0
+        OnClick = Memo_InsertClick
       end
     end
     object gb_Update: TGroupBox
@@ -164,6 +169,7 @@ object frm_mainCfg: Tfrm_mainCfg
         Lines.Strings = (
           'Memo_Update')
         TabOrder = 0
+        OnClick = Memo_InsertClick
       end
     end
     object Panel2: TPanel
@@ -178,8 +184,8 @@ object frm_mainCfg: Tfrm_mainCfg
         659
         33)
       object lbl_tblName: TLabel
-        Left = 40
-        Top = 16
+        Left = 32
+        Top = 12
         Width = 55
         Height = 13
         Caption = 'lbl_tblName'
@@ -193,6 +199,23 @@ object frm_mainCfg: Tfrm_mainCfg
         Caption = #20445#23384
         TabOrder = 0
         OnClick = Button2Click
+      end
+      object CheckBox1: TCheckBox
+        Left = 312
+        Top = 8
+        Width = 90
+        Height = 17
+        Caption = #21442#25968#26367#25442#20026#20540
+        TabOrder = 1
+      end
+      object Button3: TButton
+        Left = 408
+        Top = 8
+        Width = 17
+        Height = 19
+        Caption = '?'
+        TabOrder = 2
+        OnClick = Button3Click
       end
     end
   end
@@ -208,5 +231,17 @@ object frm_mainCfg: Tfrm_mainCfg
       Caption = #21047#26032
       OnClick = N1Click
     end
+    object upd1: TMenuItem
+      Caption = '-'
+    end
+    object N2: TMenuItem
+      Caption = #23383#27573'&&'#21442#25968
+      OnClick = N2Click
+    end
+  end
+  object ADOConnection1: TADOConnection
+    LoginPrompt = False
+    Left = 88
+    Top = 121
   end
 end

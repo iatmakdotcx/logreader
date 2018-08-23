@@ -3,10 +3,11 @@ unit comm_func;
 interface
 
 uses
-  p_structDefine;
+  p_structDefine, Xml.XMLIntf;
 
 function GetldfHandle(pid: Cardinal; logFileList:TlogFile_List): Boolean;
-
+function XML_SafeNodeName(aVal: string): string;
+function checkXmlNodeExists(node: IXMLNode; nodeName: string): Boolean;
 
 implementation
 
@@ -178,6 +179,49 @@ begin
   finally
     CloseHandle(sqlHandle); 
     FreeMem(pbuffer);
+  end;
+end;
+
+function XML_SafeNodeName(aVal: string): string;
+var
+  dstmpStr:string;
+  I: Integer;
+  wcc:Word;
+begin
+  dstmpStr := '';
+  for I := 1 to Length(aVal) do
+  begin
+    wcc := Word(aVal[I]);
+    if (wcc >= 48) and (wcc <= 57) then
+    begin
+      if I = 1 then
+        dstmpStr := '_';
+      dstmpStr := dstmpStr + aVal[I];
+    end
+    else if ((wcc >= 65) and (wcc <= 90)) or ((wcc >= 97) and (wcc <= 122)) or (wcc = 95) or (wcc > 255) then
+    begin
+      dstmpStr := dstmpStr + aVal[I];
+    end
+    else
+    begin
+      dstmpStr := dstmpStr + '_';
+    end;
+  end;
+  Result := dstmpStr;
+end;
+
+function checkXmlNodeExists(node: IXMLNode; nodeName: string): Boolean;
+var
+  I: Integer;
+begin
+  Result := False;
+  for I := 0 to node.ChildNodes.Count - 1 do
+  begin
+    if node.ChildNodes[I].nodeName = nodeName then
+    begin
+      Result := True;
+      Break;
+    end;
   end;
 end;
 

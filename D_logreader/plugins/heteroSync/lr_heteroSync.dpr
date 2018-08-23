@@ -22,8 +22,12 @@ uses
   p_impl in 'p_impl.pas' {frm_impl},
   Des in 'H:\Delphi\À„∑®\Des.pas',
   pppppp in 'pppppp.pas',
-  plgSrcData in '..\..\..\Common\plgSrcData.pas', Xml.XMLIntf, Xml.XMLDoc,
-  System.Variants;
+  plgSrcData in '..\..\..\Common\plgSrcData.pas',
+  Xml.XMLIntf,
+  Xml.XMLDoc,
+  System.Variants,
+  p_paramStyleHelp in 'p_paramStyleHelp.pas' {frm_paramStyleHelp},
+  p_tblfieldsDisp in 'p_tblfieldsDisp.pas' {frm_TblFieldsDisp};
 
 const
   STATUS_SUCCESS = $00000000;   //≥…π¶
@@ -84,7 +88,7 @@ end;
 procedure dd(ImplsManger:TImplsManger;XmlStr:string);
 var
   Xml: IXMLDocument;
-  details, rowNode, OPT, dataN: IXMLNode;
+  details, rowNode, OPT: IXMLNode;
   optType, tableName: string;
   I,J:Integer;
   impi: TImplsItem;
@@ -103,15 +107,13 @@ begin
         optType := OPT.Attributes['type'];
         tableName := OPT.Attributes['table'];
 
-        dataN := OPT.ChildNodes['data'];
-        if not VarIsNull(dataN) then
+        for J := 0 to ImplsManger.items.Count-1 do
         begin
-          for J := 0 to ImplsManger.items.Count-1 do
-          begin
-            impi := TImplsItem(ImplsManger.items[i]);
-            impi.RunSql(tableName, optType, dataN);
-          end;
+          impi := TImplsItem(ImplsManger.items[i]);
+          if not impi.Paused then
+            impi.RunSql(tableName, optType, OPT);
         end;
+
       end;
     end;
   end;

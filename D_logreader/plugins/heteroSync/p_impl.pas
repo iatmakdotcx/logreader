@@ -24,6 +24,7 @@ type
     procedure btn_cfgClick(Sender: TObject);
     procedure FormShow(Sender: TObject);
     procedure Button1Click(Sender: TObject);
+    procedure btn_delClick(Sender: TObject);
   private
     ImplsManger : TImplsManger;
     procedure RefreshList;
@@ -40,7 +41,7 @@ var
 implementation
 
 uses
-  Des, loglog, p_mainCfg, Data.Win.ADODB, Xml.XMLIntf, Xml.XMLDoc;
+  Des, loglog, p_mainCfg, Data.Win.ADODB, Xml.XMLIntf, Xml.XMLDoc, System.Types;
 
 {$R *.dfm}
 
@@ -63,6 +64,19 @@ begin
   end;
 end;
 
+procedure Tfrm_impl.btn_delClick(Sender: TObject);
+var
+  impItem:TImplsItem;
+begin
+  if ListView1.Selected<>nil then
+  begin
+    impItem := TImplsItem(ListView1.Selected.Data);
+    ImplsManger.items.Remove(impItem);
+    ImplsManger.save;
+    RefreshList;
+  end;
+end;
+
 procedure Tfrm_impl.btn_enableClick(Sender: TObject);
 var
   impItem:TImplsItem;
@@ -81,7 +95,6 @@ begin
     RefreshList;
   end;
 end;
-
 
 procedure Tfrm_impl.Button1Click(Sender: TObject);
 var

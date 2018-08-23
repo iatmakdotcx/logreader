@@ -12,6 +12,7 @@ type
   TImplsItemState = (Unconfigured, Normal, Pause);
 
   TableOptDefItem = class(TObject)
+    ReplaceParam2Str:Boolean;
     ObjName: string;
     Insert: string;
     Delete: string;
@@ -26,7 +27,7 @@ type
     procedure loadBin(afile: string);
     procedure loadXml(afile: string);
     procedure saveXml(afile: string);
-    function getSqlTemplate(objName:string; typeStr:string):string;
+    function getSqlTemplate(objName:string; typeStr:string;var p2s:Boolean):string;
   public
     uid:string;
     //デスティネーション
@@ -42,7 +43,7 @@ type
     function Count: Integer;
     function Add(vvv:TableOptDefItem):Integer;
     procedure Remove(ObjName: string);
-    function RunSql(objName, typeStr: string; dataN: IXMLNode):string;
+    function RunSql(objName, typeStr: string; OptNode: IXMLNode):string;
   end;
 
   TImplsManger = class(TObject)
@@ -118,7 +119,7 @@ var
   I: Integer;
 begin
   Result := TStringList.Create;
-  ms := TRegEx.Matches(aSql,'(\@[\w|\$]+)',[roMultiLine]);
+  ms := TRegEx.Matches(aSql,'(\@[\w\$\x{4e00}-\x{9fBF}]+)',[roMultiLine]);
   for I := 0 to ms.Count-1 do
   begin
     if Result.IndexOf(ms[i].Value)=-1 then
@@ -262,6 +263,8 @@ begin
       begin
         tod := TableOptDefItem.Create;
         tod.ObjName := RowNode.Attributes['name'];
+        if RowNode.HasAttribute('ReplaceParam2Str') then
+          tod.ReplaceParam2Str := RowNode.Attributes['ReplaceParam2Str'] = '1';
         tod.Insert := getXmlTextWithTureEol(RowNode.ChildNodes['Insert']);
         tod.Delete := getXmlTextWithTureEol(RowNode.ChildNodes['Delete']);
         tod.Update := getXmlTextWithTureEol(RowNode.ChildNodes['Update']);
@@ -285,27 +288,154 @@ begin
   end;
 end;
 
-function TImplsItem.RunSql(objName, typeStr: string; dataN: IXMLNode): string;
+function TImplsItem.RunSql(objName, typeStr: string; OptNode: IXMLNode): string;
 var
-  SqlTemplate:string;
+  SqlTemplate_Bak,SqlTemplate:string;
   adoq:TADOQuery;
   ParamLst:TStringList;
+  p2s:Boolean;
+  I, J: Integer;
+  paramName:string;
+  nodeName:string;
+
+  var
+  field,valueNode:IXMLNode;
+  dtype:string;
+  ssvL:string;
+  tmpPa:TParameter;
 begin
-  SqlTemplate := getSqlTemplate(objName, typeStr);
+  SqlTemplate := getSqlTemplate(objName, typeStr, p2s);
+  SqlTemplate_Bak := SqlTemplate;
   if SqlTemplate <> '' then
   begin
     ParamLst := getSqlParams(SqlTemplate);
     adoq := TADOQuery.Create(nil);
     try
       adoq.Close;
-      adoq.SQL.Text := SqlTemplate;
-      adoq.ConnectionString := ConnStr;
+      try
+        if not p2s then
+        begin
+          //定义入参
+          adoq.SQL.Text := SqlTemplate.Replace('@',':',[rfReplaceAll]);
+          adoq.Parameters.Clear;
+        end;
+        for I := 0 to ParamLst.Count-1 do
+        begin
+          paramName := ParamLst[i];
+          if paramName.StartsWith('@$') then
+          begin
+            //old
+            nodeName := paramName.Substring(2);
+          end else begin
+            //new
+            nodeName := paramName.Substring(1);
+          end;
+          for J := 0 to OptNode.ChildNodes.Count - 1 do
+          begin
+            if OptNode.ChildNodes[J].NodeName= nodeName then
+            begin
+              field := OptNode.ChildNodes[J];
+              if typeStr = 'update' then
+              begin
+                if paramName.StartsWith('@$') then
+                begin
+                  //old
+                  valueNode := field.ChildNodes['old'];
+                end else begin
+                  //new
+                  valueNode := field.ChildNodes['new'];
+                end;
+              end else begin
+                //insert ,delete
+                valueNode := field;
+              end;
+              if field.HasAttribute('dtype') then
+              begin
+                dtype := field.Attributes['dtype'];
+              end;
 
+              if p2s then
+              begin
+                //参数替换为值
+                if valueNode.HasAttribute('null') then
+                begin
+                  ssvL := 'NULL';
+                end else begin
+                  if dtype = 'int' then
+                  begin
+                    ssvL := valueNode.Text;
+                  end
+                  else if dtype = 'float' then
+                  begin
+                    ssvL := valueNode.Text;
+                  end
+                  else if dtype = 'bin' then
+                  begin
+                    ssvL := valueNode.Text;
+                  end
+                  else if dtype = 'bool' then
+                  begin
+                    ssvL := valueNode.Text;
+                  end
+                  else
+                  begin
+                    ssvL := valueNode.Text.QuotedString;
+                  end;
+                end;
+                SqlTemplate := StringReplace(SqlTemplate, paramName, ssvL,[rfReplaceAll]);
+              end else begin
+                //定义入参
+                tmpPa := adoq.Parameters.AddParameter;
+                tmpPa.Name := paramName;
+                if valueNode.HasAttribute('null') then
+                begin
+                  tmpPa.Value := null;
+                end else begin
+                  if dtype = 'int' then
+                  begin
+                    tmpPa.Value := valueNode.Text;
+                  end
+                  else if dtype = 'float' then
+                  begin
+                    tmpPa.Value := valueNode.Text;
+                  end
+                  else if dtype = 'bin' then
+                  begin
+                    tmpPa.Value := valueNode.Text;
+                  end
+                  else if dtype = 'bool' then
+                  begin
+                    tmpPa.Value := valueNode.Text;
+                  end
+                  else
+                  begin
+                    tmpPa.Value := valueNode.Text;
+                  end;
+                end;
+              end;
+              Break;
+            end;
+          end;
+        end;
+        if p2s then
+        begin
+          adoq.SQL.Text := SqlTemplate;
+        end;
+        adoq.ConnectionString := ConnStr;
+        adoq.ExecSQL;
+      except
+        on Eee:Exception do
+        begin
+          dtype := '执行Sql失败！！' + Eee.Message+#$D#$A+'================================================';
+          dtype := dtype +'XML:'+ OptNode.XML+#$D#$A+'------------------';
+          dtype := dtype +'SQL:'+ SqlTemplate_Bak;
+          Loger.Add(dtype, LOG_ERROR or LOG_IMPORTANT);
+        end;
+      end;
     finally
       adoq.Free;
       ParamLst.Free;
     end;
-
   end;
 end;
 
@@ -365,6 +495,10 @@ begin
     tod := TableOptDefItem(items[I]);
     RowNode := ItemsNode.AddChild('row');
     RowNode.Attributes['name'] := tod.ObjName;
+    if tod.ReplaceParam2Str then
+      RowNode.Attributes['ReplaceParam2Str'] := '1'
+    else
+      RowNode.Attributes['ReplaceParam2Str'] := '0';
 
     tmpNode := RowNode.AddChild('Insert');
     tmpNode.Text := tod.Insert;
@@ -502,7 +636,7 @@ begin
   inherited;
 end;
 
-function TImplsItem.getSqlTemplate(objName, typeStr: string): string;
+function TImplsItem.getSqlTemplate(objName, typeStr: string;var p2s:Boolean): string;
 var
   dii: TableOptDefItem;
 begin
@@ -522,6 +656,7 @@ begin
     begin
       Result := dii.Update;
     end;
+    p2s := dii.ReplaceParam2Str;
   end;
 end;
 

@@ -30,6 +30,11 @@ type
     lbl_TransInfo: TLabel;
     PopupMenu1: TPopupMenu;
     N1: TMenuItem;
+    upd1: TMenuItem;
+    CheckBox1: TCheckBox;
+    Button3: TButton;
+    N2: TMenuItem;
+    ADOConnection1: TADOConnection;
     procedure pnl_optsResize(Sender: TObject);
     procedure Button1Click(Sender: TObject);
     procedure edt_filterKeyUp(Sender: TObject; var Key: Word; Shift: TShiftState);
@@ -38,7 +43,15 @@ type
       Selected: Boolean);
     procedure FormShow(Sender: TObject);
     procedure N1Click(Sender: TObject);
+    procedure Button3Click(Sender: TObject);
+    procedure N2Click(Sender: TObject);
+    procedure FormCreate(Sender: TObject);
+    procedure Memo_InsertClick(Sender: TObject);
+    procedure Memo_InsertKeyUp(Sender: TObject; var Key: Word;
+      Shift: TShiftState);
   private
+    SelMmo:TMemo;
+    SelMmoIdx:Integer;
     SeltnlName:string;
     procedure InitTables;
     procedure RefreshTablelist;
@@ -46,13 +59,14 @@ type
   public
     ImplsManger: TImplsManger;
     implItem: TImplsItem;
-        { Public declarations }
+    { Public declarations }
+    procedure fieldlstClick(fieldName,paramName:string);
   end;
 
 
 implementation
 uses
-  loglog,XMLDoc,XMLIntf;
+  loglog,XMLDoc,XMLIntf, p_paramStyleHelp, p_tblfieldsDisp;
 
 {$R *.dfm}
 
@@ -77,6 +91,7 @@ begin
     Ddd.Insert := Memo_Insert.Text;
     Ddd.Delete := Memo_Delete.Text;
     Ddd.Update := Memo_Update.Text;
+    Ddd.ReplaceParam2Str := CheckBox1.Checked;
     if (Ddd.Insert = '') and (Ddd.Delete = '') and (Ddd.Update = '') then
     begin
       implItem.Remove(SeltnlName);
@@ -86,14 +101,35 @@ begin
   end;
 end;
 
+procedure Tfrm_mainCfg.Button3Click(Sender: TObject);
+var
+  frm_paramStyleHelp: Tfrm_paramStyleHelp;
+begin
+  frm_paramStyleHelp := Tfrm_paramStyleHelp.create(nil);
+  try
+    frm_paramStyleHelp.ShowModal;
+  finally
+    frm_paramStyleHelp.free;
+  end;
+end;
+
 procedure Tfrm_mainCfg.edt_filterKeyUp(Sender: TObject; var Key: Word; Shift: TShiftState);
 begin
   RefreshTablelist;
 end;
 
+procedure Tfrm_mainCfg.FormCreate(Sender: TObject);
+begin
+  frm_TblFieldsDisp := Tfrm_TblFieldsDisp.Create(nil);
+  frm_TblFieldsDisp.ADOQuery1.Connection := ADOConnection1;
+end;
+
 procedure Tfrm_mainCfg.FormShow(Sender: TObject);
 begin
   lbl_TransInfo.Caption := ImplsManger.Host + ':' + ImplsManger.dbName + '  >>  ' + getDispConnStr(implItem.ConnStr, True);
+  ADOConnection1.Connected := False;
+  ADOConnection1.ConnectionString := getConnectionString(ImplsManger.Host, ImplsManger.user, ImplsManger.pass, ImplsManger.dbName);
+  ADOConnection1.Connected := True;
   Button1.Click;
 end;
 
@@ -146,7 +182,7 @@ end;
 procedure Tfrm_mainCfg.InitTables;
 begin
   ADOQuery1.Close;
-  ADOQuery1.ConnectionString := getConnectionString(ImplsManger.Host, ImplsManger.user, ImplsManger.pass, ImplsManger.dbName);
+  ADOQuery1.Connection := ADOConnection1;
   ADOQuery1.SQL.Text := 'select tbl.name,tbl.object_id,SCHEMA_NAME(tbl.schema_id) from sys.tables tbl join ' + 
         'sys.indexes idx on idx.object_id = tbl.object_id  and ' + 
         '(idx.index_id < 2  or (tbl.is_memory_optimized = 1 and idx.index_id < 3)) order by 3,1';
@@ -169,19 +205,56 @@ begin
       Memo_Insert.Text := Ddd.Insert;
       Memo_Delete.Text := Ddd.Delete;
       Memo_Update.Text := Ddd.Update;
+      CheckBox1.Checked := Ddd.ReplaceParam2Str;
     end
     else
     begin
       Memo_Insert.Text := '';
       Memo_Delete.Text := '';
       Memo_Update.Text := '';
+      CheckBox1.Checked := False;
     end;
+    frm_TblFieldsDisp.RefreshTableColumns(SeltnlName);
+  end;
+end;
+
+procedure Tfrm_mainCfg.Memo_InsertClick(Sender: TObject);
+begin
+  SelMmo := Sender as TMemo;
+  SelMmoIdx := SelMmo.SelStart;
+end;
+
+procedure Tfrm_mainCfg.Memo_InsertKeyUp(Sender: TObject; var Key: Word;
+  Shift: TShiftState);
+begin
+  SelMmoIdx := SelMmo.SelStart;
+end;
+
+procedure Tfrm_mainCfg.fieldlstClick(fieldName, paramName: string);
+var
+  ssss:string;
+begin
+  if paramName.StartsWith('@$') and (SelMmo<>Memo_Update) then
+  begin
+    MessageBox(Handle, '½öÓÃÓÚUpdate£¡', '', MB_OK + MB_ICONSTOP);
+  end else begin
+    ssss := SelMmo.Lines.Text;
+    Insert(' '+paramName+' ', ssss, SelMmoIdx + 1);
+    SelMmo.Lines.Text := ssss;
+    SelMmo.SetFocus;
+    SelMmo.SelStart := SelMmoIdx;
   end;
 end;
 
 procedure Tfrm_mainCfg.N1Click(Sender: TObject);
 begin
   Button1.Click;
+end;
+
+procedure Tfrm_mainCfg.N2Click(Sender: TObject);
+begin
+  frm_TblFieldsDisp.cfgForm := Self;
+  frm_TblFieldsDisp.show;
 end;
 
 procedure Tfrm_mainCfg.pnl_optsResize(Sender: TObject);

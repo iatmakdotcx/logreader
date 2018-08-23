@@ -75,6 +75,7 @@ object frm_impl: Tfrm_impl
     Caption = #21024#38500
     Enabled = False
     TabOrder = 3
+    OnClick = btn_delClick
   end
   object btn_cfg: TButton
     Left = 317
