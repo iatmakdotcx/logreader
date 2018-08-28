@@ -72,7 +72,7 @@ type
     /// <param name="aSql">要执行的sql</param>
     /// <param name="resDataset">执行的返回结果。如果函数执行成功，应该手动释放此结果集</param>
     /// <returns>执行是否成功</returns>
-    function ExecSqlOnMaster(aSql: string; out resDataset: TCustomADODataSet;withOpen:Boolean=True): Boolean;
+    function ExecSqlOnMaster(aSql: string; out resDataset: TCustomADODataSet;withOpen:Boolean=True): Boolean;overload;
     /// <summary>
     /// 在当前实例库中执行sql，并获取执行结果
     /// </summary>

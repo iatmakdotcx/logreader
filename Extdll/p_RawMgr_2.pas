@@ -8,6 +8,18 @@ uses
 function PageLog_save: Boolean;
 function PageLog_load(dbid: Word; lsn1: DWORD; lsn2: DWORD; lsn3: WORD; data: TMemoryStream): Boolean;
 
+
+type
+  TloopSaveMgr = class(TThread)
+  public
+    procedure Execute; override;
+    constructor Create;
+    destructor Destroy; override;
+  end;
+  
+var
+  loopSaveMgr: TloopSaveMgr;
+
 implementation
 
 uses
@@ -44,9 +56,9 @@ type
   TLidxItem = packed record      
     case Integer of
       0:
-        (Reserve: Word;
+        (Lsn3: Word;
         ReqNo: DWORD;
-        Lsn3: Word;
+        Reserve: Word;
         DataOffset: DWORD;
         DataOffsetH: WORD;
         LogSize: WORD;);
@@ -130,7 +142,7 @@ var
 
 function PageLog_load(dbid: Word; lsn1: DWORD; lsn2: DWORD; lsn3: WORD; data: TMemoryStream): Boolean;
 begin  
-  PagelogFileMgr.LogDataGetData(dbid, lsn1, lsn2, lsn3, data);
+  Result := PagelogFileMgr.LogDataGetData(dbid, lsn1, lsn2, lsn3, data);
 end;
 
 function PageLog_save: Boolean;
@@ -402,7 +414,6 @@ function TVlfMgr.Get(lsn2: DWORD; lsn3: WORD; var data: TMemoryStream): Boolean;
 var
   UniId:Int64;
   DataOffset:UInt64; 
-  DataBuff :Pointer;
   DataLen:Word;
   Rsize:Cardinal;  
 begin
@@ -459,7 +470,7 @@ begin
     SetFilePointerEx(Handle_DataFile, 0, @lsize, soFromEnd);
     WriteFile_OverLapped(Handle_DataFile, Lri.val^, Lri.length, Rsize, lsize.QuadPart);
 
-    lsize.HighPart := lsize.HighPart or ((Lri.length and $FFFF) shl 16);
+    lsize.HighPart := Cardinal(lsize.HighPart) or ((Lri.length and $FFFF) shl 16);
     idxObj.add(UniId, lsize.QuadPart);
     Result := True;
   end;
@@ -736,9 +747,52 @@ begin
   inherited;
 end;
 
+{ TloopSaveMgr }
+
+constructor TloopSaveMgr.Create;
+begin
+  inherited Create(False);
+  //FreeOnTerminate := True;        //TODO:这里如果设置自动释放，停止时会引发错误： Thread Error: 句柄无效。 (6)
+  Self.NameThreadForDebugging('TloopSaveMgr', Self.ThreadID);
+end;
+
+destructor TloopSaveMgr.Destroy;
+begin
+
+  inherited;
+end;
+
+procedure TloopSaveMgr.Execute;
+var
+  I:Integer;
+begin
+  while not Terminated do
+  begin
+    try
+      PageLog_save;
+    except
+      on eee:Exception do
+      begin
+        Loger.Add('TloopSaveMgr.Execute fail ' + eee.Message, LOG_ERROR or LOG_IMPORTANT);
+      end;
+    end;
+    //2S
+    for I := 0 to 20 - 1 do
+    begin
+      Sleep(100);
+      if Terminated then
+      begin
+        Break;
+      end;
+    end;
+  end;
+  loopSaveMgr := nil;
+end;
+
 initialization
   PagelogFileMgr := TPagelogFileMgr.Create;
-
+  loopSaveMgr := nil;
+  
 finalization
   PagelogFileMgr.Free;
 

@@ -3,10 +3,10 @@ unit cfg;
 interface
 
 var
-  DBids: Uint64 = 0;
+  CFG_DBids: Uint64 = 0;
 
 procedure saveCfg;
-procedure loadCfg;
+
 
 implementation
 
@@ -25,7 +25,7 @@ begin
     ForceDirectories(ExtractFilePath(sss));
     cfgStrl := TStringList.Create;
     try
-      cfgStrl.Values['DBids'] := UIntToStr(DBids);
+      cfgStrl.Values['DBids'] := UIntToStr(CFG_DBids);
       //TODO:º”√‹
       cfgStrl.SaveToFile(sss);
     finally
@@ -46,15 +46,15 @@ var
 begin
   try
     sss := ExtractFilePath(GetModuleName(HInstance));
-    sss := sss + 'Lrcfg/LreCfg.bin';
+    sss := sss + 'cfg/LreCfg.bin';
     cfgStrl := TStringList.Create;
     try
       cfgStrl.LoadFromFile(sss);
       //TODO:Ω‚√‹
-      DBids := StrToUInt64Def(cfgStrl.Values['DBids'], 0);
+      CFG_DBids := StrToUInt64Def(cfgStrl.Values['DBids'], 0);
       if Assigned(_Lc_Set_Databases) then
       begin
-        _Lc_Set_Databases(DBids);
+        _Lc_Set_Databases(CFG_DBids);
       end;
     finally
       cfgStrl.Free;
@@ -66,6 +66,12 @@ begin
     end;
   end;
 end;
+
+initialization
+  loadCfg;
+
+finalization
+  saveCfg;
 
 
 end.

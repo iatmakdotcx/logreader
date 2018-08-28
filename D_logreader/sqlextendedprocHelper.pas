@@ -34,7 +34,6 @@ uses
 const
   OPTSQLPROCNAME = 'master..Lr_doo';
   OPTSQLPROCNAME_readLog = 'master..Lr_roo';
-  OPTSQLPROCNAME_readLogAsXml = 'master..Lr_roo2';
 
 
 function CheckExtendedProcExists(databaseConnection:TdatabaseConnection; ProcName:string):Boolean;
@@ -108,36 +107,27 @@ var
   aSql:string;
 begin
   Result := nil;
-  if CreateExtendedProc(databaseConnection, OPTSQLPROCNAME_readLog) then
+  aSql := Format('exec %s %d,%d,%d,%d', [OPTSQLPROCNAME_readLog, databaseConnection.dbID, LSN.LSN_1, LSN.LSN_2, LSN.LSN_3]);
+  if databaseConnection.ExecSqlOnMaster(aSql, rDataset) then
   begin
-    aSql := Format('exec %s %d,%d,%d,%d', [OPTSQLPROCNAME_readLog, databaseConnection.dbID, LSN.LSN_1, LSN.LSN_2, LSN.LSN_3]);
-    if databaseConnection.ExecSqlOnMaster(aSql, rDataset) then
+    if not rDataset.Eof then
     begin
-      if not rDataset.Eof then
-      begin
-        Result := rDataset.Fields[1].AsBytes;
-      end;
-      rDataset.Free;
+      Result := rDataset.Fields[1].AsBytes;
     end;
-  end;
-end;
-
-function getUpdateSoltDataXML(databaseConnection:TdatabaseConnection;LSN: Tlog_LSN):string;
-var
-  rDataset:TCustomADODataSet;
-  aSql:string;
-begin
-  Result := '';
-  if CreateExtendedProc(databaseConnection, OPTSQLPROCNAME_readLogAsXml) then
+    rDataset.Free;
+  end
+  else
   begin
-    aSql := Format('exec %s %d,%d,%d,%d', [OPTSQLPROCNAME_readLogAsXml, databaseConnection.dbID, LSN.LSN_1, LSN.LSN_2, LSN.LSN_3]);
-    if databaseConnection.ExecSqlOnMaster(aSql, rDataset) then
+    if CreateExtendedProc(databaseConnection, OPTSQLPROCNAME_readLog) then
     begin
-      if not rDataset.Eof then
+      if databaseConnection.ExecSqlOnMaster(aSql, rDataset) then
       begin
-        Result := rDataset.Fields[1].AsString;
-      end;
-      rDataset.Free;
+        if not rDataset.Eof then
+        begin
+          Result := rDataset.Fields[1].AsBytes;
+        end;
+        rDataset.Free;
+      end
     end;
   end;
 end;

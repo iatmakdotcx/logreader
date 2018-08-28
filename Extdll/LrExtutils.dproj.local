@@ -21,5 +21,6 @@
     <File Path="pageCaptureDllHandler.pas"/>
     <File Path="SqlSvrHelper.pas"/>
     <File Path="p_RawMgr_2.pas"/>
+    <File Path="p_HookHelper.pas"/>
   </ProjectSortOrder>
 </BorlandProject>

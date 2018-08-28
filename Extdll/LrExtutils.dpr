@@ -40,15 +40,14 @@ uses
   loglog in '..\Common\loglog.pas',
   Log4D in '..\Common\Log4D.pas',
   HashHelper in '..\Common\HashHelper.pas',
-  p_RawMgr_2 in 'p_RawMgr_2.pas';
+  p_RawMgr_2 in 'p_RawMgr_2.pas',
+  p_HookHelper in 'p_HookHelper.pas';
 
 {$R *.res}
 
 const
   ModuleVersion = $00000001;
 
-var
-  SVR_hookPnt_Row:Integer = 0;
 
 /// <summary>
 /// 是否有当前文件夹的写入权限
@@ -166,145 +165,81 @@ begin
   end;
 end;
 
-function d_checkSqlSvr(pSrvProc: SRV_PROC): Integer;
-var
-  hdl: tHandle;
-  Pathbuf: array[0..MAX_PATH + 2] of Char;
-  sqlminMD5: string;
-  hookPnt: Integer;
-  dllPath: string;
-begin
-  Result := 0;
-  hdl := GetModuleHandle('sqlmin.dll');
-  if hdl = 0 then
-  begin
-    SqlSvr_SendMsg(pSrvProc, 'Error:sqlmin.dll加载失败');
-  end
-  else
-  begin
-    ZeroMemory(@Pathbuf[0], MAX_PATH + 2);
-    GetModuleFileName(hdl, Pathbuf, MAX_PATH);
-    sqlminMD5 := GetFileHashMD5(Pathbuf);
 
-    //SqlSvr_SendMsg(pSrvProc, string(Pathbuf));
-    //SqlSvr_SendMsg(pSrvProc, 'sqlmin:'+sqlminMD5);
-
-    //GetModuleFileName(HInstance, Pathbuf, MAX_PATH);
-    //SqlSvr_SendMsg(pSrvProc, string(Pathbuf));
-
-    try
-      if DBH = nil then
-         DBH := TDBH.Create;
-
-      if DBH.checkMd5(sqlminMD5) then
-      begin
-        if DBH.cfg(sqlminMD5, hookPnt, dllPath) then
-        begin
-          SVR_hookPnt_Row := hookPnt;
-          pageCapture_init(dllPath);
-          SqlSvr_SendMsg(pSrvProc, 'init:成功');
-          Result := 1;
-        end else begin
-          SqlSvr_SendMsg(pSrvProc, '读取配置失败');
-        end;
-      end
-      else
-      begin
-        Result := 2;
-      end;
-    except
-      on e: Exception do
-      begin
-        SqlSvr_SendMsg(pSrvProc, e.Message);
-      end;
-    end;
-  end;
-
-end;
-
-function d_hook_init(pSrvProc: SRV_PROC): Integer;
-var
-  hdl: tHandle;
-  Pathbuf: array[0..MAX_PATH + 2] of Char;
-  sqlminMD5: string;
-  hookPnt: Integer;
-  dllPath: string;
-begin
-  Result := SUCCEED;
-  hdl := GetModuleHandle('sqlmin.dll');
-  if hdl = 0 then
-  begin
-    srv_sendmsg(pSrvProc, SRV_MSG_INFO, 0, 0, 0, nil, 0, 0, 'Error:sqlmin.dll加载失败', SRV_NULLTERM);
-  end
-  else
-  begin
-    ZeroMemory(@Pathbuf[0], MAX_PATH + 2);
-    GetModuleFileName(hdl, Pathbuf, MAX_PATH);
-    sqlminMD5 := GetFileHashMD5(Pathbuf);
-
-    SqlSvr_SendMsg(pSrvProc, string(Pathbuf));
-    SqlSvr_SendMsg(pSrvProc, sqlminMD5);
-
-    GetModuleFileName(HInstance, Pathbuf, MAX_PATH);
-    SqlSvr_SendMsg(pSrvProc, string(Pathbuf));
-
-    if checkCurDirPermission then
-    begin
-      SqlSvr_SendMsg(pSrvProc, ' dll目录不包含写入权限！');
-      Exit;
-    end;
-
-    try
-      if DBH = nil then
-         DBH := TDBH.Create;
-
-      if DBH.checkMd5(sqlminMD5) then
-      begin
-        SqlSvr_SendMsg(pSrvProc, '准备加载已知方案');
-        if DBH.cfg(sqlminMD5, hookPnt, dllPath) then
-        begin
-          SVR_hookPnt_Row := hookPnt;
-          pageCapture_init(dllPath);
-          SqlSvr_SendMsg(pSrvProc, '成功');
-        end;
-      end
-      else
-      begin
-        //TODO:如何是好
-        SqlSvr_SendMsg(pSrvProc, 'ERROR:未确认的数据采集方案');
-      end;
-    except
-      on e: Exception do
-      begin
-        SqlSvr_SendMsg(pSrvProc, e.Message);
-      end;
-    end;
-  end;
-end;
+//function d_hook_init(pSrvProc: SRV_PROC): Integer;
+//var
+//  hdl: tHandle;
+//  Pathbuf: array[0..MAX_PATH + 2] of Char;
+//  sqlminMD5: string;
+//  hookPnt: Integer;
+//  dllPath: string;
+//begin
+//  Result := SUCCEED;
+//  hdl := GetModuleHandle('sqlmin.dll');
+//  if hdl = 0 then
+//  begin
+//    srv_sendmsg(pSrvProc, SRV_MSG_INFO, 0, 0, 0, nil, 0, 0, 'Error:sqlmin.dll加载失败', SRV_NULLTERM);
+//  end
+//  else
+//  begin
+//    ZeroMemory(@Pathbuf[0], MAX_PATH + 2);
+//    GetModuleFileName(hdl, Pathbuf, MAX_PATH);
+//    sqlminMD5 := GetFileHashMD5(Pathbuf);
+//
+//    SqlSvr_SendMsg(pSrvProc, string(Pathbuf));
+//    SqlSvr_SendMsg(pSrvProc, sqlminMD5);
+//
+//    GetModuleFileName(HInstance, Pathbuf, MAX_PATH);
+//    SqlSvr_SendMsg(pSrvProc, string(Pathbuf));
+//
+//    if checkCurDirPermission then
+//    begin
+//      SqlSvr_SendMsg(pSrvProc, ' dll目录不包含写入权限！');
+//      Exit;
+//    end;
+//
+//    try
+//      if DBH = nil then
+//         DBH := TDBH.Create;
+//
+//      SqlSvr_SendMsg(pSrvProc, '准备加载已知方案');
+//      if DBH.cfg(sqlminMD5, hookPnt, dllPath) then
+//      begin
+//        SVR_hookPnt_Row := hookPnt;
+//        pageCapture_init(dllPath);
+//        SqlSvr_SendMsg(pSrvProc, '成功');
+//      end else begin
+//        SqlSvr_SendMsg(pSrvProc, 'ERROR:未确认的数据采集方案');
+//      end;
+//    except
+//      on e: Exception do
+//      begin
+//        SqlSvr_SendMsg(pSrvProc, e.Message);
+//      end;
+//    end;
+//  end;
+//end;
 
 function d_hook(pSrvProc: SRV_PROC): Integer;
 var
   hookPnt:UInt64;
 begin
   Result := SUCCEED;
-  if not Assigned(_Lc_doHook) then
-    d_hook_init(pSrvProc);
-
-  d_checkSqlSvr(pSrvProc);
-
   if Assigned(_Lc_doHook) and (SVR_hookPnt_Row > 0) then
   begin
-//    if loopSaveMgr = nil then
-//      loopSaveMgr := TloopSaveMgr.Create;
+    if loopSaveMgr = nil then
+      loopSaveMgr := TloopSaveMgr.Create;
     hookPnt := _Lc_doHook(SVR_hookPnt_Row);
     if hookPnt = 99 then
     begin
-      _Lc_Set_Databases(cfg.DBids);
+      _Lc_Set_Databases(cfg.CFG_DBids);
       SqlSvr_SendMsg(pSrvProc, '成功');
     end else begin
       //hook fail
       SqlSvr_SendMsg(pSrvProc, 'ERROR:' + HookFailMsg(hookPnt));
     end;
+  end else begin
+    SqlSvr_SendMsg(pSrvProc, '没有合适的配置!!!');
   end;
 end;
 
@@ -319,18 +254,18 @@ begin
     _Lc_unHook;
   end;
 
-//  if loopSaveMgr <> nil then
-//  begin
-//    loopSaveMgr.Free;
-//    loopSaveMgr := nil;
-//  end;
+  if loopSaveMgr <> nil then
+  begin
+    loopSaveMgr.Free;
+    loopSaveMgr := nil;
+  end;
 end;
 
 procedure d_Set_Databases_0(pSrvProc: SRV_PROC);
 type
   PUInt64 = ^UInt64;
 var
-  DBids: UInt64;
+  IptDBid: UInt64;
 begin
   if srv_rpcparams(pSrvProc) <> 2 then
   begin
@@ -338,23 +273,19 @@ begin
   end
   else
   begin
-    DBids := getParam_int(pSrvProc, 2);
-    if DBids > 63 then
+    IptDBid := getParam_int(pSrvProc, 2);
+    if IptDBid > 63 then
     begin
-      SqlSvr_SendMsg(pSrvProc, '数据库id必须是1..63之间的值' + UIntToStr(DBids));
+      SqlSvr_SendMsg(pSrvProc, '数据库id必须是1..63之间的值' + UIntToStr(IptDBid));
       Exit;
     end;
 
-    cfg.DBids := cfg.DBids and ((Uint64(1) shl (DBids-1)) xor $FFFFFFFFFFFFFFFF);
+    cfg.CFG_DBids := cfg.CFG_DBids and ((Uint64(1) shl (IptDBid-1)) xor $FFFFFFFFFFFFFFFF);
     cfg.saveCfg;
-    SqlSvr_SendMsg(pSrvProc, 'DBids:' + UIntToStr(DBids));
-    if not Assigned(_Lc_Set_Databases) then
+    SqlSvr_SendMsg(pSrvProc, 'DBids:' + UIntToStr(CFG_DBids));
+    if Assigned(_Lc_Set_Databases) then
     begin
-      SqlSvr_SendMsg(pSrvProc, 'ERROR:未初始化数据采集进程:' + UIntToStr(DBids));
-    end
-    else
-    begin
-      _Lc_Set_Databases(cfg.DBids);
+      _Lc_Set_Databases(cfg.CFG_DBids);
       SqlSvr_SendMsg(pSrvProc, '完成');
     end;
   end;
@@ -364,7 +295,7 @@ procedure d_Set_Databases_1(pSrvProc: SRV_PROC);
 type
   PUInt64 = ^UInt64;
 var
-  DBids: UInt64;
+  IptDBid: UInt64;
 begin
   if srv_rpcparams(pSrvProc) <> 2 then
   begin
@@ -372,20 +303,20 @@ begin
   end
   else
   begin
-    DBids := getParam_int(pSrvProc, 2);
-    if DBids > 63 then
+    IptDBid := getParam_int(pSrvProc, 2);
+    if IptDBid > 63 then
     begin
-      SqlSvr_SendMsg(pSrvProc, '数据库id必须是1..63之间的值' + UIntToStr(DBids));
+      SqlSvr_SendMsg(pSrvProc, '数据库id必须是1..63之间的值' + UIntToStr(IptDBid));
       Exit;
     end;
-    SqlSvr_SendMsg(pSrvProc, 'ipt:' + UIntToStr(DBids));
+    SqlSvr_SendMsg(pSrvProc, 'ipt:' + UIntToStr(IptDBid));
 
-    cfg.DBids := cfg.DBids or (Uint64(1) shl (DBids-1));
+    cfg.CFG_DBids := cfg.CFG_DBids or (Uint64(1) shl (IptDBid-1));
     cfg.saveCfg;
-    SqlSvr_SendMsg(pSrvProc, 'DBids:' + UIntToStr(cfg.DBids));
+    SqlSvr_SendMsg(pSrvProc, 'DBids:' + UIntToStr(cfg.CFG_DBids));
     if Assigned(_Lc_Set_Databases) then
     begin
-      _Lc_Set_Databases(cfg.DBids);
+      _Lc_Set_Databases(cfg.CFG_DBids);
       SqlSvr_SendMsg(pSrvProc, '完成');
     end;
   end;
@@ -442,7 +373,6 @@ procedure PrintState(pSrvProc: SRV_PROC);
   end;
 
 var
-  validCfg: Integer;
   dbids: UInt64;
   I: Integer;
   TmpStr: string;
@@ -470,18 +400,22 @@ begin
       SqlSvr_SendMsg(pSrvProc, 'PaddingDataCnt:' + inttostr(_Lc_Get_PaddingDataCnt));
     end;
 
-//    if loopSaveMgr = nil then
-//    begin
-//      SqlSvr_SendMsg(pSrvProc, 'loopSaveMgr:0');
-//    end else begin
-//      SqlSvr_SendMsg(pSrvProc, 'loopSaveMgr:1');
-//    end;
+    if loopSaveMgr = nil then
+    begin
+      SqlSvr_SendMsg(pSrvProc, 'loopSaveMgr:0');
+    end else begin
+      SqlSvr_SendMsg(pSrvProc, 'loopSaveMgr:1');
+    end;
   end
   else
   begin
     SqlSvr_SendMsg(pSrvProc, 'HookState:0(未启用)');
-    validCfg := d_checkSqlSvr(pSrvProc);
-    SqlSvr_SendMsg(pSrvProc, Format('validCfg:%d(%s)', [validCfg, validCfgNam(validCfg)]));
+    if SVR_hookPnt_Row>0 then
+    begin
+      SqlSvr_SendMsg(pSrvProc, 'validCfg:1');
+    end else begin
+      SqlSvr_SendMsg(pSrvProc, 'validCfg:0');
+    end;
   end;
 
   SqlSvr_SendMsg(pSrvProc, 'check end.....');
@@ -508,7 +442,6 @@ begin
     try
       if srv_rpcparams(pSrvProc) < 1 then
       begin
-        //srv_sendmsg(pSrvProc, SRV_MSG_INFO, 0, 0, 0, nil, 0, 0, 'Error:必须传入一个或多个参数', SRV_NULLTERM);
         PrintState(pSrvProc);
       end
       else
@@ -536,11 +469,11 @@ begin
         end
         else if action = 'D' then
         begin
-//          savePageLog2;
+          PageLog_save;
         end
         else if action = 'E' then
         begin
-          SqlSvr_SendMsg(pSrvProc, 'dbid:' + inttostr(cfg.DBids));
+          SqlSvr_SendMsg(pSrvProc, 'dbid:' + inttostr(cfg.CFG_DBids));
         end
         else if action = 'F' then
         begin
@@ -549,7 +482,12 @@ begin
         else if action = 'G' then
         begin
           srv_describe(pSrvProc, 1, 'status', SRV_NULLTERM, SRVINT4, sizeof(DBSMALLINT), SRVINT2, sizeof(DBSMALLINT), nil);
-          tmpint := d_checkSqlSvr(pSrvProc);
+          if SVR_hookPnt_Row>0 then
+          begin
+            tmpint := 1
+          end else begin
+            tmpint := 0
+          end;
           srv_setcoldata(pSrvProc, 1, @tmpint);
           srv_sendrow(pSrvProc);
         end
@@ -608,25 +546,25 @@ begin
 
     SqlSvr_SendMsg(pSrvProc, Format('dbid:%d, lsn:%.8x:%.8x:%.4x',[dbid,lsn1,lsn2,lsn3]));
     memory:=TMemoryStream.Create;
-//    if PagelogFileMgr.LogDataGetData(dbid, Lsn1, lsn2, lsn3, memory) then
-//    begin
-//      lsnVal := PAnsiChar(AnsiString(Format('%.8x:%.8x:%.4x', [Lsn1, lsn2, lsn3])));
-//      srv_setcoldata(pSrvProc, 1, lsnVal);
-//      srv_setcoldata(pSrvProc, 2, memory.Memory);
-//      srv_setcollen(pSrvProc, 2, memory.Size);
-//      srv_sendrow(pSrvProc);
-//    end else begin
-//      Sleep(2000);  //首次失败休息两秒再试，可能内容还未保存
-//      SqlSvr_SendMsg(pSrvProc, 'Retry...');
-//      if PagelogFileMgr.LogDataGetData(dbid, Lsn1, lsn2, lsn3, memory) then
-//      begin
-//        lsnVal := PAnsiChar(AnsiString(Format('%.8x:%.8x:%.4x', [Lsn1, lsn2, lsn3])));
-//        srv_setcoldata(pSrvProc, 1, lsnVal);
-//        srv_setcoldata(pSrvProc, 2, memory.Memory);
-//        srv_setcollen(pSrvProc, 2, memory.Size);
-//        srv_sendrow(pSrvProc);
-//      end;
-//    end;
+    if PageLog_load(dbid, Lsn1, lsn2, lsn3, memory) then
+    begin
+      lsnVal := PAnsiChar(AnsiString(Format('%.8x:%.8x:%.4x', [Lsn1, lsn2, lsn3])));
+      srv_setcoldata(pSrvProc, 1, lsnVal);
+      srv_setcoldata(pSrvProc, 2, memory.Memory);
+      srv_setcollen(pSrvProc, 2, memory.Size);
+      srv_sendrow(pSrvProc);
+    end else begin
+      Sleep(2000);  //首次失败休息两秒再试，可能内容还未保存
+      SqlSvr_SendMsg(pSrvProc, 'Retry...');
+      if PageLog_load(dbid, Lsn1, lsn2, lsn3, memory) then
+      begin
+        lsnVal := PAnsiChar(AnsiString(Format('%.8x:%.8x:%.4x', [Lsn1, lsn2, lsn3])));
+        srv_setcoldata(pSrvProc, 1, lsnVal);
+        srv_setcoldata(pSrvProc, 2, memory.Memory);
+        srv_setcollen(pSrvProc, 2, memory.Size);
+        srv_sendrow(pSrvProc);
+      end;
+    end;
     memory.Free;
   end else begin
     SqlSvr_SendMsg(pSrvProc, '参数不正确！');
@@ -643,22 +581,22 @@ begin
       end;
     DLL_PROCESS_DETACH:
       begin
-//        if loopSaveMgr <> nil then
-//          loopSaveMgr.Free;
+        if loopSaveMgr <> nil then
+          loopSaveMgr.Free;
       end;
   end;
 end;
 
 procedure Lr_doo_test;
 var
-   mmO:TMemoryStream;
+  mmO: TMemoryStream;
 begin
-  mmO:=TMemoryStream.Create;
+  mmO := TMemoryStream.Create;
   try
-    PageLog_load(5, 161, $A3, 2, mmO);
-    Loger.Add(DumpMemory2Str(mmO.Memory, mmo.Size));
+    PageLog_load(5, 161, $A0, 2, mmO);
+    Loger.Add(DumpMemory2Str(mmO.Memory, mmO.Size));
   finally
-    mmo.Free;
+    mmO.Free;
   end;
 end;
 
@@ -668,6 +606,7 @@ exports
   PageLog_save name 'savePageLog2',
   Lr_doo_test,
   {$ENDIF}
+  d_example,
   Lr_doo,
   Lr_roo;
 
@@ -675,11 +614,12 @@ begin
   DLLProc := @DLLMainHandler; //动态库地址告诉系统，结束的时候执行卸载
   DLLMainHandler(DLL_PROCESS_ATTACH);
 
-  DBH := TDBH.Create;
   {$IFDEF DEBUG}
   //test code
   pageCapture_init('project1.exe');
   {$ENDIF}
+
+  HookpreInit;
 end.
 
 

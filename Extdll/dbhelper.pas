@@ -18,7 +18,6 @@ type
   public
     constructor Create;
     destructor Destroy; override;
-    function checkMd5(md5Str: string): Boolean;
     function cfg(md5Str: string; var pnt: Integer; var dll: string): Boolean;
     procedure cfgAdd(md5Str: string; pnt: Integer; dllv: Integer);
   end;
@@ -45,40 +44,24 @@ function TDBH.cfg(md5Str: string; var pnt: Integer; var dll: string): Boolean;
 var
   sSQL: string;
 begin
-  sSQL := 'select a.pnt,b.dllpath from cfg a join dlls b on a.bin=b.v where `hash`="' + md5Str + '"';
-  Qry.Close;
-  Qry.Open(sSQL);
-  if Qry.RecordCount > 0 then
-  begin
-    pnt := Qry.FieldByName('pnt').AsInteger;
-    dll := Qry.FieldByName('dllpath').AsString;
-    Result := True;
-  end
-  else
-  begin
-    Result := False;
-  end;
-  Qry.Close;
-  Qry.Connection.Connected := False;
-end;
-
-function TDBH.checkMd5(md5Str: string): Boolean;
-var
-  sSQL: string;
-begin
-  if tableExists('cfg') then
-  begin
-    sSQL := 'select 1 from cfg where `hash`="' + md5Str + '"';
+  Result := False;
+  try
+    sSQL := 'select a.pnt,b.dllpath from cfg a join dlls b on a.bin=b.v where `hash`="' + md5Str + '"';
     Qry.Close;
     Qry.Open(sSQL);
-    Result := Qry.RecordCount > 0;
+    if Qry.RecordCount > 0 then
+    begin
+      pnt := Qry.FieldByName('pnt').AsInteger;
+      dll := Qry.FieldByName('dllpath').AsString;
+      Result := True;
+    end;
     Qry.Close;
     Qry.Connection.Connected := False;
-  end
-  else
-  begin
-    Loger.Add('mapdb.cfg≤ª¥Ê‘⁄£°', LOG_ERROR);
-    result := False;
+  except
+    on EE:Exception do
+    begin
+      Loger.Add('TDBH.cfg∂¡»°Dll≈‰÷√ ß∞‹!' + ee.Message);
+    end;
   end;
 end;
 
@@ -120,6 +103,7 @@ begin
 end;
 
 initialization
+  DBH := TDBH.Create;
 
 finalization
   DBH.Free;
