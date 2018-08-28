@@ -1,8 +1,8 @@
 ﻿<?xml version="1.0" encoding="utf-8"?>
 <BorlandProject>
 	<Transactions>
-    <Transaction>1899-12-30 00:00:00.000.570,H:\Java\workspace\logreaderV2.0\Extdll\tester\Unit2.dfm=H:\Java\workspace\logreaderV2.0\Extdll\tester\p_idxmgr.dfm</Transaction>
-    <Transaction>1899-12-30 00:00:00.000.629,C:\Users\Chin\Documents\Embarcadero\Studio\Projects\Project1.dproj=H:\Java\workspace\logreaderV2.0\Extdll\tester\Project1.dproj</Transaction>
-    <Transaction>1899-12-30 00:00:00.000.430,C:\Users\Chin\Documents\Embarcadero\Studio\Projects\Unit1.dfm=H:\Java\workspace\logreaderV2.0\Extdll\tester\Unit1.dfm</Transaction>
+    <Transaction>1899-12-30 00:00:00.000.430,H:\Java\workspace\logreaderV2.0\Extdll\tester\Unit1.dfm=C:\Users\Chin\Documents\Embarcadero\Studio\Projects\Unit1.dfm</Transaction>
+    <Transaction>1899-12-30 00:00:00.000.629,H:\Java\workspace\logreaderV2.0\Extdll\tester\Project1.dproj=C:\Users\Chin\Documents\Embarcadero\Studio\Projects\Project1.dproj</Transaction>
+    <Transaction>1899-12-30 00:00:00.000.570,H:\Java\workspace\logreaderV2.0\Extdll\tester\p_idxmgr.dfm=H:\Java\workspace\logreaderV2.0\Extdll\tester\Unit2.dfm</Transaction>
   </Transactions>
 </BorlandProject>

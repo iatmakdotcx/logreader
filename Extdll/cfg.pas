@@ -5,69 +5,65 @@ interface
 var
   DBids: Uint64 = 0;
 
-procedure saveCfg();
-procedure loadCfg();
+procedure saveCfg;
+procedure loadCfg;
 
 implementation
 
 uses
-  System.SysUtils, System.Classes, pageCaptureDllHandler;
+  System.SysUtils, System.Classes, pageCaptureDllHandler, loglog;
 
 
-procedure saveCfg();
+procedure saveCfg;
 var
   sss:string;
-  mmo: TMemoryStream;
-  wter: TWriter;
+  cfgStrl: TStringList;
 begin
-  sss := ExtractFilePath(GetModuleName(HInstance));
-  sss := sss +'cfg/1.bin';
-  mmo := TMemoryStream.Create;
   try
-    wter := TWriter.Create(mmo, 1);
-    wter.WriteInteger($FB);
-    wter.WriteStr('LrExt v 1.0');
-    wter.WriteInteger(DBids);
-    wter.Free;
-    if not ForceDirectories(ExtractFilePath(sss)) then
-      raise Exception.Create('无法创建目录：'+SysErrorMessage(GetLastError));
-    mmo.SaveToFile(sss);
-  finally
-    mmo.Free;
+    sss := ExtractFilePath(GetModuleName(HInstance));
+    sss := sss +'cfg/LreCfg.bin';
+    ForceDirectories(ExtractFilePath(sss));
+    cfgStrl := TStringList.Create;
+    try
+      cfgStrl.Values['DBids'] := UIntToStr(DBids);
+      //TODO:加密
+      cfgStrl.SaveToFile(sss);
+    finally
+      cfgStrl.Free;
+    end;
+  except
+    on eee:Exception do
+    begin
+      Loger.add('cfg.saveCfg=>'+eee.Message, LOG_ERROR);
+    end;
   end;
 end;
 
-procedure loadCfg();
+procedure loadCfg;
 var
   sss:string;
-  mmo: TMemoryStream;
-  Rter: TReader;
-  tmpStr: string;
+  cfgStrl: TStringList;
 begin
-  sss := ExtractFilePath(GetModuleName(HInstance));
-  sss := sss +'Lrcfg/1.bin';
-  mmo := TMemoryStream.Create;
   try
-    mmo.LoadFromFile(sss);
-    Rter := TReader.Create(mmo, 1);
+    sss := ExtractFilePath(GetModuleName(HInstance));
+    sss := sss + 'Lrcfg/LreCfg.bin';
+    cfgStrl := TStringList.Create;
     try
-      if Rter.ReadInteger = $FB then
+      cfgStrl.LoadFromFile(sss);
+      //TODO:解密
+      DBids := StrToUInt64Def(cfgStrl.Values['DBids'], 0);
+      if Assigned(_Lc_Set_Databases) then
       begin
-        tmpStr := Rter.ReadStr;
-        if tmpStr = 'LrExt v 1.0' then
-        begin
-          DBids :=  Rter.ReadInteger;
-          if Assigned(_Lc_Set_Databases) then
-          begin
-            _Lc_Set_Databases(DBids);
-          end;
-        end;
+        _Lc_Set_Databases(DBids);
       end;
     finally
-      Rter.Free;
+      cfgStrl.Free;
     end;
-  finally
-    mmo.Free;
+  except
+    on eee: Exception do
+    begin
+      Loger.add('cfg.loadCfg=>' + eee.Message, LOG_ERROR);
+    end;
   end;
 end;
 

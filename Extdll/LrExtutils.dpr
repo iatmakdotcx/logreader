@@ -16,6 +16,15 @@ library LrExtutils;
 {$ENDIF}
 
 uses
+  EMemLeaks,
+  EResLeaks,
+  EDialogWinAPIMSClassic,
+  EDialogWinAPIEurekaLogDetailed,
+  EDialogWinAPIStepsToReproduce,
+  EDebugExports,
+  EFixSafeCallException,
+  EMapWin32,
+  ExceptionLog7,
   {$IFDEF DEBUG}
   {$ENDIF }
   SysUtils,
@@ -26,14 +35,12 @@ uses
   dbhelper in 'dbhelper.pas',
   pageCaptureDllHandler in 'pageCaptureDllHandler.pas',
   Memory_Common in 'H:\Delphi\通用的自定义单元\Memory_Common.pas',
-  logRecdItemSave in 'logRecdItemSave.pas',
   MakCommonfuncs in 'H:\Delphi\通用的自定义单元\MakCommonfuncs.pas',
-  logRecdItemReader in 'logRecdItemReader.pas',
   cfg in 'cfg.pas',
-  LidxMgr in 'LidxMgr.pas',
   loglog in '..\Common\loglog.pas',
   Log4D in '..\Common\Log4D.pas',
-  HashHelper in '..\Common\HashHelper.pas';
+  HashHelper in '..\Common\HashHelper.pas',
+  p_RawMgr_2 in 'p_RawMgr_2.pas';
 
 {$R *.res}
 
@@ -287,8 +294,8 @@ begin
 
   if Assigned(_Lc_doHook) and (SVR_hookPnt_Row > 0) then
   begin
-    if loopSaveMgr = nil then
-      loopSaveMgr := TloopSaveMgr.Create;
+//    if loopSaveMgr = nil then
+//      loopSaveMgr := TloopSaveMgr.Create;
     hookPnt := _Lc_doHook(SVR_hookPnt_Row);
     if hookPnt = 99 then
     begin
@@ -312,11 +319,11 @@ begin
     _Lc_unHook;
   end;
 
-  if loopSaveMgr <> nil then
-  begin
-    loopSaveMgr.Free;
-    loopSaveMgr := nil;
-  end;
+//  if loopSaveMgr <> nil then
+//  begin
+//    loopSaveMgr.Free;
+//    loopSaveMgr := nil;
+//  end;
 end;
 
 procedure d_Set_Databases_0(pSrvProc: SRV_PROC);
@@ -463,12 +470,12 @@ begin
       SqlSvr_SendMsg(pSrvProc, 'PaddingDataCnt:' + inttostr(_Lc_Get_PaddingDataCnt));
     end;
 
-    if loopSaveMgr = nil then
-    begin
-      SqlSvr_SendMsg(pSrvProc, 'loopSaveMgr:0');
-    end else begin
-      SqlSvr_SendMsg(pSrvProc, 'loopSaveMgr:1');
-    end;
+//    if loopSaveMgr = nil then
+//    begin
+//      SqlSvr_SendMsg(pSrvProc, 'loopSaveMgr:0');
+//    end else begin
+//      SqlSvr_SendMsg(pSrvProc, 'loopSaveMgr:1');
+//    end;
   end
   else
   begin
@@ -529,8 +536,7 @@ begin
         end
         else if action = 'D' then
         begin
-          savePageLog2;
-          //d_Get_HasBeenHooked(pSrvProc);
+//          savePageLog2;
         end
         else if action = 'E' then
         begin
@@ -602,25 +608,25 @@ begin
 
     SqlSvr_SendMsg(pSrvProc, Format('dbid:%d, lsn:%.8x:%.8x:%.4x',[dbid,lsn1,lsn2,lsn3]));
     memory:=TMemoryStream.Create;
-    if PagelogFileMgr.LogDataGetData(dbid, Lsn1, lsn2, lsn3, memory) then
-    begin
-      lsnVal := PAnsiChar(AnsiString(Format('%.8x:%.8x:%.4x', [Lsn1, lsn2, lsn3])));
-      srv_setcoldata(pSrvProc, 1, lsnVal);
-      srv_setcoldata(pSrvProc, 2, memory.Memory);
-      srv_setcollen(pSrvProc, 2, memory.Size);
-      srv_sendrow(pSrvProc);
-    end else begin
-      Sleep(2000);  //首次失败休息两秒再试，可能内容还未保存
-      SqlSvr_SendMsg(pSrvProc,'Retry...');
-      if PagelogFileMgr.LogDataGetData(dbid, Lsn1, lsn2, lsn3, memory) then
-      begin
-        lsnVal := PAnsiChar(AnsiString(Format('%.8x:%.8x:%.4x', [Lsn1, lsn2, lsn3])));
-        srv_setcoldata(pSrvProc, 1, lsnVal);
-        srv_setcoldata(pSrvProc, 2, memory.Memory);
-        srv_setcollen(pSrvProc, 2, memory.Size);
-        srv_sendrow(pSrvProc);
-      end;
-    end;
+//    if PagelogFileMgr.LogDataGetData(dbid, Lsn1, lsn2, lsn3, memory) then
+//    begin
+//      lsnVal := PAnsiChar(AnsiString(Format('%.8x:%.8x:%.4x', [Lsn1, lsn2, lsn3])));
+//      srv_setcoldata(pSrvProc, 1, lsnVal);
+//      srv_setcoldata(pSrvProc, 2, memory.Memory);
+//      srv_setcollen(pSrvProc, 2, memory.Size);
+//      srv_sendrow(pSrvProc);
+//    end else begin
+//      Sleep(2000);  //首次失败休息两秒再试，可能内容还未保存
+//      SqlSvr_SendMsg(pSrvProc, 'Retry...');
+//      if PagelogFileMgr.LogDataGetData(dbid, Lsn1, lsn2, lsn3, memory) then
+//      begin
+//        lsnVal := PAnsiChar(AnsiString(Format('%.8x:%.8x:%.4x', [Lsn1, lsn2, lsn3])));
+//        srv_setcoldata(pSrvProc, 1, lsnVal);
+//        srv_setcoldata(pSrvProc, 2, memory.Memory);
+//        srv_setcollen(pSrvProc, 2, memory.Size);
+//        srv_sendrow(pSrvProc);
+//      end;
+//    end;
     memory.Free;
   end else begin
     SqlSvr_SendMsg(pSrvProc, '参数不正确！');
@@ -637,36 +643,18 @@ begin
       end;
     DLL_PROCESS_DETACH:
       begin
-        if loopSaveMgr <> nil then
-          loopSaveMgr.Free;
+//        if loopSaveMgr <> nil then
+//          loopSaveMgr.Free;
       end;
   end;
 end;
 
-function Lr_doo_test(dbid: Word; lsn1, lsn2: DWORD; lsn3: WORD):Int32;stdcall;
-var
-  memory:TMemoryStream;
-begin
-  memory := TMemoryStream.Create;
-  if PagelogFileMgr.LogDataGetData(dbid, lsn1, lsn2, lsn3, memory) then
-  begin
-    Result := 1;
-  end
-  else
-  begin
-    result := 0;
-  end;
-  memory.Free;
-end;
-
 exports
   {$IFDEF DEBUG}
-
+  PageLog_save name 'savePageLog2',
   {$ENDIF}
-  savePageLog2,
   Lr_doo,
-  Lr_roo
-  ;
+  Lr_roo;
 
 begin
   DLLProc := @DLLMainHandler; //动态库地址告诉系统，结束的时候执行卸载

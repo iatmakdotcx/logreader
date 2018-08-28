@@ -1,15 +1,22 @@
 program Project1;
 
 uses
-  FastMM4 in 'H:\Delphi\FastMMnew\FastMM4.pas',
-  FastMM4Messages in 'H:\Delphi\FastMMnew\FastMM4Messages.pas',
+  EMemLeaks,
+  EResLeaks,
+  EDialogWinAPIMSClassic,
+  EDialogWinAPIEurekaLogDetailed,
+  EDialogWinAPIStepsToReproduce,
+  EDebugExports,
+  EFixSafeCallException,
+  EMapWin32,
+  EAppVCL,
+  ExceptionLog7,
   Vcl.Forms,
   Unit1 in 'Unit1.pas' {Form1},
   Winapi.Windows {Form1},
   logCreatehelper in 'logCreatehelper.pas',
   MakCommonfuncs in 'H:\Delphi\通用的自定义单元\MakCommonfuncs.pas',
   Memory_Common in 'H:\Delphi\通用的自定义单元\Memory_Common.pas',
-  pluginlog in 'H:\Delphi\通用的自定义单元\pluginlog.pas',
   p_idxmgr in 'p_idxmgr.pas' {Form2},
   blockReader in 'blockReader.pas';
 

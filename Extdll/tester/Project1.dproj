@@ -99,6 +99,8 @@
         <DCC_RemoteDebug>false</DCC_RemoteDebug>
     </PropertyGroup>
     <PropertyGroup Condition="'$(Cfg_1_Win64)'!=''">
+        <DCC_Define>EUREKALOG;EUREKALOG_VER7;$(DCC_Define)</DCC_Define>
+        <DCC_MapFile>3</DCC_MapFile>
         <AppEnableHighDPI>true</AppEnableHighDPI>
         <VerInfo_Locale>1033</VerInfo_Locale>
         <VerInfo_IncludeVerInfo>true</VerInfo_IncludeVerInfo>
@@ -123,8 +125,6 @@
         <DelphiCompile Include="$(MainSource)">
             <MainSource>MainSource</MainSource>
         </DelphiCompile>
-        <DCCReference Include="H:\Delphi\FastMMnew\FastMM4.pas"/>
-        <DCCReference Include="H:\Delphi\FastMMnew\FastMM4Messages.pas"/>
         <DCCReference Include="Unit1.pas">
             <Form>Form1</Form>
             <FormType>dfm</FormType>
@@ -132,7 +132,6 @@
         <DCCReference Include="logCreatehelper.pas"/>
         <DCCReference Include="H:\Delphi\通用的自定义单元\MakCommonfuncs.pas"/>
         <DCCReference Include="H:\Delphi\通用的自定义单元\Memory_Common.pas"/>
-        <DCCReference Include="H:\Delphi\通用的自定义单元\pluginlog.pas"/>
         <DCCReference Include="p_idxmgr.pas">
             <Form>Form2</Form>
             <FormType>dfm</FormType>
@@ -173,12 +172,6 @@
                 <DeployFile LocalName="..\Project1.exe" Configuration="Debug" Class="ProjectOutput">
                     <Platform Name="Win64">
                         <RemoteName>Project1.exe</RemoteName>
-                        <Overwrite>true</Overwrite>
-                    </Platform>
-                </DeployFile>
-                <DeployFile LocalName="..\Project1.rsm" Configuration="Debug" Class="DebugSymbols">
-                    <Platform Name="Win64">
-                        <RemoteName>Project1.rsm</RemoteName>
                         <Overwrite>true</Overwrite>
                     </Platform>
                 </DeployFile>
@@ -581,3 +574,23 @@
     <Import Project="$(APPDATA)\Embarcadero\$(BDSAPPDATABASEDIR)\$(PRODUCTVERSION)\UserTools.proj" Condition="Exists('$(APPDATA)\Embarcadero\$(BDSAPPDATABASEDIR)\$(PRODUCTVERSION)\UserTools.proj')"/>
     <Import Project="$(MSBuildProjectName).deployproj" Condition="Exists('$(MSBuildProjectName).deployproj')"/>
 </Project>
+
+<!-- EurekaLog First Line
+[Exception Log]
+EurekaLog Version=7007
+Activate=1
+atFixSafeCallException=1
+atVCL=1
+atWin32=1
+DeleteMapAfterCompile=0
+Encrypt Password=""
+idEurekaLog=1
+idEurekaLogDetailed=1
+idMSClassic=1
+idStepsToReproduce=1
+InjectCode=1
+InjectInfo=1
+InjectOptions=1
+loEnableMMDebugMode=1
+ProjectID="{08A9728F-CB29-4694-9A18-5CF7B48C31B5}"
+EurekaLog Last Line -->

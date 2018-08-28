@@ -3,7 +3,7 @@
         <ProjectGuid>{4940BA3D-4C59-4467-B66C-ACAFD292D033}</ProjectGuid>
         <MainSource>LrExtutils.dpr</MainSource>
         <Base>True</Base>
-        <Config Condition="'$(Config)'==''">Release</Config>
+        <Config Condition="'$(Config)'==''">Debug</Config>
         <TargetedPlatforms>1027</TargetedPlatforms>
         <AppType>Library</AppType>
         <FrameworkType>None</FrameworkType>
@@ -113,6 +113,8 @@
         <BT_BuildType>Debug</BT_BuildType>
     </PropertyGroup>
     <PropertyGroup Condition="'$(Cfg_2_Win64)'!=''">
+        <DCC_Define>EUREKALOG;EUREKALOG_VER7;$(DCC_Define)</DCC_Define>
+        <DCC_MapFile>3</DCC_MapFile>
         <BRCC_Defines>FullDebugMode;$(BRCC_Defines)</BRCC_Defines>
         <VerInfo_IncludeVerInfo>true</VerInfo_IncludeVerInfo>
         <VerInfo_Locale>1033</VerInfo_Locale>
@@ -128,14 +130,12 @@
         <DCCReference Include="dbhelper.pas"/>
         <DCCReference Include="pageCaptureDllHandler.pas"/>
         <DCCReference Include="H:\Delphi\通用的自定义单元\Memory_Common.pas"/>
-        <DCCReference Include="logRecdItemSave.pas"/>
         <DCCReference Include="H:\Delphi\通用的自定义单元\MakCommonfuncs.pas"/>
-        <DCCReference Include="logRecdItemReader.pas"/>
         <DCCReference Include="cfg.pas"/>
-        <DCCReference Include="LidxMgr.pas"/>
         <DCCReference Include="..\Common\loglog.pas"/>
         <DCCReference Include="..\Common\Log4D.pas"/>
         <DCCReference Include="..\Common\HashHelper.pas"/>
+        <DCCReference Include="p_RawMgr_2.pas"/>
         <BuildConfiguration Include="Debug">
             <Key>Cfg_2</Key>
             <CfgParent>Base</CfgParent>
@@ -200,7 +200,16 @@
                         <Overwrite>true</Overwrite>
                     </Platform>
                 </DeployFile>
-                <DeployClass Name="ProjectiOSDeviceResourceRules"/>
+                <DeployClass Name="DependencyModule">
+                    <Platform Name="Win32">
+                        <Operation>0</Operation>
+                        <Extensions>.dll;.bpl</Extensions>
+                    </Platform>
+                    <Platform Name="OSX32">
+                        <Operation>1</Operation>
+                        <Extensions>.dylib</Extensions>
+                    </Platform>
+                </DeployClass>
                 <DeployClass Name="ProjectOSXResource">
                     <Platform Name="OSX32">
                         <RemoteDir>Contents\Resources</RemoteDir>
@@ -511,16 +520,7 @@
                         <Operation>1</Operation>
                     </Platform>
                 </DeployClass>
-                <DeployClass Name="DependencyModule">
-                    <Platform Name="Win32">
-                        <Operation>0</Operation>
-                        <Extensions>.dll;.bpl</Extensions>
-                    </Platform>
-                    <Platform Name="OSX32">
-                        <Operation>1</Operation>
-                        <Extensions>.dylib</Extensions>
-                    </Platform>
-                </DeployClass>
+                <DeployClass Name="ProjectiOSDeviceResourceRules"/>
                 <ProjectRoot Platform="iOSDevice64" Name="$(PROJECTNAME).app"/>
                 <ProjectRoot Platform="Win64" Name="$(PROJECTNAME)"/>
                 <ProjectRoot Platform="iOSDevice32" Name="$(PROJECTNAME).app"/>
@@ -541,7 +541,18 @@
 <!-- EurekaLog First Line
 [Exception Log]
 EurekaLog Version=7007
-Activate=0
+Activate=1
+atFixSafeCallException=1
+atWin32=1
 DeleteMapAfterCompile=0
 Encrypt Password=""
+idEurekaLog=1
+idEurekaLogDetailed=1
+idMSClassic=1
+idStepsToReproduce=1
+InjectCode=1
+InjectInfo=1
+InjectOptions=1
+loEnableMMDebugMode=1
+ProjectID="{5E0C69FD-1587-4E00-A6C7-15797C6D6E57}"
 EurekaLog Last Line -->

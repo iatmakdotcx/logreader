@@ -143,7 +143,7 @@ begin
       end;
       if not readRes then
       begin
-        if GetLastError = $3E5 then
+        if GetLastError = ERROR_IO_PENDING then
         begin
           readRes := GetOverlappedResult(FfileHandle, Flpap^, LongWord(Result), True);
         end;
