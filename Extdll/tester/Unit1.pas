@@ -73,7 +73,7 @@ var
   Read_logAllWithTableResults: function(pSrvProc: Pointer; dbid: Byte; Lsn1: Dword): Integer; stdcall;
   Read_log_One: function(dbid: Byte; Lsn1: Dword; Lsn2: Dword; Lsn3: word): PAnsiChar; stdcall;
   aaaaaa: function: PansiChar; stdcall;
-  Lr_doo_test : function (dbid: Word; lsn1, lsn2: DWORD; lsn3: WORD):Int32;stdcall;
+  Lr_doo_test : procedure;stdcall;
 
 implementation
 
@@ -419,7 +419,7 @@ begin
 //  rspp.length := $A;
 //  rspp.val := PAnsiChar('1234567890');
 
-  ShowMessage(IntToStr(Lr_doo_test(7,$36,$198,$1)));
+  Lr_doo_test;
 end;
 
 procedure TForm1.Button2Click(Sender: TObject);

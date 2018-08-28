@@ -5,6 +5,14 @@ interface
 uses
   System.Classes, System.Contnrs, System.SyncObjs, Winapi.Windows;
 
+function PageLog_save: Boolean;
+function PageLog_load(dbid: Word; lsn1: DWORD; lsn2: DWORD; lsn3: WORD; data: TMemoryStream): Boolean;
+
+implementation
+
+uses
+  loglog, System.SysUtils, pageCaptureDllHandler, Memory_Common;
+
 type
   TLSN = packed record
     lsn_1: DWORD;
@@ -23,22 +31,31 @@ type
     dbId: Word;
     val: Pointer;
   end;
+
+  PLidxItem_Offset = ^TLidxItem_Offset; 
+  TLidxItem_Offset = packed record
+    DataOffset: DWORD;
+    DataOffsetH: WORD;
+    LogSize: WORD;
+  end;
+  
   PLidxItem = ^TLidxItem;
 
-  TLidxItem = packed record
+  TLidxItem = packed record      
     case Integer of
       0:
         (Reserve: Word;
         ReqNo: DWORD;
         Lsn3: Word;
-        DataOffset: Uint64);
+        DataOffset: DWORD;
+        DataOffsetH: WORD;
+        LogSize: WORD;);
       1:
         (HHH: Uint64;
         LLL: Uint64);
+
   end;
 
-
-type
   TLidxMgr = class(TObject)
   const
     IdxFileHeader: array[0..$F] of AnsiChar = ('L', 'R', 'I', 'D', 'X', 'P', 'K', 'G', #0, #0, #0, #0, #0, #0, #0, #2);
@@ -55,14 +72,15 @@ type
     constructor Create(IdxHandle:THandle;vlf:TObject);
     destructor Destroy; override;
     procedure add(_key:UInt64; _offset:UInt64);
+    function get(_key:UInt64;out _offset:UInt64): Boolean;
   end;
 
   TVlfMgr = class(TObject)
   private
     Fdbid: Word;
     ReqNo: DWORD;
-    IdxFile:THandle;
-    DataFile:THandle;
+    Handle_IdxFile:THandle;
+    Handle_DataFile:THandle;
     idxObj : TLidxMgr;
   public
     constructor Create(dbid: Word; lsn1: DWORD; slogPath: string);
@@ -70,7 +88,6 @@ type
     function Save(Lri: TlogRecdItem): Boolean;
     function Get(lsn2: DWORD; lsn3: WORD; var data: TMemoryStream): Boolean;
   end;
-
 
   TDBidObj = class;
 
@@ -105,18 +122,16 @@ type
     destructor Destroy; override;
     function LogDataSaveToFile(Lri:TlogRecdItem): Boolean;
     function LogDataGetData(dbid: Word; lsn1: DWORD; lsn2: DWORD; lsn3: WORD; data: TMemoryStream): Boolean;
-  end;
-
-function PageLog_save: Boolean;
-
-implementation
-
-uses
-  loglog, System.SysUtils, pageCaptureDllHandler, Memory_Common;
+  end;  
 
 var
   PagelogFileMgr: TPagelogFileMgr;
 
+
+function PageLog_load(dbid: Word; lsn1: DWORD; lsn2: DWORD; lsn3: WORD; data: TMemoryStream): Boolean;
+begin  
+  PagelogFileMgr.LogDataGetData(dbid, lsn1, lsn2, lsn3, data);
+end;
 
 function PageLog_save: Boolean;
 const
@@ -344,50 +359,71 @@ var
 begin
   Fdbid := dbid;
   ReqNo := lsn1;
-  IdxFile := 0;
-  DataFile := 0;
+  Handle_IdxFile := 0;
+  Handle_DataFile := 0;
 
   tmpFilePath := slogPath + IntToStr(dbid) + '\' + IntToStr(lsn1) + '\';
   ForceDirectories(tmpFilePath);
 
-  IdxFile := CreateFile(PChar(tmpFilePath+'1.idx'), GENERIC_READ or GENERIC_WRITE, FILE_SHARE_READ,
+  Handle_IdxFile := CreateFile(PChar(tmpFilePath+'1.idx'), GENERIC_READ or GENERIC_WRITE, FILE_SHARE_READ,
           nil, OPEN_ALWAYS, FILE_ATTRIBUTE_NORMAL or FILE_FLAG_OVERLAPPED, 0);
-  if IdxFile = INVALID_HANDLE_VALUE then
+  if Handle_IdxFile = INVALID_HANDLE_VALUE then
   begin
     loger.Add('创建文件失败！' + syserrormessage(GetLastError) + ':' + tmpFilePath + '1.idx', LOG_ERROR);
     loger.Add('之后采集数据将输出到本日志文件！');
   end;
 
-  DataFile := CreateFile(PChar(tmpFilePath+'1.data'), GENERIC_READ or GENERIC_WRITE, FILE_SHARE_READ,
+  Handle_DataFile := CreateFile(PChar(tmpFilePath+'1.data'), GENERIC_READ or GENERIC_WRITE, FILE_SHARE_READ,
           nil, OPEN_ALWAYS, FILE_ATTRIBUTE_NORMAL or FILE_FLAG_OVERLAPPED, 0);
-  if DataFile = INVALID_HANDLE_VALUE then
+  if Handle_DataFile = INVALID_HANDLE_VALUE then
   begin
     loger.Add('创建文件失败！' + syserrormessage(GetLastError) + ':' + tmpFilePath + '1.data');
     loger.Add('之后采集数据将输出到本日志文件！');
   end;
-  idxObj := TLidxMgr.Create(IdxFile, Self);
+  idxObj := TLidxMgr.Create(Handle_IdxFile, Self);
 end;
 
 destructor TVlfMgr.Destroy;
 begin
   idxObj.Free;
-  if IdxFile <> INVALID_HANDLE_VALUE then
+  if Handle_IdxFile <> INVALID_HANDLE_VALUE then
   begin
-    CloseHandle(IdxFile);
+    CloseHandle(Handle_IdxFile);
   end;
 
-  if DataFile <> INVALID_HANDLE_VALUE then
+  if Handle_DataFile <> INVALID_HANDLE_VALUE then
   begin
-    CloseHandle(DataFile);
+    CloseHandle(Handle_DataFile);
   end;
   inherited;
 end;
 
 function TVlfMgr.Get(lsn2: DWORD; lsn3: WORD; var data: TMemoryStream): Boolean;
+var
+  UniId:Int64;
+  DataOffset:UInt64; 
+  DataBuff :Pointer;
+  DataLen:Word;
+  Rsize:Cardinal;  
 begin
-
-
-
+  Result := False;
+  UniId := (lsn2 shl 16) or lsn3;
+  if UniId > 0 then
+  begin
+    if idxObj.get(UniId, DataOffset) then
+    begin
+      DataLen := (DataOffset shr 48) and $FFFF;
+      DataOffset := DataOffset and $FFFFFFFFFFFF;
+      if DataLen > 0 then
+      begin
+        data.Size := DataLen;
+        if ReadFile_OverLapped(Handle_DataFile, data.Memory^, DataLen, Rsize, DataOffset) and (Rsize > 0) then
+        begin
+          Result := True;
+        end;
+      end;
+    end;
+  end;
 end;
 
 function TVlfMgr.Save(Lri: TlogRecdItem): Boolean;
@@ -400,7 +436,7 @@ var
   UniId:Int64;
 begin
   Result := False;
-  if (IdxFile = INVALID_HANDLE_VALUE) or (DataFile = INVALID_HANDLE_VALUE) then
+  if (Handle_IdxFile = INVALID_HANDLE_VALUE) or (Handle_DataFile = INVALID_HANDLE_VALUE) then
   begin
     //如果日志输出文件打开失败，将数据直接输出到日志，
     OutPutStr := '<Root>';
@@ -420,9 +456,10 @@ begin
   if UniId > 0 then
   begin
     lsize.QuadPart := 0;
-    SetFilePointerEx(DataFile, 0, @lsize, soFromEnd);
-    WriteFile_OverLapped(DataFile, Lri.val^, Lri.length, Rsize, lsize.QuadPart);
+    SetFilePointerEx(Handle_DataFile, 0, @lsize, soFromEnd);
+    WriteFile_OverLapped(Handle_DataFile, Lri.val^, Lri.length, Rsize, lsize.QuadPart);
 
+    lsize.HighPart := lsize.HighPart or ((Lri.length and $FFFF) shl 16);
     idxObj.add(UniId, lsize.QuadPart);
     Result := True;
   end;
@@ -436,7 +473,7 @@ var
   IdxBuf:Pointer;
   IdxBufPosi:Cardinal;
   Pli:PLidxItem;
-  RRsize:Cardinal;
+  Rsize,RRsize:Cardinal;
   tmpIdx:Cardinal;
   wSize, RwSize:Cardinal;
   IdxfileSize:Cardinal;
@@ -461,11 +498,13 @@ begin
         if IdxBufPosi > BUFMAXSIZE then
         begin
           IdxBufPosi := IdxBufPosi - BUFMAXSIZE;
+          Rsize := BUFMAXSIZE;
         end else begin
+          Rsize := IdxBufPosi;
           IdxBufPosi := 0;
         end;
 
-        if not ReadFile_OverLapped(FHandle, IdxBuf^, BUFMAXSIZE, RRsize, IdxBufPosi) then
+        if not ReadFile_OverLapped(FHandle, IdxBuf^, Rsize, RRsize, IdxBufPosi) then
         begin
           Loger.Add('Idx 读取失败，跳过了当前内容!db:%d,RNo:%d', [TVlfMgr(Fvlf).Fdbid, TVlfMgr(Fvlf).ReqNo], LOG_ERROR);
           Exit;
@@ -596,6 +635,66 @@ begin
   end;
   WbuffLen := WbuffLen + SizeOf(TLidxItem);
   WriteFile_OverLapped(FHandle, Pointer(Uint_Ptr(Wbuff) + tmpIdx)^, wSize, RwSize, WbuffPosi + tmpIdx);
+end;
+
+function TLidxMgr.get(_key: UInt64; out _offset: UInt64): Boolean;
+var
+  RBuf:Pointer;
+  RBufLen:Cardinal;
+  RBufPosi:Cardinal;
+  Pli:PLidxItem; 
+  Rsize,RRsize:Cardinal; 
+begin
+  _offset := 0; 
+  Result := False;
+  RBuf := GetMemory(BUFMAXSIZE);
+  try
+    RBufLen := WbuffLen;
+    RBufPosi := WbuffPosi;
+    Move(Wbuff^, RBuf^, BUFMAXSIZE);
+    Pli := Pointer(Uint_Ptr(RBuf) + RBufLen - SizeOf(TLidxItem));
+    while True do
+    begin
+      if Uint_Ptr(Pli) < Uint_Ptr(RBuf) then
+      begin
+        //Reload
+        if RBufPosi > BUFMAXSIZE then
+        begin
+          RBufPosi := RBufPosi - BUFMAXSIZE;
+          Rsize := BUFMAXSIZE;
+        end else begin
+          Rsize := RBufPosi;
+          RBufPosi := 0;
+        end;
+
+        if not ReadFile_OverLapped(FHandle, RBuf^, Rsize, RRsize, RBufPosi) then
+        begin
+          Exit;
+        end;
+        Pli := Pointer(Uint_Ptr(RBuf) + RRsize - SizeOf(TLidxItem));
+      end;
+
+      if Pli.HHH = _key then
+      begin
+        //找到
+        _offset := Pli.LLL;
+        Result := True;
+        Break;
+      end
+      else if Pli.HHH > _key then
+      begin
+        //继续查找前一个
+      end
+      else
+      begin
+        //没有找到        
+        Break;
+      end;
+      Dec(Pli);
+    end;   
+  finally
+    FreeMemory(RBuf);
+  end;
 end;
 
 constructor TLidxMgr.Create(IdxHandle: THandle; vlf:TObject);

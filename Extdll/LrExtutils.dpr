@@ -649,9 +649,24 @@ begin
   end;
 end;
 
+procedure Lr_doo_test;
+var
+   mmO:TMemoryStream;
+begin
+  mmO:=TMemoryStream.Create;
+  try
+    PageLog_load(5, 161, $A3, 2, mmO);
+    Loger.Add(DumpMemory2Str(mmO.Memory, mmo.Size));
+  finally
+    mmo.Free;
+  end;
+end;
+
+
 exports
   {$IFDEF DEBUG}
   PageLog_save name 'savePageLog2',
+  Lr_doo_test,
   {$ENDIF}
   Lr_doo,
   Lr_roo;
