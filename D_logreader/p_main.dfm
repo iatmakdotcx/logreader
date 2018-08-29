@@ -88,6 +88,10 @@ object Form1: TForm1
         end
         item
           Caption = 'status'
+        end
+        item
+          Caption = 'LSN'
+          Width = 160
         end>
       ReadOnly = True
       RowSelect = True
@@ -146,7 +150,7 @@ object Form1: TForm1
         Width = 153
         Height = 21
         TabOrder = 4
-        Text = '0000003f:000002e8:0001'
+        Text = '00000040:00000080:0001'
       end
     end
   end
@@ -164,7 +168,7 @@ object Form1: TForm1
     Left = 400
     Top = 224
     Bitmap = {
-      494C01010B001800A80010001000FFFFFFFFFF10FFFFFFFFFFFFFFFF424D3600
+      494C01010B001800AC0010001000FFFFFFFFFF10FFFFFFFFFFFFFFFF424D3600
       0000000000003600000028000000400000003000000001002000000000000030
       000000000000000000000000000000000000FFFFFF00FFFFFF00F6821000F580
       0C00F4851600F67B0000F37B0500FFFFFF00FFFFFF00F47C0500F57A0000F284
@@ -568,8 +572,7 @@ object Form1: TForm1
       000000000000}
   end
   object MainMenu1: TMainMenu
-    Left = 504
-    Top = 40
+    Left = 56
     object N1: TMenuItem
       Caption = #31243#24207
       object N4: TMenuItem
@@ -596,6 +599,10 @@ object Form1: TForm1
     object N6: TMenuItem
       Caption = #24320#22987
       OnClick = N6Click
+    end
+    object N7: TMenuItem
+      Caption = #21047#26032
+      OnClick = N7Click
     end
   end
 end

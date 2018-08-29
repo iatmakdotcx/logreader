@@ -165,78 +165,23 @@ begin
   end;
 end;
 
-
-//function d_hook_init(pSrvProc: SRV_PROC): Integer;
-//var
-//  hdl: tHandle;
-//  Pathbuf: array[0..MAX_PATH + 2] of Char;
-//  sqlminMD5: string;
-//  hookPnt: Integer;
-//  dllPath: string;
-//begin
-//  Result := SUCCEED;
-//  hdl := GetModuleHandle('sqlmin.dll');
-//  if hdl = 0 then
-//  begin
-//    srv_sendmsg(pSrvProc, SRV_MSG_INFO, 0, 0, 0, nil, 0, 0, 'Error:sqlmin.dll加载失败', SRV_NULLTERM);
-//  end
-//  else
-//  begin
-//    ZeroMemory(@Pathbuf[0], MAX_PATH + 2);
-//    GetModuleFileName(hdl, Pathbuf, MAX_PATH);
-//    sqlminMD5 := GetFileHashMD5(Pathbuf);
-//
-//    SqlSvr_SendMsg(pSrvProc, string(Pathbuf));
-//    SqlSvr_SendMsg(pSrvProc, sqlminMD5);
-//
-//    GetModuleFileName(HInstance, Pathbuf, MAX_PATH);
-//    SqlSvr_SendMsg(pSrvProc, string(Pathbuf));
-//
-//    if checkCurDirPermission then
-//    begin
-//      SqlSvr_SendMsg(pSrvProc, ' dll目录不包含写入权限！');
-//      Exit;
-//    end;
-//
-//    try
-//      if DBH = nil then
-//         DBH := TDBH.Create;
-//
-//      SqlSvr_SendMsg(pSrvProc, '准备加载已知方案');
-//      if DBH.cfg(sqlminMD5, hookPnt, dllPath) then
-//      begin
-//        SVR_hookPnt_Row := hookPnt;
-//        pageCapture_init(dllPath);
-//        SqlSvr_SendMsg(pSrvProc, '成功');
-//      end else begin
-//        SqlSvr_SendMsg(pSrvProc, 'ERROR:未确认的数据采集方案');
-//      end;
-//    except
-//      on e: Exception do
-//      begin
-//        SqlSvr_SendMsg(pSrvProc, e.Message);
-//      end;
-//    end;
-//  end;
-//end;
-
 function d_hook(pSrvProc: SRV_PROC): Integer;
 var
-  hookPnt:UInt64;
+  hookState:UInt64;
 begin
   Result := SUCCEED;
   if Assigned(_Lc_doHook) and (SVR_hookPnt_Row > 0) then
   begin
     if loopSaveMgr = nil then
       loopSaveMgr := TloopSaveMgr.Create;
-    hookPnt := _Lc_doHook(SVR_hookPnt_Row);
-    if hookPnt = 99 then
+    hookState := _Lc_doHook(SVR_hookPnt_Row);
+    if hookState = 99 then
     begin
       _Lc_Set_Databases(cfg.CFG_DBids);
       SqlSvr_SendMsg(pSrvProc, '成功');
     end else begin
       //hook fail
-      SqlSvr_SendMsg(pSrvProc, 'ERROR:' + HookFailMsg(hookPnt));
+      SqlSvr_SendMsg(pSrvProc, 'ERROR:' + HookFailMsg(hookState));
     end;
   end else begin
     SqlSvr_SendMsg(pSrvProc, '没有合适的配置!!!');
@@ -262,8 +207,6 @@ begin
 end;
 
 procedure d_Set_Databases_0(pSrvProc: SRV_PROC);
-type
-  PUInt64 = ^UInt64;
 var
   IptDBid: UInt64;
 begin
@@ -292,8 +235,6 @@ begin
 end;
 
 procedure d_Set_Databases_1(pSrvProc: SRV_PROC);
-type
-  PUInt64 = ^UInt64;
 var
   IptDBid: UInt64;
 begin
@@ -319,36 +260,6 @@ begin
       _Lc_Set_Databases(cfg.CFG_DBids);
       SqlSvr_SendMsg(pSrvProc, '完成');
     end;
-  end;
-end;
-
-procedure d_Get_PaddingDataCnt(pSrvProc: SRV_PROC);
-var
-  DataCnt: UInt64;
-begin
-  if not Assigned(_Lc_Get_PaddingDataCnt) then
-  begin
-    SqlSvr_SendMsg(pSrvProc, 'ERROR:未初始化数据采集进程');
-  end
-  else
-  begin
-    DataCnt := _Lc_Get_PaddingDataCnt;
-    SqlSvr_SendMsg(pSrvProc, UIntToStr(DataCnt));
-  end;
-end;
-
-procedure d_Get_HasBeenHooked(pSrvProc: SRV_PROC);
-var
-  DataCnt: UInt64;
-begin
-  if not Assigned(_Lc_HasBeenHooked) then
-  begin
-    SqlSvr_SendMsg(pSrvProc, 'ERROR:未初始化数据采集进程');
-  end
-  else
-  begin
-    DataCnt := _Lc_HasBeenHooked;
-    SqlSvr_SendMsg(pSrvProc, UIntToStr(DataCnt));
   end;
 end;
 
@@ -378,6 +289,15 @@ var
   TmpStr: string;
 begin
   SqlSvr_SendMsg(pSrvProc, 'checking.....');
+  SqlSvr_SendMsg(pSrvProc, 'SqlMin:' + SVR_Sqlmin_md5);
+  if SVR_hookPnt_Row > 0 then
+  begin
+    SqlSvr_SendMsg(pSrvProc, 'validCfg:1');
+  end
+  else
+  begin
+    SqlSvr_SendMsg(pSrvProc, 'validCfg:0');
+  end;
   if Assigned(_Lc_HasBeenHooked) then
   begin
     SqlSvr_SendMsg(pSrvProc, 'HookState:' + inttostr(_Lc_HasBeenHooked));
@@ -406,18 +326,7 @@ begin
     end else begin
       SqlSvr_SendMsg(pSrvProc, 'loopSaveMgr:1');
     end;
-  end
-  else
-  begin
-    SqlSvr_SendMsg(pSrvProc, 'HookState:0(未启用)');
-    if SVR_hookPnt_Row>0 then
-    begin
-      SqlSvr_SendMsg(pSrvProc, 'validCfg:1');
-    end else begin
-      SqlSvr_SendMsg(pSrvProc, 'validCfg:0');
-    end;
   end;
-
   SqlSvr_SendMsg(pSrvProc, 'check end.....');
 end;
 
@@ -599,7 +508,6 @@ begin
     mmO.Free;
   end;
 end;
-
 
 exports
   {$IFDEF DEBUG}

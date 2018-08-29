@@ -588,7 +588,6 @@ begin
     WbuffPosi := WbuffPosi + wSize;
   end;
 
-  tmpIdx := 0;
   Pli := Pointer(Uint_Ptr(Wbuff) + WbuffLen - SizeOf(TLidxItem)); //选中最后一个
   while True do
   begin
@@ -733,6 +732,7 @@ begin
     begin
       // CreateFile
       WbuffLen := $100;
+      ZeroMemory(Wbuff, $100);
       Move(IdxFileHeader[0], Wbuff^, Length(IdxFileHeader));
       WriteFile_OverLapped(FHandle, Wbuff^, $100, RRsize, 0)
     end else begin

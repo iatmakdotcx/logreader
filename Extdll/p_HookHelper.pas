@@ -13,13 +13,13 @@ procedure HookpreInit;
 implementation
 
 uses
-  Winapi.Windows, HashHelper, dbhelper, loglog, System.SysUtils, pageCaptureDllHandler;
+  Winapi.Windows, HashHelper, dbhelper, loglog, System.SysUtils, pageCaptureDllHandler,
+  cfg;
 
 procedure HookpreInit;
 var
   hdl: tHandle;
   Pathbuf: array[0..MAX_PATH + 2] of Char;
-  sqlminMD5: string;
   hookPnt: Integer;
   dllPath: string;
 begin
@@ -28,13 +28,13 @@ begin
   begin
     ZeroMemory(@Pathbuf[0], MAX_PATH + 2);
     GetModuleFileName(hdl, Pathbuf, MAX_PATH);
-    sqlminMD5 := GetFileHashMD5(Pathbuf);
-    Loger.add('preInit =============================');
+    SVR_Sqlmin_md5 := GetFileHashMD5(Pathbuf);
     try
-      if DBH.cfg(sqlminMD5, hookPnt, dllPath) then
+      if DBH.cfg(SVR_Sqlmin_md5, hookPnt, dllPath) then
       begin
         SVR_hookPnt_Row := hookPnt;
         pageCapture_init(dllPath);
+        _Lc_Set_Databases(cfg.CFG_DBids);
       end;
     except
       on e: Exception do

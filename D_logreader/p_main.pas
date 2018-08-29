@@ -38,6 +38,7 @@ type
     Panel1: TPanel;
     PopupMenu1: TPopupMenu;
     N6: TMenuItem;
+    N7: TMenuItem;
     procedure FormCreate(Sender: TObject);
     procedure btn_newCfgClick(Sender: TObject);
     procedure FormDestroy(Sender: TObject);
@@ -53,6 +54,7 @@ type
     procedure N5Click(Sender: TObject);
     procedure N6Click(Sender: TObject);
     procedure PopupMenu1Popup(Sender: TObject);
+    procedure N7Click(Sender: TObject);
   private
     menuActions:TobjectList;
     procedure InitPluginsMenus;
@@ -334,7 +336,7 @@ end;
 
 procedure TForm1.N6Click(Sender: TObject);
 begin
-  if N6.Caption = '开始' then
+  if pos('开始', N6.Caption)>0 then
   begin
     btn_jobStart.Click;
   end
@@ -342,6 +344,11 @@ begin
   begin
     btn_jobStop.Click;
   end;
+end;
+
+procedure TForm1.N7Click(Sender: TObject);
+begin
+  ListViewRefresh;
 end;
 
 procedure TForm1.PluginMenuItemClick(Sender: TObject);
@@ -447,6 +454,7 @@ begin
     lv_row.SubItems.Add(Tmplogsource.Fdbc.Host);
     lv_row.SubItems.Add(Tmplogsource.Fdbc.dbName);
     lv_row.SubItems.Add(IntToStr(ord(Tmplogsource.status)));
+    lv_row.SubItems.Add(LSN2Str(Tmplogsource.FProcCurLSN));
 
     for J:= 0 to PluginsMgr.Count-1 do
     begin
