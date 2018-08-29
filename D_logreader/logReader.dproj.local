@@ -3,20 +3,20 @@
 	<Transactions>
     <Transaction>1899-12-30 00:00:00.000.dfm,H:\Java\workspace\logreaderV2.0\D_logreader\UI\dbConnectionCfg.dfm=H:\Java\workspace\logreaderV2.0\D_logreader\Unit2.dfm</Transaction>
     <Transaction>1899-12-30 00:00:00.000.dfm,C:\Users\Chin\Desktop\logReadProject\logReader.dfm=C:\Users\Chin\Documents\RAD Studio\Projects\Unit1.dfm</Transaction>
-    <Transaction>1899-12-30 00:00:00.000.pas,C:\Users\Chin\Desktop\logReadProject\OnlineDbLogProvider.pas=C:\Users\Chin\Desktop\logReadProject\Unit1.pas</Transaction>
     <Transaction>1899-12-30 00:00:00.000.pas,C:\Users\Chin\Desktop\logReadProject\p_main.pas=C:\Users\Chin\Desktop\logReadProject\logReader.pas</Transaction>
-    <Transaction>1899-12-30 00:00:00.000.pas,C:\Users\Chin\Desktop\logReadProject\Sql2014LogReader.pas=C:\Users\Chin\Desktop\logReadProject\Unit1.pas</Transaction>
+    <Transaction>1899-12-30 00:00:00.000.pas,C:\Users\Chin\Desktop\logReadProject\OnlineDbLogProvider.pas=C:\Users\Chin\Desktop\logReadProject\Unit1.pas</Transaction>
     <Transaction>1899-12-30 00:00:00.000.pas,C:\Users\Chin\Desktop\logReadProject\LogProvider\RemoteDbLogProvider.pas=C:\Users\Chin\Desktop\logReadProject\LogProvider\OnlineDbLogProvider.pas</Transaction>
-    <Transaction>1899-12-30 00:00:00.000.pas,C:\Users\Chin\Desktop\logReadProject\p_structDefine.pas=C:\Users\Chin\Desktop\logReadProject\Unit1.pas</Transaction>
-    <Transaction>1899-12-30 00:00:00.000.pas,C:\Users\Chin\Desktop\logReadProject\LogSource.pas=C:\Users\Chin\Desktop\logReadProject\Unit1.pas</Transaction>
-    <Transaction>1899-12-30 00:00:00.000.pas,C:\Users\Chin\Desktop\logReadProject\logReader.pas=C:\Users\Chin\Documents\RAD Studio\Projects\Unit1.pas</Transaction>
-    <Transaction>1899-12-30 00:00:00.000.pas,C:\Users\Chin\Desktop\logReadProject\I_LogProvider.pas=C:\Users\Chin\Desktop\logReadProject\Unit1.pas</Transaction>
-    <Transaction>1899-12-30 00:00:00.000.bdsproj,C:\Users\Chin\Desktop\logReadProject\logReader.bdsproj=C:\Users\Chin\Documents\RAD Studio\Projects\Project1.bdsproj</Transaction>
-    <Transaction>1899-12-30 00:00:00.000.607,H:\Java\workspace\logreaderV2.0\D_logreader\Unit3.dfm=H:\Java\workspace\logreaderV2.0\D_logreader\UI\dbConnectionCfgTest.dfm</Transaction>
     <Transaction>1899-12-30 00:00:00.000.pas,C:\Users\Chin\Desktop\logReadProject\I_logReader.pas=C:\Users\Chin\Desktop\logReadProject\Unit1.pas</Transaction>
+    <Transaction>1899-12-30 00:00:00.000.pas,C:\Users\Chin\Desktop\logReadProject\LogSource.pas=C:\Users\Chin\Desktop\logReadProject\Unit1.pas</Transaction>
+    <Transaction>1899-12-30 00:00:00.000.pas,C:\Users\Chin\Desktop\logReadProject\p_structDefine.pas=C:\Users\Chin\Desktop\logReadProject\Unit1.pas</Transaction>
+    <Transaction>1899-12-30 00:00:00.000.pas,C:\Users\Chin\Desktop\logReadProject\logReader.pas=C:\Users\Chin\Documents\RAD Studio\Projects\Unit1.pas</Transaction>
+    <Transaction>1899-12-30 00:00:00.000.pas,C:\Users\Chin\Desktop\logReadProject\Sql2014LogReader.pas=C:\Users\Chin\Desktop\logReadProject\Unit1.pas</Transaction>
+    <Transaction>1899-12-30 00:00:00.000.pas,C:\Users\Chin\Desktop\logReadProject\LogProvider\LocalDbLogProvider.pas=C:\Users\Chin\Desktop\logReadProject\Unit1.pas</Transaction>
+    <Transaction>1899-12-30 00:00:00.000.607,H:\Java\workspace\logreaderV2.0\D_logreader\Unit3.dfm=H:\Java\workspace\logreaderV2.0\D_logreader\UI\dbConnectionCfgTest.dfm</Transaction>
+    <Transaction>1899-12-30 00:00:00.000.pas,C:\Users\Chin\Desktop\logReadProject\I_LogProvider.pas=C:\Users\Chin\Desktop\logReadProject\Unit1.pas</Transaction>
     <Transaction>1899-12-30 00:00:00.000.dfm,C:\Users\Chin\Desktop\logReadProject\p_main.dfm=C:\Users\Chin\Desktop\logReadProject\logReader.dfm</Transaction>
     <Transaction>1899-12-30 00:00:00.000.dfm,H:\Java\workspace\logreaderV2.0\D_logreader\tst\Unit2.dfm=H:\Java\workspace\logreaderV2.0\D_logreader\Unit2.dfm</Transaction>
-    <Transaction>1899-12-30 00:00:00.000.pas,C:\Users\Chin\Desktop\logReadProject\LogProvider\LocalDbLogProvider.pas=C:\Users\Chin\Desktop\logReadProject\Unit1.pas</Transaction>
+    <Transaction>1899-12-30 00:00:00.000.bdsproj,C:\Users\Chin\Desktop\logReadProject\logReader.bdsproj=C:\Users\Chin\Documents\RAD Studio\Projects\Project1.bdsproj</Transaction>
     <Transaction>1899-12-30 00:00:00.000.pas,C:\Users\Chin\Desktop\logReadProject\LdfLogProvider.pas=C:\Users\Chin\Desktop\logReadProject\Unit1.pas</Transaction>
   </Transactions>
 </BorlandProject>

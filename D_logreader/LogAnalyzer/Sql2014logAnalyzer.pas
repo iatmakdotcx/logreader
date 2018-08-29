@@ -1008,7 +1008,12 @@ begin
     Delete(fields, 1, 1);
     Delete(StrVal, 1, 1);
   end;
-  Result := Format('INSERT INTO %s(%s)values(%s);', [aRowData.Table.getFullName, fields, StrVal]);
+  Result := '';
+  if aRowData.Table.hasIdentity then
+    Result := Format('SET IDENTITY_INSERT %s ON', [aRowData.Table.getFullName]) + WIN_EOL;
+  Result := Result + Format('INSERT INTO %s(%s)values(%s);', [aRowData.Table.getFullName, fields, StrVal]) + WIN_EOL;
+  if aRowData.Table.hasIdentity then
+    Result := Result + Format('SET IDENTITY_INSERT %s OFF', [aRowData.Table.getFullName]) + WIN_EOL;
 end;
 
 function TSql2014logAnalyzer.DML_BuilderSql_Delete(aRowData: Tsql2014Opt): string;

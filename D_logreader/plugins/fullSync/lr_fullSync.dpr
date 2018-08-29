@@ -11,15 +11,24 @@ library lr_fullSync;
   using PChar or ShortString parameters. }
 
 uses
+  EMemLeaks,
+  EResLeaks,
+  EDialogWinAPIMSClassic,
+  EDialogWinAPIEurekaLogDetailed,
+  EDialogWinAPIStepsToReproduce,
+  EDebugExports,
+  EFixSafeCallException,
+  EMapWin32,
+  ExceptionLog7,
   System.SysUtils,
   System.Classes,
   Winapi.Windows,
   dbhelper in 'dbhelper.pas',
-  Log4D in 'H:\Delphi\通用的自定义单元\Log4D.pas',
-  loglog in 'H:\Delphi\通用的自定义单元\loglog.pas',
   Des in 'H:\Delphi\算法\Des.pas',
   cfgForm in 'cfgForm.pas' {frm_cfg},
-  plgSrcData in '..\..\..\Common\plgSrcData.pas';
+  plgSrcData in '..\..\..\Common\plgSrcData.pas',
+  Log4D in '..\..\..\Common\Log4D.pas',
+  loglog in '..\..\..\Common\loglog.pas';
 
 const
   STATUS_SUCCESS = $00000000;   //成功

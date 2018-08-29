@@ -100,6 +100,7 @@ function RunSql(dbid:Integer;aSql:string): Boolean;
 var
   adoq:TADOCommand;
 begin
+  Loger.Add(aSql,LOG_IMPORTANT);
   result := False;
   if TransEnable[dbid] then
   begin
@@ -119,7 +120,7 @@ begin
       except
         on EE:Exception do
         begin
-          Loger.Add('dbhelper.RunSql fail!' + EE.Message + WIN_EOL + aSql);
+          Loger.Add('dbhelper.RunSql fail!' + EE.Message + WIN_EOL + aSql, LOG_IMPORTANT or LOG_ERROR);
         end;
       end;
     end;

@@ -19,17 +19,19 @@ type
   Tfrm_main = class(TForm)
     ADOQuery1: TADOQuery;
     Memo1: TMemo;
-    Button3: TButton;
+    btn_Analysis: TButton;
     Panel1: TPanel;
     ProgressBar1: TProgressBar;
-    Button1: TButton;
+    btn_test: TButton;
     Timer1: TTimer;
+    btn_clear: TButton;
     procedure FormCreate(Sender: TObject);
     procedure FormShow(Sender: TObject);
-    procedure Button3Click(Sender: TObject);
-    procedure Button1Click(Sender: TObject);
+    procedure btn_AnalysisClick(Sender: TObject);
+    procedure btn_testClick(Sender: TObject);
     procedure Timer1Timer(Sender: TObject);
     procedure FormDestroy(Sender: TObject);
+    procedure btn_clearClick(Sender: TObject);
   private
     autoAdapterTest_DBID:Integer;
     dbv_Major,dbv_Minor,dbv_BuildNumber:Integer;
@@ -307,7 +309,7 @@ begin
   Result := 0;
 end;
 
-procedure Tfrm_main.Button1Click(Sender: TObject);
+procedure Tfrm_main.btn_testClick(Sender: TObject);
 var
   dllPath:string;
   ThreadID:Cardinal;
@@ -358,7 +360,19 @@ begin
   adoquery1.Close;
 end;
 
-procedure Tfrm_main.Button3Click(Sender: TObject);
+procedure Tfrm_main.btn_clearClick(Sender: TObject);
+begin
+  //É¾³ý²âÊÔ¿â
+  adoquery1.Close;
+  adoquery1.SQL.Text := 'if db_id(''autoAdapterTest'') is not null drop database autoAdapterTest;';
+  adoquery1.ExecSQL;
+  //É¾³ýÀ©Õ¹´æ´¢¹ý³Ì
+  adoquery1.Close;
+  adoquery1.SQL.Text := 'exec sp_dropextendedproc ''t_oo'';';
+  adoquery1.ExecSQL;
+end;
+
+procedure Tfrm_main.btn_AnalysisClick(Sender: TObject);
 var
   microsoftversion: Integer;
   SqlrootPath:string;
@@ -366,6 +380,8 @@ var
   pdbPath: string;
   PdbSig70: TGUID;
   PdbAge: DWORD;
+  pnt: Integer;
+  dll: string;
 begin
   adoquery1.Close;
   adoquery1.ConnectionString := getConnectionString(dbcfg_Host,dbcfg_user,dbcfg_pass);
@@ -387,7 +403,7 @@ begin
   processLog('sqlmin:' + sqlMinPath);
   sqlminMD5 := GetFileHashMD5(sqlMinPath);
   processLog('MD5:' + sqlminMD5);
-  if DBH.checkMd5(sqlminMD5) then
+  if DBH.cfg(sqlminMD5, pnt, dll) then
   begin
     processLog('!!!!!!!!!!!!!!!!!!!!!!!!!!!!Ext cfg exists!!!!!!!!!!!!!!!!!!!!!!!!!!!!');
     Exit;
@@ -422,7 +438,9 @@ begin
   processLog(Format('MCIA:%08X', [ModifyColumnsInternalAddr]));
   processLog('---------------------------²âÊÔMCIAÓÐÐ§ÐÔ---------------------------');
 
-  Button1Click(nil);
+  //Button1Click(nil);
+  btn_test.Enabled := True;
+  btn_clear.Enabled := True;
 end;
 
 
@@ -564,11 +582,10 @@ begin
     begin
       Application.Terminate;
     end;
+    frm_dbcfg.Free;
   end;
 
   self.Caption := self.Caption + ' - ' + dbcfg_Host;
-
-  DBH := TDBH.Create;
 
   Memo1.Lines.Add(IntToStr(Self.Handle));
 end;

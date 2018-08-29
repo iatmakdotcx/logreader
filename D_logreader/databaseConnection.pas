@@ -1000,7 +1000,7 @@ begin
   end;
   //刷新列信息
   aSql := 'select cols.object_id,cols.column_id,cols.system_type_id,cols.max_length,cols.precision,cols.scale,cols.is_nullable,cols.name, ' +
-      ' p_cols.leaf_null_bit nullmap,p_cols.leaf_offset leaf_pos,cols.collation_name,Convert(int,COLLATIONPROPERTY(cols.collation_name, ''CodePage'')) cp  ' +
+      ' p_cols.leaf_null_bit nullmap,p_cols.leaf_offset leaf_pos,cols.collation_name,Convert(int,COLLATIONPROPERTY(cols.collation_name, ''CodePage'')) cp,cols.is_identity  ' +
       ' from sys.all_columns cols,sys.system_internals_partition_columns p_cols ' +
       ' where p_cols.leaf_null_bit > 0 and cols.column_id = p_cols.partition_column_id and ' +
       ' p_cols.partition_id in (Select partitions.partition_id from sys.partitions partitions where partitions.index_id <= 1 and partitions.object_id=cols.object_id) ' +

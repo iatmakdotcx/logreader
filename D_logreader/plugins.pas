@@ -298,7 +298,7 @@ end;
 
 initialization
   PluginsMgr := TPluginsMgr.Create;
-  PluginsMgr.load;
+  //PluginsMgr.load;
 
 finalization
   PluginsMgr.Free;

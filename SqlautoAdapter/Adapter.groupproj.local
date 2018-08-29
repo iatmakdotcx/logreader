@@ -1,10 +1,10 @@
 ﻿<?xml version="1.0" encoding="utf-8"?>
 <BorlandProject>
 	<Transactions>
-    <Transaction>1899-12-30 00:00:00.000.220,H:\Java\workspace\logreaderV2.0\SqlautoAdapter\ProjectGroup1.groupproj=H:\Java\workspace\logreaderV2.0\SqlautoAdapter\Adapter.groupproj</Transaction>
-    <Transaction>1899-12-30 00:00:00.000.585,H:\Java\workspace\logreaderV2.0\SqlautoAdapter\ProjectGroup1.groupproj=C:\Users\Chin\Documents\Embarcadero\Studio\Projects\ProjectGroup1.groupproj</Transaction>
+    <Transaction>1899-12-30 00:00:00.000.585,C:\Users\Chin\Documents\Embarcadero\Studio\Projects\ProjectGroup1.groupproj=H:\Java\workspace\logreaderV2.0\SqlautoAdapter\ProjectGroup1.groupproj</Transaction>
+    <Transaction>1899-12-30 00:00:00.000.220,H:\Java\workspace\logreaderV2.0\SqlautoAdapter\Adapter.groupproj=H:\Java\workspace\logreaderV2.0\SqlautoAdapter\ProjectGroup1.groupproj</Transaction>
   </Transactions>
 	<Default.Personality>
-		<Projects ActiveProject="H:\Java\workspace\logreaderV2.0\SqlautoAdapter\Hooktest\Hooktest.dproj"/>
+		<Projects ActiveProject="H:\Java\workspace\logreaderV2.0\SqlautoAdapter\SqlautoAdapter.dproj"/>
 	</Default.Personality>
 </BorlandProject>

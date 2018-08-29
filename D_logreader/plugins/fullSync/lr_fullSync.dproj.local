@@ -3,5 +3,6 @@
 	<Transactions>
     <Transaction>1899-12-30 00:00:00.000.916,H:\Java\workspace\logreaderV2.0\D_logreader\plugins\fullSync\cfgForm.dfm=H:\Java\workspace\logreaderV2.0\D_logreader\plugins\fullSync\Unit3.dfm</Transaction>
     <Transaction>1899-12-30 00:00:00.000.652,C:\Users\Chin\Documents\Embarcadero\Studio\Projects\Project1.dproj=H:\Java\workspace\logreaderV2.0\D_logreader\plugins\fullSync\lr_fullSync.dproj</Transaction>
+    <Transaction>2018-08-29 19:33:17.606,=H:\Java\workspace\logreaderV2.0\Common\loglog.pas</Transaction>
   </Transactions>
 </BorlandProject>

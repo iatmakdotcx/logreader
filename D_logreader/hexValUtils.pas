@@ -376,9 +376,9 @@ begin
       end;
     MsTypes.BIT:
       if Value[0] = 1 then
-        Result := 'true'
+        Result := '1'
       else
-        Result := 'false';
+        Result := '0';
     MsTypes.IMAGE, MsTypes.VARBINARY, MsTypes.BINARY:
       Result := '0x' + bytestostr_singleHex(Value);
 

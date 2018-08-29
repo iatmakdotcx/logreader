@@ -58,6 +58,7 @@ type
     /// 唯一聚合键（如果有
     /// </summary>
     UniqueClusteredKeys:TList;
+    hasIdentity:Boolean;
   public
     constructor Create;
     destructor Destroy; override;
@@ -177,6 +178,11 @@ begin
         field.CodePage := -1
       else
         field.CodePage := Qry.Fields[11].AsInteger;
+      if Qry.Fields[11].AsInteger=1 then
+      begin
+        //is identity
+        tti.hasIdentity := True;
+      end;
       tti.Fields.addField(field);
     end;
     Qry.Next;
@@ -557,6 +563,7 @@ constructor TdbTableItem.Create;
 begin
   Fields := TdbFields.Create;
   UniqueClusteredKeys:=TList.Create;
+  hasIdentity := False;
 end;
 
 
@@ -589,6 +596,7 @@ begin
   wter.WriteInteger(TableId);
   wter.WriteString(TableNmae);
   wter.WriteString(Owner);
+  wter.WriteBoolean(hasIdentity);
   wter.WriteInteger(Fields.FItems.Count);
   for I := 0 to Fields.FItems.Count - 1 do
   begin
@@ -628,6 +636,7 @@ begin
     TableId := Rter.ReadInteger;
     TableNmae := Rter.ReadString;
     Owner := Rter.ReadString;
+    hasIdentity := Rter.ReadBoolean;
     FieldCount := Rter.ReadInteger;
     for I := 0 to FieldCount - 1 do
     begin

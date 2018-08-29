@@ -141,6 +141,7 @@ begin
         LogSourceList.Add(logsource);
         setDbOn(logsource.Fdbc);
         Loger.Add('新增配置完成！！');
+        ListViewRefresh;
       end else begin
         logsource.Free;
         ShowMessage('配置保存失败，确认目录权限.');
@@ -309,9 +310,13 @@ end;
 
 procedure TForm1.FormCreate(Sender: TObject);
 begin
+{$IFNDEF DEBUG}
+  Panel1.Visible := False;
+  GroupBox1.Visible := False;
+{$ENDIF}
   menuActions := TobjectList.Create;
 
-  InitPluginsMenus;
+  //InitPluginsMenus;
 end;
 
 procedure TForm1.FormDestroy(Sender: TObject);

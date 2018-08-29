@@ -39,24 +39,37 @@ object frm_main: Tfrm_main
     Align = alBottom
     BevelOuter = bvNone
     TabOrder = 1
-    object Button3: TButton
+    ExplicitLeft = -8
+    ExplicitTop = 443
+    object btn_Analysis: TButton
       Left = 24
       Top = 6
       Width = 75
       Height = 25
-      Caption = 'start'
+      Caption = 'Analysis'
       TabOrder = 0
-      OnClick = Button3Click
+      OnClick = btn_AnalysisClick
     end
-    object Button1: TButton
-      Left = 320
+    object btn_test: TButton
+      Left = 164
       Top = 6
       Width = 75
       Height = 25
-      Caption = 'Button1'
+      Caption = 'AutoTest'
+      Enabled = False
       TabOrder = 1
       Visible = False
-      OnClick = Button1Click
+      OnClick = btn_testClick
+    end
+    object btn_clear: TButton
+      Left = 304
+      Top = 6
+      Width = 75
+      Height = 25
+      Caption = 'Clear'
+      Enabled = False
+      TabOrder = 2
+      OnClick = btn_clearClick
     end
   end
   object ProgressBar1: TProgressBar
