@@ -1,0 +1,15 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<BorlandProject>
+	<Transactions>
+    <Transaction>1899-12-30 00:00:00.000.621,=C:\Users\Chin\Documents\Embarcadero\Studio\Projects\Unit1.pas</Transaction>
+    <Transaction>1899-12-30 00:00:00.000.415,=C:\Users\Chin\Documents\Embarcadero\Studio\Projects\Unit1.pas</Transaction>
+    <Transaction>1899-12-30 00:00:00.000.575,=C:\Users\Chin\Documents\Embarcadero\Studio\Projects\Unit1.pas</Transaction>
+    <Transaction>1899-12-30 00:00:00.000.525,=C:\Users\Chin\Documents\Embarcadero\Studio\Projects\Unit1.pas</Transaction>
+    <Transaction>1899-12-30 00:00:00.000.317,=C:\Users\Chin\Documents\Embarcadero\Studio\Projects\Unit1.pas</Transaction>
+    <Transaction>1899-12-30 00:00:00.000.169,=C:\Users\Chin\Documents\Embarcadero\Studio\Projects\Unit2.pas</Transaction>
+    <Transaction>2018-08-31 17:28:49.572,=C:\Users\Chin\Documents\Embarcadero\Studio\Projects\Unit1.pas</Transaction>
+    <Transaction>2018-08-31 17:29:22.982,H:\Java\workspace\logreaderV2.0\other\RawView\Unit1.dfm=C:\Users\Chin\Documents\Embarcadero\Studio\Projects\Unit1.dfm</Transaction>
+    <Transaction>2018-08-31 17:29:22.982,H:\Java\workspace\logreaderV2.0\other\RawView\Unit1.pas=C:\Users\Chin\Documents\Embarcadero\Studio\Projects\Unit1.pas</Transaction>
+    <Transaction>2018-08-31 17:29:23.744,H:\Java\workspace\logreaderV2.0\other\RawView\Project1.dproj=C:\Users\Chin\Documents\Embarcadero\Studio\Projects\Project1.dproj</Transaction>
+  </Transactions>
+</BorlandProject>

@@ -16,15 +16,6 @@ library LrExtutils;
 {$ENDIF}
 
 uses
-  EMemLeaks,
-  EResLeaks,
-  EDialogWinAPIMSClassic,
-  EDialogWinAPIEurekaLogDetailed,
-  EDialogWinAPIStepsToReproduce,
-  EDebugExports,
-  EFixSafeCallException,
-  EMapWin32,
-  ExceptionLog7,
   {$IFDEF DEBUG}
   {$ENDIF }
   SysUtils,
@@ -172,8 +163,8 @@ begin
   Result := SUCCEED;
   if Assigned(_Lc_doHook) and (SVR_hookPnt_Row > 0) then
   begin
-    if loopSaveMgr = nil then
-      loopSaveMgr := TloopSaveMgr.Create;
+//    if loopSaveMgr = nil then
+//      loopSaveMgr := TloopSaveMgr.Create;
     hookState := _Lc_doHook(SVR_hookPnt_Row);
     if hookState = 99 then
     begin
@@ -510,8 +501,8 @@ begin
 end;
 
 exports
-  {$IFDEF DEBUG}
   PageLog_save name 'savePageLog2',
+  {$IFDEF DEBUG}
   Lr_doo_test,
   {$ENDIF}
   d_example,

@@ -6,9 +6,6 @@
         <Projects Include="logReader.dproj">
             <Dependencies/>
         </Projects>
-        <Projects Include="plugins\LogView\lr_logView.dproj">
-            <Dependencies/>
-        </Projects>
         <Projects Include="plugins\fullSync\lr_fullSync.dproj">
             <Dependencies/>
         </Projects>
@@ -34,15 +31,6 @@
     <Target Name="logReader:Make">
         <MSBuild Projects="logReader.dproj" Targets="Make"/>
     </Target>
-    <Target Name="lr_logView">
-        <MSBuild Projects="plugins\LogView\lr_logView.dproj"/>
-    </Target>
-    <Target Name="lr_logView:Clean">
-        <MSBuild Projects="plugins\LogView\lr_logView.dproj" Targets="Clean"/>
-    </Target>
-    <Target Name="lr_logView:Make">
-        <MSBuild Projects="plugins\LogView\lr_logView.dproj" Targets="Make"/>
-    </Target>
     <Target Name="lr_fullSync">
         <MSBuild Projects="plugins\fullSync\lr_fullSync.dproj"/>
     </Target>
@@ -62,13 +50,13 @@
         <MSBuild Projects="plugins\heteroSync\lr_heteroSync.dproj" Targets="Make"/>
     </Target>
     <Target Name="Build">
-        <CallTarget Targets="logReader;lr_logView;lr_fullSync;lr_heteroSync"/>
+        <CallTarget Targets="logReader;lr_fullSync;lr_heteroSync"/>
     </Target>
     <Target Name="Clean">
-        <CallTarget Targets="logReader:Clean;lr_logView:Clean;lr_fullSync:Clean;lr_heteroSync:Clean"/>
+        <CallTarget Targets="logReader:Clean;lr_fullSync:Clean;lr_heteroSync:Clean"/>
     </Target>
     <Target Name="Make">
-        <CallTarget Targets="logReader:Make;lr_logView:Make;lr_fullSync:Make;lr_heteroSync:Make"/>
+        <CallTarget Targets="logReader:Make;lr_fullSync:Make;lr_heteroSync:Make"/>
     </Target>
     <Import Project="$(BDS)\Bin\CodeGear.Group.Targets" Condition="Exists('$(BDS)\Bin\CodeGear.Group.Targets')"/>
 </Project>

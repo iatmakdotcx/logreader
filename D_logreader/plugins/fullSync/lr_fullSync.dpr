@@ -11,15 +11,6 @@ library lr_fullSync;
   using PChar or ShortString parameters. }
 
 uses
-  EMemLeaks,
-  EResLeaks,
-  EDialogWinAPIMSClassic,
-  EDialogWinAPIEurekaLogDetailed,
-  EDialogWinAPIStepsToReproduce,
-  EDebugExports,
-  EFixSafeCallException,
-  EMapWin32,
-  ExceptionLog7,
   System.SysUtils,
   System.Classes,
   Winapi.Windows,

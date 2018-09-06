@@ -122,7 +122,7 @@ begin
       Exit;
     end;
 
-    if (Fposition > fBufferStartOffsetOfFile) and (Fposition + Count < fBufferStartOffsetOfFile + fBufferSize) then
+    if (Fposition >= fBufferStartOffsetOfFile) and (Fposition + Count < fBufferStartOffsetOfFile + fBufferSize) then
     begin
       //in range
       Result := Count;
@@ -130,6 +130,8 @@ begin
     else
     begin
       //not in range
+      Flpap.Internal := 0;
+      Flpap.InternalHigh := 0;
       Flpap.Offset := Fposition and $FFFFFFFF;
       Flpap.OffsetHigh := (Fposition shr 32) and $FFFFFFFF;
       if Count > $10000 then

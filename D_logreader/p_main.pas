@@ -118,7 +118,8 @@ begin
     for I := 0 to tlsObj.Fdbc.dict.tables.Count-1 do
     begin
       if tlsObj.Fdbc.dict.tables[i].Owner<>'sys' then
-        tmpStr:= tmpStr +',['+inttostr(tlsObj.Fdbc.dict.tables[i].TableId)+']'+tlsObj.Fdbc.dict.tables[i].TableNmae;
+        tmpStr := tmpStr + ',[' + inttostr(tlsObj.Fdbc.dict.tables[I].TableId) + ']' +
+        tlsObj.Fdbc.dict.tables[I].TableNmae+','+  BoolToStr(tlsObj.Fdbc.dict.tables[I].hasIdentity,true) + win_Eol;
     end;
     MMO_LOG.Lines.Add(tmpStr);
   end;
@@ -316,7 +317,7 @@ begin
 {$ENDIF}
   menuActions := TobjectList.Create;
 
-  //InitPluginsMenus;
+  InitPluginsMenus;
 end;
 
 procedure TForm1.FormDestroy(Sender: TObject);

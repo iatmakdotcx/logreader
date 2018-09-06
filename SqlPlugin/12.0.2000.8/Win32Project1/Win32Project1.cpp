@@ -85,10 +85,11 @@ bool checkXdesRMRWPtr(UINT_PTR XdesRMRW) {
 }
 
 void domyWork_2(UINT_PTR XdesRMReadWrite, UINT_PTR rawData) {	
-	if (PaddingDataCnt < 100000  && checkXdesRMRWPtr(XdesRMReadWrite))
+	if (checkXdesRMRWPtr(XdesRMReadWrite))
 	{
 		WORD dbid = *(WORD*)(XdesRMReadWrite + 0x460);
-		if (dbid > 0 && dbid < 64 && (((INT64)1 << (dbid - 1)) & CdbId) && checkRawPtr(rawData))
+		PLSN lsn = (PLSN)(XdesRMReadWrite + 0x32c);
+		if (dbid > 0 && dbid < 64 && (((INT64)1 << (dbid - 1)) & CdbId) && lsn->LSN_1 > 0 && checkRawPtr(rawData))
 		{
 			rawData = *(UINT_PTR*)rawData + 8;			
 			rawData = *(UINT_PTR*)rawData;
@@ -123,7 +124,7 @@ void domyWork_2(UINT_PTR XdesRMReadWrite, UINT_PTR rawData) {
 			PVOID slotData = malloc(RowDatalength);
 			memcpy(slotData, (PVOID)rawData, RowDatalength);
 
-			PLSN lsn = (PLSN)(XdesRMReadWrite + 0x32c);
+			//PLSN lsn = (PLSN)(XdesRMReadWrite + 0x32c);
 			PlogRecdItem LR = new logRecdItem;
 			LR->TranID_1 = 0;
 			LR->TranID_2 = 0;

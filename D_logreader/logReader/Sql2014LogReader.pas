@@ -37,6 +37,7 @@ type
     destructor Destroy; override;
     procedure Execute; override;
     procedure getTransBlock(rawlog: PRawLog_COMMIT_XACT);
+
   end;
 
 implementation
@@ -44,6 +45,25 @@ implementation
 uses
   Windows, SysUtils, Memory_Common, loglog, LocalDbLogProvider, OpCode,
   plugins, hexValUtils;
+
+
+function logBlockRawCheck(Lb: TlogBlock): boolean;
+begin
+  if ((Lb.flag = $90) or
+      (Lb.flag = $98) or
+      (Lb.flag = $40) or
+      (Lb.flag = $48) or
+      (Lb.flag = $50) or
+      (Lb.flag = $58)) and
+     (Lb.Size > 0)
+  then
+  begin
+    result := true;
+  end else begin
+    result := false;
+  end;
+end;
+
 
 { TSql2014LogReader }
 
@@ -141,7 +161,7 @@ begin
         Loger.Add('read data Error...........');
         Exit;
       end;
-      if abuf.flag <> 0 then
+      if logBlockRawCheck(abuf^) then
       begin
         if abuf.BeginLSN.LSN_1 <> vlfs.SeqNo then
         begin
@@ -382,8 +402,7 @@ begin
     Loger.Add('LogPicker.Execute:vlfHeader check Error !%s', [LSN2Str(FBeginLsn)], LOG_ERROR);
     Exit;
   end;
-  LogBlockPosi := Fvlf.VLFOffset + $2000;
-  //DONE: 干脆直接从$2000开始读取吧！简单快捷 ,虽然貌似有风险
+  LogBlockPosi := Fvlf.VLFOffset + $200;
   while LogBlockPosi < Fvlf.VLFOffset + Fvlf.VLFSize do
   begin
     if (FLogReader.FdataProvider[Fvlf.fileId].Read_Bytes(FlogBlock^, LogBlockPosi, SizeOf(TlogBlock)) <> SizeOf(TlogBlock)) then
@@ -391,7 +410,7 @@ begin
       Loger.Add('LogPicker.Execute:logBlock Read fail! no more data !%s', [LSN2Str(FBeginLsn)], LOG_ERROR);
       Exit;
     end;
-    if FlogBlock.flag <> 0 then
+    if logBlockRawCheck(FlogBlock^) then
     begin
       if FlogBlock.BeginLSN.LSN_1 <> Fvlf.SeqNo then
       begin
@@ -431,7 +450,7 @@ begin
     while True do  //循环块
     begin
       //先读出整个块，然后处理末尾的修复数据
-      LogBlockBuf := AllocMem(FlogBlock.Size);
+      LogBlockBuf := GetMemory(FlogBlock.Size);
       if FLogReader.FdataProvider[Fvlf.fileId].Read_Bytes(LogBlockBuf^, LogBlockPosi, FlogBlock.Size)<>FlogBlock.Size then
       begin
         Loger.Add('LogPicker.Execute:get LogBlock  fail!%s', [LSN2Str(FBeginLsn)], LOG_ERROR);
@@ -462,7 +481,7 @@ begin
           RowOffset := UIntPtr(LogBlockBuf) + RowOffsetTable[RIdx];
           RowLength := RowOffsetTable[RIdx + 1] - RowOffsetTable[RIdx];
         end;
-        RowdataBuffer := AllocMem(RowLength);
+        RowdataBuffer := GetMemory(RowLength);
         MoveMemory(RowdataBuffer, Pointer(RowOffset), RowLength);
         //如果成功。。
         NowLsn.LSN_1 := FlogBlock.BeginLSN.LSN_1;
@@ -482,7 +501,7 @@ begin
           loger.Add('缓冲区已满！暂停读取日志。将于30s后继续！', log_warning or LOG_IMPORTANT);
           for I := 0 to 30 - 1 do
           begin
-            Sleep(1000);
+            Sleep(100);
             if Terminated then
             begin
               //响应 Terminated
@@ -516,7 +535,7 @@ begin
           Loger.Add('LogPicker.Execute:Next logBlock Read fail! no more data !%s', [LSN2Str(FBeginLsn)], LOG_ERROR);
           Exit;
         end;
-        if (FlogBlock.flag <> 0) and (FlogBlock.Size <> 0) and (FBeginLsn.LSN_1 = FlogBlock.BeginLSN.LSN_1) then
+        if logBlockRawCheck(FlogBlock^) and (FBeginLsn.LSN_1 = FlogBlock.BeginLSN.LSN_1) then
         begin
           Break;
         end;
@@ -565,11 +584,22 @@ begin
     end;
     FBeginLsn.LSN_1 := FBeginLsn.LSN_1 + 1;
     //找到Vlf中的第一个块
-    LogBlockPosi := Fvlf.VLFOffset + $2000;
-    if (FLogReader.FdataProvider[Fvlf.fileId].Read_Bytes(FlogBlock^, LogBlockPosi, SizeOf(TlogBlock)) <> SizeOf(TlogBlock)) then
+    LogBlockPosi := Fvlf.VLFOffset + $200;
+    while LogBlockPosi < Fvlf.VLFOffset + Fvlf.VLFSize do
     begin
-      Loger.Add('LogPicker.Execute:vlf first logBlock Read fail! no more data !%s', [LSN2Str(FBeginLsn)], LOG_ERROR);
-      Exit;
+      if (FLogReader.FdataProvider[Fvlf.fileId].Read_Bytes(FlogBlock^, LogBlockPosi, SizeOf(TlogBlock)) <> SizeOf(TlogBlock)) then
+      begin
+        Loger.Add('LogPicker.Execute:logBlock Read fail! no more data !%s', [LSN2Str(FBeginLsn)], LOG_ERROR);
+        Exit;
+      end;
+      if logBlockRawCheck(FlogBlock^) and (FBeginLsn.LSN_1 = FlogBlock.BeginLSN.LSN_1) then
+      begin
+        Break;
+      end
+      else
+      begin
+        LogBlockPosi := LogBlockPosi + $200;
+      end;
     end;
     FBeginLsn.LSN_2 := FlogBlock.BeginLSN.LSN_2;
     FBeginLsn.LSN_3 := FlogBlock.BeginLSN.LSN_3;
@@ -630,8 +660,7 @@ begin
     Loger.Add('LogPicker.getTransBlock:vlfHeader check Error !%s', [LSN2Str(rawlog.BeginLsn)], LOG_ERROR);
     Exit;
   end;
-  LogBlockPosi := Fpxvlf.VLFOffset + $2000;
-  //DONE: 干脆直接从$2000开始读取吧！简单快捷 ,虽然貌似有风险
+  LogBlockPosi := Fpxvlf.VLFOffset + $200;
   while LogBlockPosi < Fpxvlf.VLFOffset + Fpxvlf.VLFSize do
   begin
     if (FLogReader.FdataProvider[Fpxvlf.fileId].Read_Bytes(logBlock^, LogBlockPosi, SizeOf(TlogBlock)) <> SizeOf(TlogBlock)) then
@@ -639,7 +668,7 @@ begin
       Loger.Add('LogPicker.getTransBlock:logBlock Read fail! no more data !%s', [LSN2Str(rawlog.BeginLsn)], LOG_ERROR);
       Exit;
     end;
-    if logBlock.flag <> 0 then
+    if logBlockRawCheck(logBlock^) then
     begin
       if logBlock.BeginLSN.LSN_1 <> Fpxvlf.SeqNo then
       begin
@@ -785,7 +814,7 @@ begin
    
     rawlog.BeginLsn.LSN_1 := rawlog.BeginLsn.LSN_1 + 1;
     //找到Vlf中的第一个块
-    LogBlockPosi := Fpxvlf.VLFOffset + $2000;
+    LogBlockPosi := Fpxvlf.VLFOffset + $200;
     if (FLogReader.FdataProvider[Fpxvlf.fileId].Read_Bytes(logBlock^, LogBlockPosi, SizeOf(TlogBlock)) <> SizeOf(TlogBlock)) then
     begin
       Loger.Add('LogPicker.getTransBlock:vlf first logBlock Read fail! no more data !%s', [LSN2Str(rawlog.BeginLsn)], LOG_ERROR);
@@ -799,6 +828,7 @@ ExitLabel:
   Dispose(vlfHeader);
   Dispose(logBlock);
 end;
+
 
 
 

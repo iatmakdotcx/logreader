@@ -178,7 +178,7 @@ begin
         field.CodePage := -1
       else
         field.CodePage := Qry.Fields[11].AsInteger;
-      if Qry.Fields[11].AsInteger=1 then
+      if Qry.Fields[12].AsBoolean then
       begin
         //is identity
         tti.hasIdentity := True;

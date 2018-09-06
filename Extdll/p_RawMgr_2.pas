@@ -152,21 +152,15 @@ var
   DataPnt: Pointer;
   lri: PlogRecdItem;
   logs: TList;
-  prevLsn: TLSN;
-  prevDBid: Word;
-  mmData: TMemoryStream;
   tmpPtr:Pointer;
 begin
   if Assigned(_Lc_Get_PaddingDataCnt) and (_Lc_Get_PaddingDataCnt > 0) then
   begin
     logs := TList.create;
-    mmData := TMemoryStream.Create;
     try
       try
         DataPnt := _Lc_Get_PaddingData;
         lri := PlogRecdItem(DataPnt);
-        prevDBid := 0;
-        prevLsn.lsn_1 := 0;
         while lri <> nil do
         begin
           PagelogFileMgr.LogDataSaveToFile(lri^);
@@ -191,12 +185,10 @@ begin
         end;
       end;
     finally
-      mmData.Free;
       logs.Free;
     end;
   end;
 end;
-
 
 constructor TPagelogFileMgr.Create;
 var
@@ -444,7 +436,7 @@ var
   lsize:LARGE_INTEGER;
   Rsize:Cardinal;
 
-  UniId:Int64;
+  UniId:UInt64;
 begin
   Result := False;
   if (Handle_IdxFile = INVALID_HANDLE_VALUE) or (Handle_DataFile = INVALID_HANDLE_VALUE) then
@@ -463,12 +455,12 @@ begin
     Exit;
   end;
 
-  UniId := (Lri.lsn.lsn_2 shl 16) or Lri.lsn.lsn_3;
+  UniId := (UInt64(Lri.lsn.lsn_2) shl 16) or Lri.lsn.lsn_3;
   if UniId > 0 then
   begin
     lsize.QuadPart := 0;
     SetFilePointerEx(Handle_DataFile, 0, @lsize, soFromEnd);
-    WriteFile_OverLapped(Handle_DataFile, Lri.val^, Lri.length, Rsize, lsize.QuadPart);
+    WriteFile_OverLapped(Handle_DataFile, Lri.val^, Lri.length, Rsize, lsize.QuadPart, True);
 
     lsize.HighPart := Cardinal(lsize.HighPart) or ((Lri.length and $FFFF) shl 16);
     idxObj.add(UniId, lsize.QuadPart);
@@ -520,7 +512,7 @@ begin
           Loger.Add('Idx 读取失败，跳过了当前内容!db:%d,RNo:%d', [TVlfMgr(Fvlf).Fdbid, TVlfMgr(Fvlf).ReqNo], LOG_ERROR);
           Exit;
         end;
-        Pli := Pointer(Uint_Ptr(IdxBuf) + RRsize - SizeOf(TLidxItem)); //选中最后一个
+        Pli := Pointer(Uint_Ptr(IdxBuf) + Rsize - SizeOf(TLidxItem)); //选中最后一个
       end;
 
       if Pli.HHH = 0 then
@@ -566,6 +558,8 @@ begin
         WriteFile_OverLapped(FHandle, WwwBuf^, wSize, RwSize, IdxBufPosi + tmpIdx);
       end;
       FreeMemory(WwwBuf);
+
+      WbuffPosi := WbuffPosi + SizeOf(TLidxItem);
     end;
   finally
     FreeMemory(IdxBuf);
@@ -681,7 +675,7 @@ begin
         begin
           Exit;
         end;
-        Pli := Pointer(Uint_Ptr(RBuf) + RRsize - SizeOf(TLidxItem));
+        Pli := Pointer(Uint_Ptr(RBuf) + Rsize - SizeOf(TLidxItem));
       end;
 
       if Pli.HHH = _key then
