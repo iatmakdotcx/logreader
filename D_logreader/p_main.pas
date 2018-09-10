@@ -190,7 +190,7 @@ begin
     ItemIdx := StrToInt(ListView1.Selected.Caption) - 1;
     tlsObj := LogSourceList.Get(ItemIdx);
 {$IFDEF DEBUG}
-    setLsn(tlsObj);
+    //setLsn(tlsObj);
 {$ENDIF}
     tlsObj.Create_picker;
   end;

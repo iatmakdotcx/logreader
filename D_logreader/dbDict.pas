@@ -21,7 +21,8 @@ type
     //identify
     Idt_seed:Integer;
     Idt_increment:Integer;
-    function isLogSkipCol: Boolean;
+    //
+    isLogSkipCol:Boolean;
     function getSafeColName: string;
     constructor Create;
   end;
@@ -113,7 +114,7 @@ type
 implementation
 
 uses
-  loglog, Types;
+  loglog, Types, Variants;
 
 { TDbDict }
 
@@ -178,10 +179,19 @@ begin
         field.CodePage := -1
       else
         field.CodePage := Qry.Fields[11].AsInteger;
-      if Qry.Fields[12].AsBoolean then
+      if (not Qry.Fields[12].IsNull) and Qry.Fields[12].AsBoolean then
       begin
         //is identity
         tti.hasIdentity := True;
+      end;
+      if field.ColName = '' then
+      begin
+        field.isLogSkipCol := True;
+      end else begin
+        if Qry.Fields[13].AsBoolean then
+        begin
+          field.isLogSkipCol := True;
+        end;
       end;
       tti.Fields.addField(field);
     end;
@@ -613,6 +623,7 @@ begin
     wter.WriteInteger(field.leaf_pos);
     wter.WriteString(field.collation_name);
     wter.WriteInteger(field.CodePage);
+    wter.WriteBoolean(field.isLogSkipCol);
   end;
   wter.WriteInteger(UniqueClusteredKeys.Count);
   for I := 0 to UniqueClusteredKeys.Count - 1 do
@@ -654,6 +665,7 @@ begin
       field.leaf_pos := Rter.ReadInteger;
       field.collation_name := Rter.ReadString;
       field.CodePage := Rter.ReadInteger;
+      field.isLogSkipCol := Rter.ReadBoolean;
     end;
     // UniqueKeys.Count
     FieldCount := Rter.ReadInteger;
@@ -673,6 +685,7 @@ begin
   CodePage := -1;
   Idt_seed := 0;
   Idt_increment := 0;
+  isLogSkipCol := False;
 end;
 
 function TdbFieldItem.getSafeColName: string;
@@ -680,10 +693,6 @@ begin
   Result := '[' + ColName.Replace(']',']]') + ']';
 end;
 
-function TdbFieldItem.isLogSkipCol: Boolean;
-begin
-  Result := False;
-end;
 
 end.
 

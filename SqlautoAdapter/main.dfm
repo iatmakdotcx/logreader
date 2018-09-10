@@ -39,8 +39,6 @@ object frm_main: Tfrm_main
     Align = alBottom
     BevelOuter = bvNone
     TabOrder = 1
-    ExplicitLeft = -8
-    ExplicitTop = 443
     object btn_Analysis: TButton
       Left = 24
       Top = 6
@@ -58,7 +56,6 @@ object frm_main: Tfrm_main
       Caption = 'AutoTest'
       Enabled = False
       TabOrder = 1
-      Visible = False
       OnClick = btn_testClick
     end
     object btn_clear: TButton

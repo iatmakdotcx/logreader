@@ -690,7 +690,7 @@ var
 begin
   Result := False;
   //aSql := Format('SELECT differential_base_lsn,differential_base_time FROM sys.master_files WHERE database_id = %d AND [type]=0', [dbid]);
-  aSql := Format('select top 1 database_backup_lsn,backup_finish_date from msdb..backupset where database_name=''%s'' order by backup_finish_date desc', [dbName]);
+  aSql := Format('select top 1 first_lsn,backup_finish_date from msdb..backupset where database_name=''%s'' order by backup_finish_date desc', [dbName]);
   if ExecSql(aSql, rDataset) then
   begin
     if not rDataset.Eof then
@@ -999,12 +999,11 @@ begin
     rDataset.Free;
   end;
   //刷新列信息
-  aSql := 'select cols.object_id,cols.column_id,cols.system_type_id,cols.max_length,cols.precision,cols.scale,cols.is_nullable,cols.name, ' +
-      ' p_cols.leaf_null_bit nullmap,p_cols.leaf_offset leaf_pos,cols.collation_name,Convert(int,COLLATIONPROPERTY(cols.collation_name, ''CodePage'')) cp,cols.is_identity  ' +
-      ' from sys.all_columns cols,sys.system_internals_partition_columns p_cols ' +
-      ' where p_cols.leaf_null_bit > 0 and cols.column_id = p_cols.partition_column_id and ' +
-      ' p_cols.partition_id in (Select partitions.partition_id from sys.partitions partitions where partitions.index_id <= 1 and partitions.object_id=cols.object_id) ' +
-      ' order by cols.object_id,cols.column_id ';
+  aSql := 'select partis.object_id,p_cols.partition_column_id column_id,p_cols.system_type_id,p_cols.max_length,p_cols.precision,p_cols.scale,p_cols.is_nullable,cols.name, '+
+          'p_cols.leaf_null_bit nullmap,p_cols.leaf_offset leaf_pos,p_cols.collation_name,Convert(int,COLLATIONPROPERTY(p_cols.collation_name, ''CodePage'')) cp,cols.is_identity,is_dropped '+
+          'from sys.system_internals_partition_columns p_cols join sys.system_internals_partitions partis on p_cols.partition_id=partis.partition_id and partis.index_id <= 1 '+
+          'left join sys.all_columns cols on cols.column_id = p_cols.partition_column_id and partis.object_id=cols.object_id '+
+          'order by partis.object_id ';
   if ExecSql(aSql, rDataset) then
   begin
     dict.RefreshTablesFields(rDataset);

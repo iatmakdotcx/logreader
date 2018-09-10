@@ -305,7 +305,17 @@ begin
   needQuote := False;
   if Value = nil then
   begin
-    Result := 'NULL';
+    case Field.type_id of
+      MsTypes.TEXT, MsTypes.CHAR, MsTypes.VARCHAR,
+      MsTypes.NTEXT, MsTypes.NVARCHAR, MsTypes.NCHAR:
+      begin
+        Result := '';
+        needQuote := True;
+      end;
+    else
+      Result := 'NULL';
+    end;
+
     exit;
   end;
   if Length(Value) = 0 then

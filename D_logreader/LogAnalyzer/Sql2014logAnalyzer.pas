@@ -545,19 +545,22 @@ begin
       updateStr := '';
       for I := 0 to aRowData.Table.Fields.Count - 1 do
       begin
-        raw_old := aRowData.old_data.getField(aRowData.Table.Fields[i].Col_id);
-        raw_new := aRowData.new_data.getField(aRowData.Table.Fields[i].Col_id);
-        if (raw_new=nil)  and (raw_old=nil)then
+        if not aRowData.Table.Fields[i].isLogSkipCol then
         begin
+          raw_old := aRowData.old_data.getField(aRowData.Table.Fields[i].Col_id);
+          raw_new := aRowData.new_data.getField(aRowData.Table.Fields[i].Col_id);
+          if (raw_new=nil)  and (raw_old=nil)then
+          begin
 
-        end else
-        if raw_new = nil then
-        begin
-          //var 值 ————>  null
-          updateStr := updateStr + Format(', %s=NULL',[raw_old.field.getSafeColName]);
-        end else if (raw_old = nil) or (not binEquals(raw_new.value, raw_old.value)) then begin
-          updateStr := updateStr + Format(', %s=%s',[raw_new.field.getSafeColName, Hvu_GetFieldStrValueWithQuoteIfNeed(raw_new.field, raw_new.value)]);
-        end
+          end else
+          if raw_new = nil then
+          begin
+            //var 值 ————>  null
+            updateStr := updateStr + Format(', %s=NULL',[raw_old.field.getSafeColName]);
+          end else if (raw_old = nil) or (not binEquals(raw_new.value, raw_old.value)) then begin
+            updateStr := updateStr + Format(', %s=%s',[raw_new.field.getSafeColName, Hvu_GetFieldStrValueWithQuoteIfNeed(raw_new.field, raw_new.value)]);
+          end
+        end;
       end;
       if updateStr.Length = 0 then
       begin
@@ -571,6 +574,8 @@ begin
       updateStr := '';
       for I := 0 to aRowData.Table.Fields.Count - 1 do
       begin
+        if aRowData.Table.Fields[i].isLogSkipCol then Continue;
+
         isUniClustered := False;
         for J := 0 to aRowData.Table.UniqueClusteredKeys.Count-1 do
         begin
@@ -752,6 +757,7 @@ begin
     begin
       for I := 0 to aRowData.Table.Fields.Count - 1 do
       begin
+        if aRowData.Table.Fields[i].isLogSkipCol then Continue;
         raw_old := aRowData.old_data.getField(aRowData.Table.Fields[i].Col_id);
         raw_new := aRowData.new_data.getField(aRowData.Table.Fields[i].Col_id);
 
@@ -843,6 +849,7 @@ begin
       //新旧数据都有，则对比差异生成update
       for I := 0 to aRowData.Table.Fields.Count - 1 do
       begin
+        if aRowData.Table.Fields[i].isLogSkipCol then Continue;
         raw_old := aRowData.old_data.getField(aRowData.Table.Fields[i].Col_id);
         raw_new := aRowData.new_data.getField(aRowData.Table.Fields[i].Col_id);
 
@@ -925,6 +932,7 @@ begin
       //没有old，根据新的全部字段生成update（除唯一聚合
       for I := 0 to aRowData.Table.Fields.Count - 1 do
       begin
+        if aRowData.Table.Fields[i].isLogSkipCol then Continue;
         isUniClustered := False;
         for J := 0 to aRowData.Table.UniqueClusteredKeys.Count-1 do
         begin
@@ -2072,6 +2080,8 @@ begin
         OldCol.CodePage := FieldItem.CodePage;
         OldCol.Idt_seed := FieldItem.Idt_seed;
         OldCol.Idt_increment := FieldItem.Idt_increment;
+        if OldCol.Idt_increment>0 then
+          TDDL_Create_Table(ddlitem).TableObj.hasIdentity := True;
       end;
       FieldItem.free;
     end
@@ -2817,11 +2827,7 @@ begin
   ColCnt := BinReader.readWord;
   if ColCnt <> DbTable.Fields.Count then
   begin
-    //UNIQUIFIER
-    if (ColCnt <> DbTable.Fields.Count + 1) then
-    begin
-      raise Exception.Create('实际列数与日志不匹配！这可能是修改表后造成的！放弃解析！');
-    end;
+    raise Exception.Create('实际列数与日志不匹配！这可能是修改表后造成的！放弃解析！');
   end;
   DataRow := Tsql2014RowData.Create;
   if (InsertRowFlag and $10) > 0 then
@@ -2878,9 +2884,13 @@ begin
             val_begin := (VarFieldValEndOffset[Idx - 1] and $7FFF);
           end;
           val_len := (VarFieldValEndOffset[Idx] and $7FFF) - val_begin;
-          if val_len <= 0 then
+          if val_len = 0 then
           begin
-            Continue;
+            //空字符串
+            New(fieldval);
+            fieldval.field := aField;
+            SetLength(fieldval.value,0);
+            DataRow.Fields.Add(fieldval);
           end
           else
           begin
@@ -2907,6 +2917,12 @@ begin
             end;
             DataRow.Fields.Add(fieldval);
           end;
+        end else begin
+          //空字符串
+          New(fieldval);
+          fieldval.field := aField;
+          SetLength(fieldval.value,0);
+          DataRow.Fields.Add(fieldval);
         end;
       end
       else

@@ -163,8 +163,8 @@ begin
   Result := SUCCEED;
   if Assigned(_Lc_doHook) and (SVR_hookPnt_Row > 0) then
   begin
-//    if loopSaveMgr = nil then
-//      loopSaveMgr := TloopSaveMgr.Create;
+    if loopSaveMgr = nil then
+      loopSaveMgr := TloopSaveMgr.Create;
     hookState := _Lc_doHook(SVR_hookPnt_Row);
     if hookState = 99 then
     begin
