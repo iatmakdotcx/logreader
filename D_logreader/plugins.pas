@@ -134,7 +134,7 @@ begin
       if UpperCase(ExtractFileName(dllname)) = UpperCase(plugins[I].dllname) then
       begin
         Result := I;
-        Loger.Add('%s 插件 %s 已加载过.', [dllname, plugins[I].name]);
+        DefLoger.Add('%s 插件 %s 已加载过.', [dllname, plugins[I].name]);
         exit;
       end;
     end;
@@ -157,12 +157,12 @@ begin
     FreeMem(plgBuf);
     if plgVers > PDK_VERSION then
     begin
-      Loger.Add('%s 插件 %s 不适用于当前版本。SysVers:%d, plgVers:%d', [dllname, plgNameStr, PDK_VERSION, plgVers]);
+      DefLoger.Add('%s 插件 %s 不适用于当前版本。SysVers:%d, plgVers:%d', [dllname, plgNameStr, PDK_VERSION, plgVers]);
       FreeLibrary(dlHandle);
     end
     else
     begin
-      Loger.Add('%s 插件 %s 已加载.', [dllname, plgNameStr]);
+      DefLoger.Add('%s 插件 %s 已加载.', [dllname, plgNameStr]);
       _Lr_PluginGetErrMsg := GetProcAddress(dlHandle, '_Lr_PluginGetErrMsg');
       _Lr_PluginInit := GetProcAddress(dlHandle, '_Lr_PluginInit');
       if Assigned(_Lr_PluginInit) then
@@ -172,13 +172,13 @@ begin
         begin
           if not Assigned(_Lr_PluginGetErrMsg) then
           begin
-            Loger.Add('%s 插件 %s 已加载.但初始化失败！Code：%d', [dllname, plgNameStr, resV]);
+            DefLoger.Add('%s 插件 %s 已加载.但初始化失败！Code：%d', [dllname, plgNameStr, resV]);
           end
           else
           begin
             plgBuf := GetMemory($1000);
             _Lr_PluginGetErrMsg(resV, plgBuf);
-            Loger.Add('%s 插件 %s 已加载.但初始化失败！Code：%d(%s)', [dllname, plgNameStr, resV, string(plgBuf)]);
+            DefLoger.Add('%s 插件 %s 已加载.但初始化失败！Code：%d(%s)', [dllname, plgNameStr, resV, string(plgBuf)]);
             FreeMem(plgBuf);
           end;
           FreeLibrary(dlHandle);
@@ -252,7 +252,7 @@ begin
             begt := GetTickCount-begt;
             if begt > 1000 then
             begin
-              loger.Add('插件 %s._Lr_PluginRegSQL 执行时间大于1000ms(%d ms)(响应过慢可能导致整体解析效率下降！)',[plugins[i].filepath, begt], LOG_IMPORTANT or LOG_WARNING);
+              DefLoger.Add('插件 %s._Lr_PluginRegSQL 执行时间大于1000ms(%d ms)(响应过慢可能导致整体解析效率下降！)',[plugins[i].filepath, begt], LOG_IMPORTANT or LOG_WARNING);
             end;
           except
           end;
@@ -283,7 +283,7 @@ begin
             begt := GetTickCount-begt;
             if begt > 1000 then
             begin
-              loger.Add('插件 %s._Lr_PluginRegXML 执行时间大于1000ms(%d ms)(响应过慢可能导致整体解析效率下降！)',[plugins[i].filepath, begt], LOG_IMPORTANT or LOG_WARNING);
+              DefLoger.Add('插件 %s._Lr_PluginRegXML 执行时间大于1000ms(%d ms)(响应过慢可能导致整体解析效率下降！)',[plugins[i].filepath, begt], LOG_IMPORTANT or LOG_WARNING);
             end;
           except
           end;

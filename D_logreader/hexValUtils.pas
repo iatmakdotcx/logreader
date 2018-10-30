@@ -3,33 +3,44 @@ unit hexValUtils;
 interface
 
 uses
-  dbDict, System.SysUtils, Winapi.Windows, p_structDefine;
+  dbDict, System.SysUtils, Winapi.Windows, p_structDefine, I_LogSource;
 
-function Hvu_Hex2Datetime(msec: Int64): TDateTime;
-
-function Hvu_GetFieldStrValue(Field: TdbFieldItem; Value: TBytes): string; overload;
-
-function Hvu_GetFieldStrValue(Field: TdbFieldItem; Value: TBytes; out needQuote: Boolean): string; overload;
-function Hvu_GetFieldStrValueWithQuoteIfNeed(Field: TdbFieldItem; Value: TBytes): string;
-
-function Hvu_getWord(Value: TBytes; idx: Integer; len: Integer = 2): Word;
-
-function Hvu_getDWORD(Value: TBytes; idx: Integer; len: Integer = 4): DWORD;
-
-function Hvu_getQWORD(Value: TBytes; idx: Integer; len: Integer = 8): QWORD;
-
-function Hvu_getShort(Value: TBytes; idx: Integer; len: Integer = 2): SHORT;
-
-function Hvu_getInt(Value: TBytes; idx: Integer; len: Integer = 4): Integer;
-
-function Hvu_getInt64(Value: TBytes; idx: Integer; len: Integer = 8): Int64;
+type
+  THexValueHelper = class
+  private
+    LogSource:TLogSourceBase;
+    class function Bytes2AnsiBytesStr(Value: TBytes; CodePage: Integer): string; static;
+    class function Bytes2DateStr(Value: TBytes): string; static;
+    class function Bytes2DateTime2Str(Value: TBytes; scale: Integer): string; static;
+    class function Bytes2DateTimeOffsetStr(Value: TBytes; scale: Integer): string; static;
+    class function Bytes2DateTimeStr(Value: TBytes): string; static;
+    class function Bytes2DoubleStr(Value: TBytes): string; static;
+    class function Bytes2Float(Value: TBytes; scale: Integer): string; static;
+    class function Bytes2GUIDStr(Value: TBytes): string; static;
+    class function Bytes2Momey(Value: TBytes; scale: Integer): string; static;
+    class function Bytes2SingleStr(Value: TBytes): string; static;
+    class function Bytes2smallDatetimeStr(Value: TBytes): string; static;
+    class function Bytes2TimeStr(Value: TBytes; scale: Integer): string; static;
+  public
+    constructor Create(_LogSource:TLogSourceBase);
+    function GetFieldStrValue(Field: TdbFieldItem; Value: TBytes): string; overload;
+    function GetFieldStrValue(Field: TdbFieldItem; Value: TBytes; out needQuote: Boolean): string; overload;
+    function GetFieldStrValueWithQuoteIfNeed(Field: TdbFieldItem; Value: TBytes): string;
+    class function Hex2Datetime(msec: Int64): TDateTime;
+    class function getWord(Value: TBytes; idx: Integer; len: Integer = 2): Word;
+    class function getDWORD(Value: TBytes; idx: Integer; len: Integer = 4): DWORD;
+    class function getQWORD(Value: TBytes; idx: Integer; len: Integer = 8): QWORD;
+    class function getShort(Value: TBytes; idx: Integer; len: Integer = 2): SHORT;
+    class function getInt(Value: TBytes; idx: Integer; len: Integer = 4): Integer;
+    class function getInt64(Value: TBytes; idx: Integer; len: Integer = 8): Int64;
+  end;
 
 implementation
 
 uses
   DateUtils, dbFieldTypes, System.Math, Memory_Common, loglog;
 
-function Hvu_Hex2Datetime(msec: Int64): TDateTime;
+class function THexValueHelper.Hex2Datetime(msec: Int64): TDateTime;
 var
   ldate: Cardinal;
 begin
@@ -40,7 +51,7 @@ begin
   Result := IncMilliSecond(Result, (ldate mod 300) * 1000 div 300);
 end;
 
-function Hvu_getWord(Value: TBytes; idx, len: Integer): Word;
+class function THexValueHelper.getWord(Value: TBytes; idx, len: Integer): Word;
 var
   I: Integer;
   NeedReadByteCnt: Integer;
@@ -53,7 +64,7 @@ begin
   end;
 end;
 
-function Hvu_getDWORD(Value: TBytes; idx, len: Integer): DWORD;
+class function THexValueHelper.getDWORD(Value: TBytes; idx, len: Integer): DWORD;
 var
   I: Integer;
   NeedReadByteCnt: Integer;
@@ -66,7 +77,7 @@ begin
   end;
 end;
 
-function Hvu_getQWORD(Value: TBytes; idx, len: Integer): QWORD;
+class function THexValueHelper.getQWORD(Value: TBytes; idx, len: Integer): QWORD;
 var
   I: Integer;
   NeedReadByteCnt: Integer;
@@ -79,7 +90,7 @@ begin
   end;
 end;
 
-function Hvu_getShort(Value: TBytes; idx: Integer; len: Integer = 2): SHORT;
+class function THexValueHelper.getShort(Value: TBytes; idx: Integer; len: Integer = 2): SHORT;
 begin
   if Length(Value) < idx+2 then
   begin
@@ -89,45 +100,45 @@ begin
   end;
 end;
 
-function Hvu_getInt(Value: TBytes; idx: Integer; len: Integer = 4): Integer;
+class function THexValueHelper.getInt(Value: TBytes; idx: Integer; len: Integer = 4): Integer;
 begin
   if Length(Value) < idx+4 then
   begin
-    Result := Hvu_getDWORD(Value, idx, len);
+    Result := getDWORD(Value, idx, len);
   end else begin
     Result := PINT(@Value[idx])^;
   end;
 end;
 
-function Hvu_getInt64(Value: TBytes; idx: Integer; len: Integer = 8): Int64;
+class function THexValueHelper.getInt64(Value: TBytes; idx: Integer; len: Integer = 8): Int64;
 begin
   if Length(Value) < idx+4 then
   begin
-    Result := Hvu_getQWORD(Value, idx, len);
+    Result := getQWORD(Value, idx, len);
   end else begin
     Result := PINT64(@Value[idx])^;
   end;
 end;
 
-function Hvu_Bytes2DateStr(Value: TBytes): string;
+class function THexValueHelper.Bytes2DateStr(Value: TBytes): string;
 var
   dayCnt: Integer;
   TmpDate: TDate;
 begin
-  dayCnt := Hvu_getDWORD(Value, 0, 3);
+  dayCnt := getDWORD(Value, 0, 3);
   TmpDate := EncodeDateTime(0001, 1, 1, 0, 0, 0, 0);
   TmpDate := TmpDate + dayCnt;
   Result := FormatDateTime('yyyy-MM-dd', TmpDate);
 end;
 
-function Hvu_Bytes2TimeStr(Value: TBytes; scale: Integer): string;
+class function THexValueHelper.Bytes2TimeStr(Value: TBytes; scale: Integer): string;
 var
   MisCnt: Int64;
   seconds, minutes, hours: Integer;
   scaleCardinal: Integer;
   TotalSrcond: Cardinal;
 begin
-  MisCnt := Hvu_getQWORD(Value, 0, 5);
+  MisCnt := getQWORD(Value, 0, 5);
   scaleCardinal := Trunc(Power(10, scale));
   TotalSrcond := MisCnt div scaleCardinal;
   seconds := TotalSrcond mod 60;
@@ -137,15 +148,20 @@ begin
   Result := Format('%d:%d:%d.%d', [hours, minutes, seconds, scaleCardinal])
 end;
 
-function Hvu_Bytes2DateTimeStr(Value: TBytes): string;
+constructor THexValueHelper.Create(_LogSource: TLogSourceBase);
+begin
+  LogSource := _LogSource;
+end;
+
+class function THexValueHelper.Bytes2DateTimeStr(Value: TBytes): string;
 var
   tmpLong: QWORD;
 begin
-  tmpLong := Hvu_getQWORD(Value, 0);
-  Result := FormatDateTime('yyyy-MM-dd HH:nn:ss.zzz', Hvu_Hex2Datetime(tmpLong));
+  tmpLong := getQWORD(Value, 0);
+  Result := FormatDateTime('yyyy-MM-dd HH:nn:ss.zzz', Hex2Datetime(tmpLong));
 end;
 
-function Hvu_Bytes2DateTime2Str(Value: TBytes; scale: Integer): string;
+class function THexValueHelper.Bytes2DateTime2Str(Value: TBytes; scale: Integer): string;
 var
   MisCnt: Int64;
   dayCnt: Integer;
@@ -155,12 +171,12 @@ var
   TmpDate: TDate;
 begin
   //天數
-  dayCnt := Hvu_getDWORD(Value, 5, 3);
+  dayCnt := getDWORD(Value, 5, 3);
   TmpDate := EncodeDateTime(0001, 1, 1, 0, 0, 0, 0);
   TmpDate := TmpDate + dayCnt;
   Result := FormatDateTime('yyyy-MM-dd', TmpDate);
   //秒數
-  MisCnt := Hvu_getQWORD(Value, 0, 5);
+  MisCnt := getQWORD(Value, 0, 5);
   scaleCardinal := Trunc(Power(10, scale));
   TotalSrcond := MisCnt div scaleCardinal;
   seconds := TotalSrcond mod 60;
@@ -170,7 +186,7 @@ begin
   Result := Result + ' ' + Format('%d:%d:%d.%d', [hours, minutes, seconds, scaleCardinal]);
 end;
 
-function Hvu_Bytes2DateTimeOffsetStr(Value: TBytes; scale: Integer): string;
+class function THexValueHelper.Bytes2DateTimeOffsetStr(Value: TBytes; scale: Integer): string;
 var
   MisCnt: Int64;
   dayCnt: Integer;
@@ -182,7 +198,7 @@ var
   TimeZoneStr: string;
   zoneHours, zonMinutes: integer;
 begin
-  fixVal := Hvu_getWord(Value, 8);
+  fixVal := getWord(Value, 8);
   zoneHours := abs(fixVal) div 60;
   zonMinutes := abs(fixVal) mod 60;
   if fixVal < 0 then
@@ -194,13 +210,13 @@ begin
     TimeZoneStr := Format('+%.2d:%.2d', [zoneHours, zonMinutes]);
   end;
   //天數
-  dayCnt := Hvu_getDWORD(Value, 5, 3);
+  dayCnt := getDWORD(Value, 5, 3);
   TmpDate := EncodeDateTime(0001, 1, 1, 0, 0, 0, 0);
   TmpDate := TmpDate + dayCnt;
   Result := FormatDateTime('yyyy-MM-dd', TmpDate);
   //秒數
   scaleCardinal := Trunc(Power(10, scale));
-  MisCnt := Hvu_getQWORD(Value, 0, 5) + int64(fixVal) * scaleCardinal * 60;
+  MisCnt := getQWORD(Value, 0, 5) + int64(fixVal) * scaleCardinal * 60;
   TotalSrcond := MisCnt div scaleCardinal;
   seconds := TotalSrcond mod 60;
   minutes := (TotalSrcond div 60) mod 60;
@@ -209,41 +225,41 @@ begin
   Result := Result + ' ' + Format('%d:%d:%d.%d', [hours, minutes, seconds, scaleCardinal]) + ' ' + TimeZoneStr;
 end;
 
-function Hvu_Bytes2smallDatetimeStr(Value: TBytes): string;
+class function THexValueHelper.Bytes2smallDatetimeStr(Value: TBytes): string;
 var
   ldate, hdate: Integer;
   TmpDate: TDateTime;
 begin
-  ldate := Hvu_getWord(Value, 0, 2);
-  hdate := Hvu_getWord(Value, 2, 2);
+  ldate := getWord(Value, 0, 2);
+  hdate := getWord(Value, 2, 2);
   TmpDate := EncodeDateTime(1900, 1, 1, 0, 0, 0, 0);
   TmpDate := TmpDate + hdate;
   TmpDate := IncMinute(TmpDate, ldate);
   Result := FormatDateTime('yyyy-MM-dd HH:nn:ss', TmpDate);
 end;
 
-function Hvu_Bytes2SingleStr(Value: TBytes): string;
+class function THexValueHelper.Bytes2SingleStr(Value: TBytes): string;
 var
   tmpSingle: Single;
 begin
-  PDWORD(@tmpSingle)^ := Hvu_getDWORD(Value, 0);
+  PDWORD(@tmpSingle)^ := getDWORD(Value, 0);
   Result := FloatToStr(tmpSingle);
 end;
 
-function Hvu_Bytes2DoubleStr(Value: TBytes): string;
+class function THexValueHelper.Bytes2DoubleStr(Value: TBytes): string;
 var
   tmpSingle: Double;
 begin
-  PQWORD(@tmpSingle)^ := Hvu_getQWORD(Value, 0);
+  PQWORD(@tmpSingle)^ := getQWORD(Value, 0);
   Result := FloatToStr(tmpSingle);
 end;
 
-function Hvu_Bytes2Float(Value: TBytes; scale: Integer): string;
+class function THexValueHelper.Bytes2Float(Value: TBytes; scale: Integer): string;
 var
   tmplong: Int64;
   TmPdouble: Double;
 begin
-  tmplong := Hvu_getQWORD(Value, 1);
+  tmplong := getQWORD(Value, 1);
   TmPdouble := tmplong / Power(10, scale);
   if (Value[0] <> 1) then
   begin
@@ -252,7 +268,7 @@ begin
   Result := FloatToStr(TmPdouble);
 end;
 
-function Hvu_Bytes2Momey(Value: TBytes; scale: Integer): string;
+class function THexValueHelper.Bytes2Momey(Value: TBytes; scale: Integer): string;
 var
   tmplong: Int64;
   TmPdouble: Double;
@@ -260,18 +276,18 @@ begin
   if Length(Value) = 4 then
   begin
     // smallMoney
-    tmplong := Hvu_getDWORD(Value, 0);
+    tmplong := getDWORD(Value, 0);
   end
   else
   begin
     //Money
-    tmplong := Hvu_getQWORD(Value, 0);
+    tmplong := getQWORD(Value, 0);
   end;
   TmPdouble := tmplong / Power(10, scale);
   Result := FloatToStr(TmPdouble);
 end;
 
-function Hvu_Bytes2AnsiBytesStr(Value: TBytes; CodePage: Integer): string;
+class function THexValueHelper.Bytes2AnsiBytesStr(Value: TBytes; CodePage: Integer): string;
 var
   needSize: Integer;
   pwc: WideString;
@@ -285,7 +301,7 @@ begin
   end;
 end;
 
-function Hvu_Bytes2GUIDStr(Value: TBytes): string;
+class function THexValueHelper.Bytes2GUIDStr(Value: TBytes): string;
 var
   pp: PGUID;
 begin
@@ -293,14 +309,14 @@ begin
   Result := GUIDToString(pp^);
 end;
 
-function Hvu_GetFieldStrValue(Field: TdbFieldItem; Value: TBytes): string;
+function THexValueHelper.GetFieldStrValue(Field: TdbFieldItem; Value: TBytes): string;
 var
   needQuote: Boolean;
 begin
-  Result := Hvu_GetFieldStrValue(Field, Value, needQuote);
+  Result := GetFieldStrValue(Field, Value, needQuote);
 end;
 
-function Hvu_GetFieldStrValue(Field: TdbFieldItem; Value: TBytes; out needQuote: Boolean): string;
+function THexValueHelper.GetFieldStrValue(Field: TdbFieldItem; Value: TBytes; out needQuote: Boolean): string;
 begin
   needQuote := False;
   if Value = nil then
@@ -328,54 +344,54 @@ begin
   case Field.type_id of
     MsTypes.DATE:
       begin
-        Result := Hvu_Bytes2DateStr(Value);
+        Result := Bytes2DateStr(Value);
         needQuote := True;
       end;
     MsTypes.TIME:
       begin
-        Result := Hvu_Bytes2TimeStr(Value, Field.scale);
+        Result := Bytes2TimeStr(Value, Field.scale);
         needQuote := True;
       end;
     MsTypes.DATETIME2:
       begin
-        Result := Hvu_Bytes2DateTime2Str(Value, Field.scale);
+        Result := Bytes2DateTime2Str(Value, Field.scale);
         needQuote := True;
       end;
     MsTypes.DATETIMEOFFSET:
       begin
-        Result := Hvu_Bytes2DateTimeOffsetStr(Value, Field.scale);
+        Result := Bytes2DateTimeOffsetStr(Value, Field.scale);
         needQuote := True;
       end;
     MsTypes.TINYINT:
       Result := IntToStr(ShortInt(Value[0]));
     MsTypes.SMALLINT:
-      Result := IntToStr(Hvu_getShort(Value, 0));
+      Result := IntToStr(getShort(Value, 0));
     MsTypes.INT:
-      Result := IntToStr(Hvu_getInt(Value, 0));
+      Result := IntToStr(getInt(Value, 0));
     MsTypes.BIGINT:
-      Result := IntToStr(Hvu_getInt64(Value, 0));
+      Result := IntToStr(getInt64(Value, 0));
     MsTypes.SMALLDATETIME:
       begin
-        Result := Hvu_Bytes2smallDatetimeStr(Value);
+        Result := Bytes2smallDatetimeStr(Value);
         needQuote := True;
       end;
     MsTypes.REAL:
-      Result := Hvu_Bytes2SingleStr(Value);
+      Result := Bytes2SingleStr(Value);
     MsTypes.FLOAT:
-      Result := Hvu_Bytes2DoubleStr(Value);
+      Result := Bytes2DoubleStr(Value);
     MsTypes.NUMERIC, MsTypes.DECIMAL:
-      Result := Hvu_Bytes2Float(Value, Field.scale);
+      Result := Bytes2Float(Value, Field.scale);
     MsTypes.MONEY, MsTypes.SMALLMONEY:
-      Result := Hvu_Bytes2Momey(Value, Field.scale);
+      Result := Bytes2Momey(Value, Field.scale);
     MsTypes.DATETIME:
       begin
-        Result := Hvu_Bytes2DateTimeStr(Value);
+        Result := Bytes2DateTimeStr(Value);
         needQuote := True;
       end;
 
     MsTypes.TEXT, MsTypes.CHAR, MsTypes.VARCHAR:
       begin
-        Result := Hvu_Bytes2AnsiBytesStr(Value, Field.CodePage);
+        Result := Bytes2AnsiBytesStr(Value, Field.CodePage);
         needQuote := True;
       end;
     MsTypes.NTEXT, MsTypes.NVARCHAR, MsTypes.NCHAR:
@@ -394,7 +410,7 @@ begin
 
     MsTypes.UNIQUEIDENTIFIER:
       begin
-        Result := Hvu_Bytes2GUIDStr(Value);
+        Result := Bytes2GUIDStr(Value);
         needQuote := True;
       end;
 
@@ -403,32 +419,34 @@ begin
 
     MsTypes.GEOGRAPHY:
       begin
-        Loger.add('暂不支持的类型:%d GEOGRAPHY 将尝试使用二进制值', [Field.type_id]);
+        LogSource.Loger.add('暂不支持的类型:%d GEOGRAPHY 将尝试使用二进制值', [Field.type_id]);
         Result := '0x' + bytestostr_singleHex(Value);
       end;
 
     MsTypes.XML:
       begin
-        Loger.add('暂不支持的类型：XML 将使用NULL值');
+        //TODO:解析 xml
+        LogSource.Loger.add('暂不支持的类型：XML 将使用NULL值');
         Result := 'NULL';
       end;
     MsTypes.SQL_VARIANT:
       begin
-        Loger.add('暂不支持的类型：SQL_VARIANT 将使用NULL值');
+        //TODO:解析 SQL_VARIANT
+        LogSource.Loger.add('暂不支持的类型：SQL_VARIANT 将使用NULL值');
         Result := 'NULL';
       end;
   else
-    Loger.add('暂不支持的类型:%d 将使用二进制值', [Field.type_id]);
+    LogSource.Loger.add('暂不支持的类型:%d 将使用二进制值', [Field.type_id]);
     Result := '0x' + bytestostr_singleHex(Value);
   end;
 
 end;
 
-function Hvu_GetFieldStrValueWithQuoteIfNeed(Field: TdbFieldItem; Value: TBytes): string;
+function THexValueHelper.GetFieldStrValueWithQuoteIfNeed(Field: TdbFieldItem; Value: TBytes): string;
 var
   needQuote: Boolean;
 begin
-  Result := Hvu_GetFieldStrValue(Field, Value, needQuote);
+  Result := GetFieldStrValue(Field, Value, needQuote);
   if needQuote then
   begin
     Result := Result.Replace('''','''''');

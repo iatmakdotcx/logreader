@@ -163,16 +163,17 @@ begin
         lri := PlogRecdItem(DataPnt);
         while lri <> nil do
         begin
+          Loger.Add('saveOne:%.8x:%.8x:%.4x,n:%x',[lri^.lsn.lsn_1,lri^.lsn.lsn_2,lri^.lsn.lsn_3,Uint_ptr(lri^.n)], LOG_INFORMATION or LOG_DATA);
           PagelogFileMgr.LogDataSaveToFile(lri^);
+          Loger.Add('saveOne_ok:%.8x:%.8x:%.4x,n:%x',[lri^.lsn.lsn_1,lri^.lsn.lsn_2,lri^.lsn.lsn_3,Uint_ptr(lri^.n)], LOG_INFORMATION or LOG_DATA);
           tmpPtr := lri;
-          lri := lri.n;
-
+          lri := lri^.n;
           try
             _Lc_Free_PaddingData(tmpPtr);
           except
             on exc:Exception do
             begin
-              Loger.Add('调用_Lc_Free_PaddingData失败！' + exc.Message, LOG_ERROR);
+              Loger.Add('调用_Lc_Free_PaddingData失败！' + exc.Message, LOG_ERROR or LOG_IMPORTANT);
             end;
           end;
         end;
@@ -226,7 +227,7 @@ begin
   except
     on e:Exception do
     begin
-      Loger.Add(' LogDataSaveToFile fail! ' + e.Message, LOG_ERROR);
+      Loger.Add(' LogDataGetData fail! ' + e.Message, LOG_ERROR);
     end;
   end;
 end;
@@ -236,20 +237,27 @@ var
   dbdiObj:TDBidObj;
   vlf:TVlfMgr;
 begin
+  Loger.Add('...LogDataSaveToFile.......');
   Result := False;
   try
     if (Lri.dbId > 0) and (Lri.lsn.lsn_1 > 0) then
     begin
+      Loger.Add('...LogDataSaveToFile...1....');
       dbdiObj := dbids.GetObj(Lri.dbId);
+      Loger.Add('...LogDataSaveToFile...2....');
       vlf := dbdiObj.GetObj(Lri.dbId, Lri.lsn.lsn_1, f_path);
+      Loger.Add('...LogDataSaveToFile...3....');
       Result := vlf.Save(Lri);
+      Loger.Add('...LogDataSaveToFile...4....');
     end;
+    Loger.Add('...LogDataSaveToFile...5....');
   except
     on e:Exception do
     begin
       Loger.Add(' LogDataSaveToFile fail! ' + e.Message, LOG_ERROR);
     end;
   end;
+  Loger.Add('...LogDataSaveToFile...EEE....');
 end;
 
 { TDbidCustomList }
@@ -763,6 +771,7 @@ begin
   while not Terminated do
   begin
     try
+     // Loger.Add('ontimer...', LOG_INFORMATION or LOG_DATA);
       PageLog_save;
     except
       on eee:Exception do

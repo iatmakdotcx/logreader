@@ -283,6 +283,7 @@ type
     FHierarchy: TLogHierarchy;
     FLevel: TLogLevel;
     FName: string;
+    FFullCfg:TStringList;
     FParent: TLogLogger;
   protected
     FCriticalLogger: TRTLCriticalSection;
@@ -758,6 +759,7 @@ type
     procedure RemoveAllFilters; virtual;
     procedure RemoveFilter(const Filter: ILogFilter); virtual;
     function RequiresLayout: Boolean; virtual;
+    function multiInst:Boolean;virtual;
   end;
 
   { Discard log messages. }
@@ -841,6 +843,7 @@ type
 
   TLogRDFAppender = class(TLogStreamAppender)
   private
+    FInstName:string;
     FlogPath:string;
     FcurDate: Cardinal;
   protected
@@ -849,6 +852,7 @@ type
     procedure DoAppend(const msg: string); override;
     procedure CloseLogFile;
   public
+    function multiInst:Boolean;override;
     constructor Create(const Name, FileName: string; const Layout: ILogLayout = nil); reintroduce; virtual;
     property logPath: string read FlogPath;
   end;
@@ -897,6 +901,17 @@ type
     class procedure Configure(const Props: TStringList); overload;
     procedure DoConfigure(const FileName: string; const Hierarchy: TLogHierarchy); overload;
     procedure DoConfigure(const Props: TStringList; const Hierarchy: TLogHierarchy); overload;
+  end;
+
+
+  TLogLoggerCreater = class
+  private
+    class procedure ParseLoggerCfg(const Props: TStringList; const Logger: TLogLogger; const Value: string); static;
+    class procedure ParseAppenderCfg(const Props: TStringList; const Logger: TLogLogger; const AppenderName: string); static;
+    class procedure ParseAdditivityForLogger(const Props: TStringList; const Logger: TLogLogger); static;
+  protected
+  public
+    class procedure Configure(const Props: TStringList; Hierarchy: TLogHierarchy; Factory: ILogLoggerFactory); static;
   end;
 
 
@@ -980,7 +995,7 @@ const
 
 resourcestring
   AddingLoggerMsg = 'Adding logger "%s" in error handler';
-  AppenderDefinedMsg = 'Appender "%s" was already parsed';
+  AppenderDefinedMsg = 'Appender "%s" was already existed reset the config';
   BadConfigFileMsg = 'Couldn''t read configuration file "%s" - %s';
   ClosedAppenderMsg = 'Not allowed to write to a closed appender';
   ConvertErrorMsg = 'Could not convert "%s" to level';
@@ -1031,6 +1046,8 @@ resourcestring
 var
   { Start time for the logging process - to compute elapsed time. }
   StartTime: TDateTime;
+  CreatedAppenders: TStringList;
+  Levels: TObjectList;
 
 { TLogOptionHandler -----------------------------------------------------------}
 
@@ -1064,9 +1081,6 @@ begin
 end;
 
 { TLogLevel -------------------------------------------------------------------}
-
-var
-  Levels: TObjectList;
 
 { Accumulate a list (in descending order) of TLogLevel objects defined. }
 procedure RegisterLevel(Level: TLogLevel);
@@ -1425,10 +1439,13 @@ begin
   FAdditive := True;
   FAppenders := TInterfaceList.Create;
   FName := Name;
+
+  FFullCfg:=TStringList.Create;
 end;
 
 destructor TLogLogger.Destroy;
 begin
+  FFullCfg.Free;
   FAppenders.Free;
   DeleteCriticalSection(FCriticalLogger);
   inherited Destroy;
@@ -1898,14 +1915,61 @@ end;
   Otherwise, a new logger is instantiated by the factory parameter
   and linked with its existing ancestors as well as children. }
 function TLogHierarchy.GetLogger(const Name: string; const Factory: ILogLoggerFactory): TLogLogger;
+function LastDot(Text: string): Integer;
+  begin
+    for Result := Length(Text) downto 1 do
+      if Text[Result] = '.' then
+        Exit;
+    Result := 0;
+  end;
 var
   LoggerFactory: ILogLoggerFactory;
+  mainName, subName:string;
+  mainLoger:TLogLogger;
+  I: Integer;
+  logerCfg:TStringList;
+  lastdotIdx:Integer;
 begin
   EnterCriticalSection(FCriticalHierarchy);
   try
     Result := Exists(Name);
     if Result = nil then
     begin
+      if Pos('.', Name) > 0 then
+      begin
+        lastdotIdx := LastDot(Name);
+        subName := Copy(Name, lastdotIdx + 1, Length(Name));
+        mainName := Copy(Name, 1, lastdotIdx - 1);
+        mainLoger := Exists(mainName);
+        if mainLoger<>nil then
+        begin
+          Result := DefaultLoggerFactory.MakeNewLoggerInstance(Name);
+          Result.Hierarchy := Self;
+          Result.FParent := mainLoger;
+          FLoggers.AddObject(Name, Result);
+
+          logerCfg := TStringList.Create;
+          for I := 0 to mainLoger.FFullCfg.Count - 1 do
+          begin
+            if Copy(mainLoger.FFullCfg.Names[I], 1, Length(LoggerKey)) = LoggerKey then
+            begin
+              logerCfg.Values[LoggerKey + Name] := mainLoger.FFullCfg.ValueFromIndex[I];
+            end
+            else
+            begin
+              logerCfg.Add(mainLoger.FFullCfg[I]);
+            end;
+          end;
+          logerCfg.Values[AdditiveKey + Name] := mainLoger.FFullCfg.Values[AdditiveKey + mainName];
+          TLogLoggerCreater.Configure(logerCfg, Self, Factory);
+          for I := 0 to Result.Appenders.Count -1 do
+          begin
+            (Result.Appenders[I] as TLogOptionHandler).SetOption('InstName', Copy(Name, pos('.', Name) + 1, Length(Name)));
+          end;
+          logerCfg.Free;
+          Exit;
+        end;
+      end;
       if Factory <> nil then
         LoggerFactory := Factory
       else
@@ -2723,6 +2787,11 @@ begin
   Result := not ((FThreshold <> nil) and (level.Level < FThreshold.Level));
 end;
 
+function TLogCustomAppender.multiInst: Boolean;
+begin
+  Result := False;
+end;
+
 { TLogNullAppender ------------------------------------------------------------}
 
 { Do nothing. }
@@ -2933,28 +3002,34 @@ end;
 constructor TLogRDFAppender.Create(const Name, FileName: string; const Layout: ILogLayout);
 begin
   inherited Create(Name, nil, Layout);
+  FInstName := '';
   SetOption(FileNameOpt, FileName);
 end;
 
 procedure TLogRDFAppender.DoAppend(const msg: string);
 var
-  nowdate:Cardinal;
+  nowdate: Cardinal;
 begin
-  nowdate := Trunc(Now);
-  if FcurDate <> nowdate then
-  begin
-    EnterCriticalSection(FCriticalAppender);
-    try
+  EnterCriticalSection(FCriticalAppender);
+  try
+    nowdate := Trunc(Now);
+    if FcurDate <> nowdate then
+    begin
       if FcurDate <> nowdate then
       begin
         FcurDate := nowdate;
         SetLogFile;
       end;
-    finally
-      LeaveCriticalSection(FCriticalAppender);
     end;
+    inherited DoAppend(msg);
+  finally
+    LeaveCriticalSection(FCriticalAppender);
   end;
-  inherited;
+end;
+
+function TLogRDFAppender.multiInst: Boolean;
+begin
+  Result := True;
 end;
 
 procedure TLogRDFAppender.SetLogFile;
@@ -2963,7 +3038,16 @@ var
   f: TextFile;
 begin
   CloseLogFile;
-  FFileName := logPath + FormatDateTime('yyyyMMdd', FcurDate) + '.log';
+  if FInstName <> '' then
+  begin
+    FInstName := StringReplace(FInstName, '.', '\', [rfReplaceAll]);
+    FFileName := logPath + FInstName + '\' + FormatDateTime('yyyyMMdd', FcurDate) + '.log';
+  end
+  else
+  begin
+    FFileName := logPath + FormatDateTime('yyyyMMdd', FcurDate) + '.log';
+  end;
+
   if FileExists(FFileName) then
   begin
     // append to existing file
@@ -2996,20 +3080,31 @@ procedure TLogRDFAppender.SetOption(const Name, Value: string);
     Result := string(Dest);
   end;
 var
-  FFileName:string;
+  FFileName, FModuleName:string;
+  FSubPathName:string;
 begin
   inherited SetOption(Name, Value);
   EnterCriticalSection(FCriticalAppender);
   try
-    if (Name = 'logpath') and (Value <> '') then
+    if Value <> '' then
     begin
-      if PathIsRelative(PChar(Value)) then
+      if (Name = 'logpath') then
       begin
-        FFileName := ExtractFilePath(GetModuleName(HInstance));
-        FFileName := GetAbsolutePathEx(FFileName, Value);
-        Self.FlogPath := ExpandFileName(FFileName);
-      end else
-        Self.FlogPath := ExpandFileName(Value);
+        FModuleName := GetModuleName(HInstance);
+        FSubPathName := StringReplace(ExtractFileName(FModuleName), '.', '_', [rfReplaceAll]);
+        if PathIsRelative(PChar(Value)) then
+        begin
+          FFileName := ExtractFilePath(FModuleName);
+          FFileName := GetAbsolutePathEx(FFileName, Value);
+          Self.FlogPath := ExpandFileName(FFileName);
+        end
+        else
+          Self.FlogPath := ExpandFileName(Value);
+        Self.FlogPath := Self.FlogPath + FSubPathName + '\';
+      end else if (Name = 'InstName') then
+      begin
+        FInstName := Value;
+      end;
     end;
   finally
     LeaveCriticalSection(FCriticalAppender);
@@ -3213,7 +3308,7 @@ begin
   if Value = '' then
     LogLog.Debug(NoRootLoggerMsg)
   else
-    ParseLogger(Props, Hierarchy.Root, Value);
+    TLogLoggerCreater.ParseLoggerCfg(Props, Hierarchy.Root, Value);
 end;
 
 { Read configuration options from a file.
@@ -3222,6 +3317,11 @@ procedure TLogPropertyConfigurator.DoConfigure(const FileName: string; const Hie
 var
   Props: TStringList;
 begin
+  if not FileExists(FileName) then
+  begin
+    LogLog.Error(Format(BadConfigFileMsg, [FileName, 'File no found.']));
+    Exit;
+  end;
   Props := TStringList.Create;
   try
     try
@@ -3443,8 +3543,8 @@ begin
   SetGlobalProps(Hierarchy, Props.Values[LoggerFactoryKey], Props.Values[DebugKey], Props.Values[ThresholdKey]);
 
   ConfigureRootLogger(Props, Hierarchy);
-  ParseLoggersAndRenderers(Props, Hierarchy);
-
+  //ParseLoggersAndRenderers(Props, Hierarchy);
+  TLogLoggerCreater.Configure(Props, Hierarchy, nil);
   LogLog.Debug(Format(FinishedConfigMsg, [ClassName]));
 end;
 
@@ -3552,6 +3652,8 @@ begin
     begin
       Name := Copy(Key, Length(LoggerKey) + 1, 255);
       Logger := Hierarchy.GetLogger(Name, FLoggerFactory);
+      Logger.FFullCfg.Clear;
+      Logger.FFullCfg.Add(Props[Index]);
       Logger.LockLogger;
       try
         ParseLogger(Props, Logger, Props.Values[Key]);
@@ -3571,6 +3673,8 @@ var
   Appender: ILogAppender;
   Index: Integer;
   Items: TStringList;
+  J:Integer;
+  ApdKey:string;
 begin
   LogLog.Debug(Format(ParsingLoggerMsg, [Logger.Name, Value]));
   Items := TStringList.Create;
@@ -3605,6 +3709,14 @@ begin
       Appender := ParseAppender(Props, Items[Index]);
       if Appender <> nil then
         Logger.AddAppender(Appender);
+      ApdKey := AppenderKey + Items[Index];
+      for J := 0 to Props.Count - 1 do
+      begin
+        if Copy(Props[J],1,Length(ApdKey))=ApdKey then
+        begin
+          Logger.FFullCfg.Add(Props[J]);
+        end;
+      end;
     end;
   finally
     Items.Free;
@@ -3831,9 +3943,207 @@ begin
   NDC.Free;
 end;
 
+{ TLogLoggerCreater }
+
+class procedure TLogLoggerCreater.Configure(const Props: TStringList; Hierarchy: TLogHierarchy; Factory: ILogLoggerFactory);
+var
+  Index: Integer;
+  Key, Name: string;
+  Logger: TLogLogger;
+begin
+  if Hierarchy = nil then
+    Hierarchy := DefaultHierarchy;
+
+  for Index := 0 to Props.Count - 1 do
+  begin
+    Key := Props.Names[Index];
+    if Copy(Key, 1, Length(LoggerKey)) = LoggerKey then
+    begin
+      Name := Copy(Key, Length(LoggerKey) + 1, 255);
+      Logger := Hierarchy.GetLogger(Name, Factory);
+      Logger.FFullCfg.Clear;
+      Logger.FFullCfg.Add(Props[Index]);
+      Logger.FFullCfg.Values[AdditiveKey + Name] := Props.Values[AdditiveKey + Name];
+      Logger.LockLogger;
+      try
+        ParseLoggerCfg(Props, Logger, Props.Values[Key]);
+        ParseAdditivityForLogger(Props, Logger);
+      finally
+        Logger.UnlockLogger;
+      end;
+    end
+//    else if Copy(Key, 1, Length(RendererKey)) = RendererKey then
+//      AddRenderer(Hierarchy, Copy(Key, Length(RendererKey) + 1, 255), Props.Values[Key]);
+  end;
+end;
+
+class procedure TLogLoggerCreater.ParseLoggerCfg(const Props: TStringList; const Logger: TLogLogger; const Value: string);
+var
+  Index: Integer;
+  Items: TStringList;
+  J:Integer;
+  ApdKey:string;
+begin
+  LogLog.Debug(Format(ParsingLoggerMsg, [Logger.Name, Value]));
+  Items := TStringList.Create;
+  try
+    { We must skip over ',' but not white space }
+    Tokenise(Value, Items, ',');
+    if Items.Count = 0 then
+      Exit;
+    { If value is not in the form ", appender.." or "", then we should set
+      the level of the logger. }
+    if Items[0] <> '' then
+    begin
+      //LogLog.Debug(Format(LevelTokenMsg, [Items[0]]));
+      { If the level value is inherited, set logger level value to nil.
+        We also check that the user has not specified inherited for the
+        root logger. }
+      if (LowerCase(Items[0]) = InheritedLevel) and (Logger.Name <> InternalRootName) then
+        Logger.Level := nil
+      else
+        Logger.Level := TLogLevel.GetLevel(LowerCase(Items[0]));
+      LogLog.Debug(Format(SettingLevelMsg, [Logger.Name, Logger.Level.Name]));
+    end;
+
+    { Remove all existing appenders. They will be reconstructed below. }
+    Logger.RemoveAllAppenders;
+
+    for Index := 1 to Items.Count - 1 do
+    begin
+      if Items[Index] = '' then
+        Continue;
+      LogLog.Debug(Format(ParsingAppenderMsg, [Items[Index]]));
+      ParseAppenderCfg(Props, Logger, Items[Index]);
+//      Appender := ParseAppenderCfg(Props, Items[Index]);
+//      if Appender <> nil then
+//        Logger.AddAppender(Appender);
+      ApdKey := AppenderKey + Items[Index];
+      for J := 0 to Props.Count - 1 do
+      begin
+        if Copy(Props[J],1,Length(ApdKey))=ApdKey then
+        begin
+          Logger.FFullCfg.Add(Props[J]);
+        end;
+      end;
+    end;
+  finally
+    Items.Free;
+  end;
+end;
+
+class procedure TLogLoggerCreater.ParseAppenderCfg(const Props: TStringList; const Logger: TLogLogger; const AppenderName: string);
+var
+  Prefix, SubPrefix: string;
+  ErrorHandler: ILogErrorHandler;
+  Layout: ILogLayout;
+  Filter: ILogFilter;
+  Index: Integer;
+  I: Integer;
+  Aapdobj:ILogAppender;
+begin
+  for I := 0 to CreatedAppenders.Count-1 do
+  begin
+    if (CreatedAppenders[I] = AppenderName) then
+    begin
+      if not (CreatedAppenders.Objects[i] as TLogCustomAppender).multiInst then
+      begin
+        //不支持多实例
+        Logger.AddAppender(CreatedAppenders.Objects[i] as TLogCustomAppender);
+        exit;
+      end;
+    end;
+  end;
+  Aapdobj := nil;
+  //check exists
+  for I := 0 to Logger.Appenders.Count - 1 do
+  begin
+    if (Logger.Appenders[i] as ILogAppender).Name = AppenderName then
+    begin
+      Aapdobj := (Logger.Appenders[i] as ILogAppender);
+      LogLog.Debug(Format(AppenderDefinedMsg, [AppenderName]));
+      Break;
+    end;
+  end;
+  if Aapdobj = nil then
+  begin
+   { Appender was not previously initialised. }
+    Prefix := AppenderKey + AppenderName;
+    Aapdobj := FindAppender(Props.Values[Prefix]);
+    if Aapdobj = nil then
+    begin
+      LogLog.Error(Format(NoAppenderCreatedMsg, [AppenderName]));
+      Exit;
+    end;
+    Aapdobj.Name := AppenderName;
+    Logger.AddAppender(Aapdobj);
+  end;
+  { Process any error handler entry. }
+  SubPrefix := Prefix + ErrorHandlerKey;
+  ErrorHandler := FindErrorHandler(Props.Values[SubPrefix]);
+  if ErrorHandler <> nil then
+  begin
+    Aapdobj.ErrorHandler := ErrorHandler;
+    LogLog.Debug(Format(ParsingErrorHandlerMsg, [AppenderName]));
+    SetSubProps(SubPrefix, Props, ErrorHandler);
+    LogLog.Debug(Format(EndErrorHandlerMsg, [AppenderName]));
+  end;
+
+  { Process any layout entry. }
+  SubPrefix := Prefix + LayoutKey;
+  Layout := FindLayout(Props.Values[SubPrefix]);
+  if Layout <> nil then
+  begin
+    Aapdobj.Layout := Layout;
+    LogLog.Debug(Format(ParsingLayoutMsg, [AppenderName]));
+    SetSubProps(SubPrefix, Props, Layout);
+    LogLog.Debug(Format(EndLayoutMsg, [AppenderName]));
+  end;
+  if Aapdobj.RequiresLayout and (Aapdobj.Layout = nil) then
+    LogLog.Error(Format(LayoutRequiredMsg, [AppenderName]));
+
+  { Process any filter entries. }
+  SubPrefix := Prefix + FilterKey;
+  for Index := 0 to Props.Count - 1 do
+  begin
+    if (Copy(Props.Names[Index], 1, Length(SubPrefix)) = SubPrefix) and (Pos('.', Copy(Props.Names[Index], Length(SubPrefix), 255)) = 0) then
+    begin
+      Filter := FindFilter(Props.Values[Props.Names[Index]]);
+      if Filter = nil then
+        Continue;
+
+      Aapdobj.AddFilter(Filter);
+      LogLog.Debug(Format(ParsingFiltersMsg, [AppenderName]));
+      SetSubProps(Props.Names[Index], Props, Filter);
+      LogLog.Debug(Format(EndFiltersMsg, [AppenderName]));
+    end;
+  end;
+
+  { Set any options for the appender. }
+  SetSubProps(Prefix, Props, Aapdobj);
+
+  LogLog.Debug(Format(EndAppenderMsg, [AppenderName]));
+end;
+
+class procedure TLogLoggerCreater.ParseAdditivityForLogger(const Props: TStringList; const Logger: TLogLogger);
+var
+  Value: string;
+begin
+  Value := Props.Values[AdditiveKey + Logger.Name];
+  LogLog.Debug(Format(HandlingAdditivityMsg, [AdditiveKey + Logger.Name, Value]));
+  { Touch additivity only if necessary }
+  if Value <> '' then
+  begin
+    Logger.Additive := PropertiesStrToBool(Value, True);
+    LogLog.Debug(Format(SettingAdditivityMsg, [Logger.Name, BoolToStr(Logger.Additive, True)]));
+  end;
+end;
+
 initialization
   { Timestamping. }
   StartTime := Now;
+  CreatedAppenders := TStringList.Create;
+
   { Synchronisation. }
   InitializeCriticalSection(CriticalNDC);
   { Standard levels. }
@@ -3892,7 +4202,7 @@ initialization
   LogLog.Hierarchy := DefaultHierarchy;
 
 finalization
-
+  CreatedAppenders.Free;
 {$IFDEF DELPHI4}
   LevelFree;
 {$ENDIF}

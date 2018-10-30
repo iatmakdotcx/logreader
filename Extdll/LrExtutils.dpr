@@ -454,15 +454,18 @@ begin
       srv_setcollen(pSrvProc, 2, memory.Size);
       srv_sendrow(pSrvProc);
     end else begin
-      Sleep(2000);  //首次失败休息两秒再试，可能内容还未保存
-      SqlSvr_SendMsg(pSrvProc, 'Retry...');
-      if PageLog_load(dbid, Lsn1, lsn2, lsn3, memory) then
+      if _Lc_Get_PaddingDataCnt>0 then
       begin
-        lsnVal := PAnsiChar(AnsiString(Format('%.8x:%.8x:%.4x', [Lsn1, lsn2, lsn3])));
-        srv_setcoldata(pSrvProc, 1, lsnVal);
-        srv_setcoldata(pSrvProc, 2, memory.Memory);
-        srv_setcollen(pSrvProc, 2, memory.Size);
-        srv_sendrow(pSrvProc);
+        Sleep(2000);  //首次失败休息两秒再试，可能内容还未保存
+        SqlSvr_SendMsg(pSrvProc, 'Retry...');
+        if PageLog_load(dbid, Lsn1, lsn2, lsn3, memory) then
+        begin
+          lsnVal := PAnsiChar(AnsiString(Format('%.8x:%.8x:%.4x', [Lsn1, lsn2, lsn3])));
+          srv_setcoldata(pSrvProc, 1, lsnVal);
+          srv_setcoldata(pSrvProc, 2, memory.Memory);
+          srv_setcollen(pSrvProc, 2, memory.Size);
+          srv_sendrow(pSrvProc);
+        end;
       end;
     end;
     memory.Free;

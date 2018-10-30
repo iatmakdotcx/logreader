@@ -17,9 +17,9 @@ object Form1: TForm1
   PixelsPerInch = 96
   TextHeight = 13
   object GroupBox1: TGroupBox
-    Left = 448
+    Left = 8
     Top = 240
-    Width = 258
+    Width = 506
     Height = 93
     Caption = 'DEBUG'
     TabOrder = 0
@@ -58,6 +58,24 @@ object Form1: TForm1
       Caption = 'addLog'
       TabOrder = 3
       OnClick = Button5Click
+    end
+    object Button1: TButton
+      Left = 237
+      Top = 48
+      Width = 84
+      Height = 33
+      Caption = 'firstTableXml'
+      TabOrder = 4
+      OnClick = Button1Click
+    end
+    object Button2: TButton
+      Left = 432
+      Top = 3
+      Width = 75
+      Height = 25
+      Caption = 'XmlDebug'
+      TabOrder = 5
+      OnClick = Button2Click
     end
   end
   object GroupBox2: TGroupBox
@@ -99,6 +117,9 @@ object Form1: TForm1
       SmallImages = ImageList1
       TabOrder = 0
       ViewStyle = vsReport
+      OnChange = ListView1Change
+      OnChanging = ListView1Changing
+      OnClick = ListView1Click
     end
     object Panel1: TPanel
       Left = 2
@@ -150,7 +171,7 @@ object Form1: TForm1
         Width = 153
         Height = 21
         TabOrder = 4
-        Text = '00000304:00026830:0003'
+        Text = '0000033d:00002168:0001'
       end
     end
   end
@@ -168,7 +189,7 @@ object Form1: TForm1
     Left = 400
     Top = 224
     Bitmap = {
-      494C01010B001800C40010001000FFFFFFFFFF10FFFFFFFFFFFFFFFF424D3600
+      494C01010B001800D40010001000FFFFFFFFFF10FFFFFFFFFFFFFFFF424D3600
       0000000000003600000028000000400000003000000001002000000000000030
       000000000000000000000000000000000000FFFFFF00FFFFFF00F6821000F580
       0C00F4851600F67B0000F37B0500FFFFFF00FFFFFF00F47C0500F57A0000F284
@@ -589,6 +610,16 @@ object Form1: TForm1
       object N2: TMenuItem
         Caption = #36864#20986
         OnClick = N2Click
+      end
+    end
+    object Debug1: TMenuItem
+      Caption = 'Debug'
+      object CompareDictFromdb1: TMenuItem
+        Caption = 'CompareDictFromdb'
+        OnClick = CompareDictFromdb1Click
+      end
+      object ViewAllTable1: TMenuItem
+        Caption = 'ViewTable'
       end
     end
   end

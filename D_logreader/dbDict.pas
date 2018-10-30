@@ -3,7 +3,7 @@ unit dbDict;
 interface
 
 uses
-  Contnrs, Classes, ADODB, IniFiles, System.SysUtils;
+  Contnrs, Classes, ADODB, IniFiles, System.SysUtils, Xml.XMLIntf;
 
 type
   TdbFieldItem = class(TObject)
@@ -68,6 +68,8 @@ type
 
     function Serialize:TMemoryStream;
     procedure Deserialize(data:TMemoryStream);
+    function AsXml:string;
+    function loadXml(tableNode:IXMLNode):Boolean;
   end;
 
   TdbTables = class(TObject)
@@ -109,12 +111,13 @@ type
   TdbFieldValue = record
     field: TdbFieldItem;
     value: TBytes;
+    StrValue:String;
   end;
 
 implementation
 
 uses
-  loglog, Types, Variants;
+  loglog, Types, Variants, Xml.XMLDoc;
 
 { TDbDict }
 
@@ -568,6 +571,117 @@ begin
 end;
 
 { TdbTableItem }
+
+function TdbTableItem.AsXml: string;
+var
+  I: Integer;
+  field:TdbFieldItem;
+  xml:IXMLDocument;
+  rootNode,fieldsNode,tmpNode:IXMLNode;
+begin
+  xml := TXMLDocument.create(nil);
+  xml.Active := True;
+  rootNode := xml.AddChild('table');
+  rootNode.Attributes['partition_id'] := partition_id;
+  rootNode.Attributes['TableId'] := TableId;
+  rootNode.Attributes['Owner'] := Owner;
+  rootNode.Attributes['TableNmae'] := TableNmae;
+  rootNode.Attributes['hasIdentity'] := hasIdentity;
+  fieldsNode := rootNode.AddChild('fields');
+  for I := 0 to Fields.Count-1 do
+  begin
+    field := TdbFieldItem(Fields[i]);
+    tmpNode := fieldsNode.AddChild('field');
+    tmpNode.Attributes['Col_id'] := field.Col_id;
+    tmpNode.Attributes['ColName'] := field.ColName;
+    tmpNode.Attributes['type_id'] := field.type_id;
+    tmpNode.Attributes['nullMap'] := field.nullMap;
+    tmpNode.Attributes['Max_length'] := field.Max_length;
+    tmpNode.Attributes['procision'] := field.procision;
+    tmpNode.Attributes['scale'] := field.scale;
+    tmpNode.Attributes['is_nullable'] := field.is_nullable;
+    tmpNode.Attributes['leaf_pos'] := field.leaf_pos;
+    tmpNode.Attributes['collation_name'] := field.collation_name;
+    tmpNode.Attributes['CodePage'] := field.CodePage;
+    tmpNode.Attributes['isLogSkipCol'] := field.isLogSkipCol;
+  end;
+  fieldsNode := rootNode.AddChild('UniqueClusteredKeys');
+  for I := 0 to UniqueClusteredKeys.Count - 1 do
+  begin
+    field := TdbFieldItem(UniqueClusteredKeys[I]);
+    tmpNode := fieldsNode.AddChild('field');
+    tmpNode.Attributes['Col_id'] := field.Col_id;
+  end;
+  Result := xml.XML.Text;
+end;
+
+function TdbTableItem.loadXml(tableNode: IXMLNode): Boolean;
+var
+  Xmlfields,tmpNode:IXMLNode;
+  I: Integer;
+  field: TdbFieldItem;
+  TmpColId:Integer;
+begin
+  Result := False;
+  if (not tableNode.HasAttribute('partition_id')) or
+     (not tableNode.HasAttribute('TableId')) or
+     (not tableNode.HasAttribute('Owner')) or
+     (not tableNode.HasAttribute('TableNmae')) or
+     (not tableNode.HasAttribute('hasIdentity')) then
+  begin
+    raise Exception.Create('table Ù–‘∂¡»° ß∞‹£°£°£°');
+  end;
+
+  partition_id := tableNode.Attributes['partition_id'];
+  TableId := tableNode.Attributes['TableId'];
+  Owner := tableNode.Attributes['Owner'];
+  TableNmae := tableNode.Attributes['TableNmae'];
+  hasIdentity := tableNode.Attributes['hasIdentity'];
+
+  Xmlfields := tableNode.ChildNodes['fields'];
+  for I := 0 to Xmlfields.ChildNodes.Count - 1 do
+  begin
+    if Xmlfields.ChildNodes[i].NodeName = 'field' then
+    begin
+      tmpNode := Xmlfields.ChildNodes[i];
+      if not tmpNode.HasAttribute('Col_id') then
+      begin
+        Continue;
+      end;
+      field := TdbFieldItem.Create;
+      field.Col_id := tmpNode.Attributes['Col_id'];
+      field.ColName := tmpNode.Attributes['ColName'] ;
+      field.type_id:=tmpNode.Attributes['type_id'] ;
+      field.nullMap :=tmpNode.Attributes['nullMap'] ;
+      field.Max_length := tmpNode.Attributes['Max_length'] ;
+      field.procision:=tmpNode.Attributes['procision'] ;
+      field.scale := tmpNode.Attributes['scale'] ;
+      field.is_nullable:= tmpNode.Attributes['is_nullable'];
+      field.leaf_pos :=tmpNode.Attributes['leaf_pos'] ;
+      field.collation_name:=tmpNode.Attributes['collation_name'];
+      field.CodePage := tmpNode.Attributes['CodePage'];
+      field.isLogSkipCol:= tmpNode.Attributes['isLogSkipCol'] ;
+      Fields.addField(field);
+    end;
+  end;
+  Xmlfields := tableNode.ChildNodes['UniqueClusteredKeys'];
+  for I := 0 to Xmlfields.ChildNodes.Count - 1 do
+  begin
+    tmpNode := Xmlfields.ChildNodes[i];
+    if not tmpNode.HasAttribute('Col_id') then
+    begin
+      Continue;
+    end;
+    TmpColId := tmpNode.Attributes['Col_id'];
+
+    field := fields.GetItemById(TmpColId);
+    if field<>nil then
+    begin
+      UniqueClusteredKeys.Add(field);
+    end;
+  end;
+  Result := True;
+end;
 
 constructor TdbTableItem.Create;
 begin

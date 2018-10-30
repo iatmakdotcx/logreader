@@ -150,6 +150,9 @@ function TranId2Str(trans: TTrans_Id): string;
 
 function PageRowCalcLength(rawData: Pointer): Integer;
 
+function Str2TranId(transtr: string): TTrans_Id;
+function Str2LSN(lsnStr:string): Tlog_LSN;
+
 implementation
 
 uses
@@ -160,9 +163,60 @@ begin
   Result := format('0x%.8X:%.8X:%.4X', [lsn.LSN_1, lsn.LSN_2, lsn.LSN_3])
 end;
 
+function Str2LSN(lsnStr:string): Tlog_LSN;
+var
+  s1,s2,s3:string;
+  i1,i2,i3:Integer;
+begin
+  if lsnStr.StartsWith('0x') then
+  begin
+    Delete(lsnStr,1,2);
+  end;
+  s1 := lsnStr.Substring(0,8);
+  s2 := lsnStr.Substring(9,8);
+  s3 := lsnStr.Substring(18,4);
+  if TryStrToInt('$'+s1, i1) and TryStrToInt('$'+s2, i2) and TryStrToInt('$'+s3, i3) then
+  begin
+    Result.LSN_1 := i1;
+    Result.LSN_2 := i2;
+    Result.LSN_3 := i3;
+  end
+  else
+  begin
+    Result.LSN_1 := 0;
+    Result.LSN_2 := 0;
+    Result.LSN_3 := 0;
+  end;
+end;
+
 function TranId2Str(trans: TTrans_Id): string;
 begin
   Result := format('0x%.4X:%.8X', [trans.Id2, trans.Id1])
+end;
+
+function Str2TranId(transtr: string): TTrans_Id;
+var
+  id1,id2:string;
+  i1,i2:Integer;
+begin
+  if transtr.StartsWith('0x') then
+  begin
+    id1 := transtr.Substring(2,4);
+    id2 := transtr.Substring(7,8);
+  end else begin
+    id1 := transtr.Substring(0,4);
+    id2 := transtr.Substring(5,8);
+  end;
+  if TryStrToInt('$'+id1, i1) and TryStrToInt('$'+id2, i2) then
+  begin
+    Result.Id2 := i1;
+    Result.Id1 := i2;
+  end
+  else
+  begin
+    Result.Id1 := 0;
+    Result.Id2 := 0;
+  end;
 end;
 
 function PageRowCalcLength(rawData: Pointer): Integer;

@@ -154,7 +154,7 @@ begin
       if not readRes then
       begin
         Result := 0;
-        Loger.Add('read log File fail:' + SysErrorMessage(GetLastError));
+        //Loger.Add('read log File fail:' + SysErrorMessage(GetLastError));
         Exit;
       end
       else if Count > $10000 then
@@ -179,7 +179,8 @@ begin
   end
   else if FfileHandle < 1 then
   begin
-    Loger.Add('TLocalDbLogProvider not init.');
+    Result := 0;
+    //Loger.Add('TLocalDbLogProvider not init.');
   end;
 end;
 

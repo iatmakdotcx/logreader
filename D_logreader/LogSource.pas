@@ -4,23 +4,28 @@ interface
 
 uses
   I_LogProvider, I_logReader, databaseConnection, p_structDefine, Types,
-  System.Classes, System.SyncObjs;
+  System.Classes, System.SyncObjs, System.Contnrs, loglog, I_LogSource;
 
 type
   LS_STATUE = (tLS_unknown, tLS_NotConfig, tLS_NotConnectDB, tLs_noLogReader, tLS_running, tLS_stopped, tLS_suspension);
 
 type
-  TLogSource = class(TObject)
+  TLogSource = class(TLogSourceBase)
   private
     FCfgFilePath:string;
     FRunCs: TCriticalSection;
     procedure ClrLogSource;
+    procedure ReSetLoger;
   public
+    FFmsg: TStringList;
     FProcCurLSN: Tlog_LSN;  //当前处理的位置
     FLogReader: TlogReader;
     Fdbc: TdatabaseConnection;
     FLogPicker:TLogPicker;
     FisLocal:Boolean;
+    FFFFIsDebug:Boolean;
+    pageDatalist:TObjectList;
+    MainMSGDISPLAY:TMsgCallBack;
     constructor Create;
     destructor Destroy; override;
     function GetVlf_LSN(LSN: Tlog_LSN): PVLF_Info;
@@ -50,6 +55,7 @@ type
     /// </summary>
     /// <returns></returns>
     function CompareDict:string;
+    procedure AddFmsg(aMsg: string; level: Integer);
   end;
 
   TLogSourceList = class(TObject)
@@ -73,9 +79,20 @@ implementation
 
 uses
   LdfLogProvider, Sql2014LogReader, LocalDbLogProvider, MakCommonfuncs,
-  Windows, loglog, SysUtils;
+  Windows, SysUtils;
 
 { TLogSource }
+
+procedure TLogSource.AddFmsg(aMsg: string; level: Integer);
+begin
+  FFmsg.Add(FormatDateTime('yyyy-MM-dd HH:nn:ss.zzz', Now) + IntToStr(level) + ' >> ' + aMsg);
+  if FFmsg.Count>=100 then
+  begin
+    FFmsg.Delete(0);
+  end;
+  if Assigned(MainMSGDISPLAY) then
+    MainMSGDISPLAY(aMsg, level);
+end;
 
 procedure TLogSource.ClrLogSource;
 begin
@@ -98,7 +115,9 @@ end;
 
 constructor TLogSource.Create;
 begin
+  MainMSGDISPLAY := nil;
   inherited;
+  FLoger := DefLoger;
   FProcCurLSN.LSN_1 := 0;
   FProcCurLSN.LSN_2 := 0;
   FProcCurLSN.LSN_3 := 0;
@@ -107,10 +126,15 @@ begin
   Fdbc := nil;
   FLogPicker := nil;
   FRunCs:=TCriticalSection.Create;
+  FFFFIsDebug := False;
+  pageDatalist := nil;
+
+  FFmsg:=TStringList.Create;
 end;
 
 function TLogSource.CreateLogReader(ExistsRenew:Boolean = False):Boolean;
 begin
+  ReSetLoger;
   Result := False;
   if FLogReader<>nil then
   begin
@@ -157,6 +181,14 @@ destructor TLogSource.Destroy;
 begin
   ClrLogSource;
   FRunCs.Free;
+  pageDatalist.Free;
+  FFmsg.Free;
+  if FLoger = DefLoger then
+  begin
+    Loger.removeCallBack(Self, AddFmsg);
+  end else begin
+    FLoger.Free;
+  end;
   inherited;
 end;
 
@@ -247,7 +279,26 @@ begin
   if Raw.dataSize>0 then
   begin
     rl := Raw.data;
-    loger.add(LSN2Str(lsn)+'==>'+inttostr(rl.fixedLen)+'==>'+inttostr(rl.OpCode));
+    loger.add(LSN2Str(lsn) + '==>' + inttostr(rl.fixedLen) + '==>' + inttostr(rl.OpCode));
+  end;
+end;
+
+procedure TLogSource.ReSetLoger;
+var
+  newLog:String;
+begin
+  if Fdbc <> nil then
+  begin
+    if FLoger = DefLoger then
+    begin
+      Loger.removeCallBack(Self, AddFmsg);
+    end else begin
+      FLoger.Free;
+    end;
+    newLog := Fdbc.dbName + '_' + Fdbc.getCfgUid;
+    Loger.Add('Log redirect ==> ' + newLog);
+    FLoger := TeventRecorder.Create(newLog);
+    Loger.registerCallBack(Self, AddFmsg);
   end;
 end;
 
@@ -282,7 +333,7 @@ begin
           tmpStr := Rter.ReadStr;
           if tmpStr = 'TDbDict v 1.0' then
           begin
-            Fdbc := TdatabaseConnection.create;
+            Fdbc := TdatabaseConnection.create(Self);
             Fdbc.Host := Rter.ReadString;
             Fdbc.user := Rter.ReadString;
             Fdbc.PassWd := Rter.ReadString;

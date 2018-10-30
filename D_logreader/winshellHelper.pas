@@ -22,8 +22,7 @@ var
 begin
   doCmdstr := 'cacls "' + aDataPath + '" /T /e /g "'+ServiceAccount+'":f';
   strTmp := GetDosOutput(doCmdstr);
-  strTmp := '===============================' + WIN_EOL + doCmdstr + WIN_EOL + '===============================' + WIN_EOL + strTmp + WIN_EOL + '===============================';
-  loger.add(strTmp);
+//  strTmp := '===============================' + WIN_EOL + doCmdstr + WIN_EOL + '===============================' + WIN_EOL + strTmp + WIN_EOL + '===============================';
 end;
 
 function Check_LrExtutils_DataPath_Authentication(aDataPath: string; ServiceAccount:string = 'NT SERVICE\MSSQLSERVER'): Boolean;

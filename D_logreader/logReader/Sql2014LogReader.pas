@@ -91,7 +91,7 @@ begin
   FdataProvider[fileId].Seek(posi, soBeginning);
   if FdataProvider[fileId].Read(OutBuffer.data^, size) = 0 then
   begin
-    Loger.Add('读取文件失败！@！');
+    FLogSource.Loger.Add('读取文件失败！@！');
     FreeMem(OutBuffer.data);
     OutBuffer.data := nil;
     OutBuffer.dataSize := 0;
@@ -127,13 +127,13 @@ begin
   OutBuffer.dataSize := 0;
   if (LSN.LSN_1 = 0) or (LSN.LSN_2 = 0) or (LSN.LSN_3 = 0) then
   begin
-    Loger.Add('invalid lsn [0]!%s', [LSN2Str(LSN)]);
+    FLogSource.Loger.Add('invalid lsn [0]!%s', [LSN2Str(LSN)]);
     Exit;
   end;
 
   if (vlfs = nil) or (vlfs.SeqNo <> LSN.LSN_1) then
   begin
-    Loger.Add('invalid lsn [1]!%s', [LSN2Str(LSN)]);
+    FLogSource.Loger.Add('invalid lsn [1]!%s', [LSN2Str(LSN)]);
     Exit;
   end;
   FdataProvider[vlfs.fileId].Seek(vlfs.VLFOffset, soBeginning);
@@ -142,12 +142,12 @@ begin
   try
     if (FdataProvider[vlfs.fileId].Read(pbb^, SizeOf(TVLFHeader)) = 0) then
     begin
-      Loger.Add('invalid lsn [2] VLFOffset out of range !%s', [LSN2Str(LSN)]);
+      FLogSource.Loger.Add('invalid lsn [2] VLFOffset out of range !%s', [LSN2Str(LSN)]);
       Exit;
     end;
     if (pbb.VLFHeadFlag <> $AB) or (pbb.SeqNo <> LSN.LSN_1) then
     begin
-      Loger.Add('invalid lsn [3] VLFOffset Error !%s', [LSN2Str(LSN)]);
+      FLogSource.Loger.Add('invalid lsn [3] VLFOffset Error !%s', [LSN2Str(LSN)]);
       Exit;
     end;
 
@@ -158,7 +158,7 @@ begin
       FdataProvider[vlfs.fileId].Seek(LogBlockPosi + vlfs.VLFOffset, soBeginning);
       if (FdataProvider[vlfs.fileId].Read(abuf^, SizeOf(TlogBlock)) = 0) then
       begin
-        Loger.Add('read data Error...........');
+        FLogSource.Loger.Add('read data Error...........');
         Exit;
       end;
       if logBlockRawCheck(abuf^) then
@@ -189,7 +189,7 @@ begin
       if LSN.LSN_3 > abuf.OperationCount then
       begin
         //当前块中没有这个id
-        Loger.Add('invalid lsn [4] RowId no found !%s', [LSN2Str(LSN)]);
+        FLogSource.Loger.Add('invalid lsn [4] RowId no found !%s', [LSN2Str(LSN)]);
         Exit;
       end
       else if LSN.LSN_3 = abuf.OperationCount then
@@ -199,7 +199,7 @@ begin
         LogBlockPosi := LogBlockPosi + abuf.endOfBlock - LSN.LSN_3 * 2;
         if not FdataProvider[vlfs.fileId].Read_Word(RowOffset, LogBlockPosi) then
         begin
-          Loger.Add('invalid lsn [5] get RowOffset Fail!%s', [LSN2Str(LSN)]);
+          FLogSource.Loger.Add('invalid lsn [5] get RowOffset Fail!%s', [LSN2Str(LSN)]);
           Exit;
         end;
         RowPosi := RowPosi + RowOffset;
@@ -211,12 +211,12 @@ begin
         LogBlockPosi := LogBlockPosi + abuf.endOfBlock - LSN.LSN_3 * 2;
         if not FdataProvider[vlfs.fileId].Read_Word(RowOffset, LogBlockPosi) then
         begin
-          Loger.Add('invalid lsn [6] get RowOffset Fail!%s', [LSN2Str(LSN)]);
+          FLogSource.Loger.Add('invalid lsn [6] get RowOffset Fail!%s', [LSN2Str(LSN)]);
           Exit;
         end;
         if not FdataProvider[vlfs.fileId].Read_Word(RowOffset2, LogBlockPosi - 2) then
         begin
-          Loger.Add('invalid lsn [7] get RowOffset Fail!%s', [LSN2Str(LSN)]);
+          FLogSource.Loger.Add('invalid lsn [7] get RowOffset Fail!%s', [LSN2Str(LSN)]);
           Exit;
         end;
         RowPosi := RowPosi + RowOffset;
@@ -227,7 +227,7 @@ begin
       FdataProvider[vlfs.fileId].Seek(RowPosi, soBeginning);
       if FdataProvider[vlfs.fileId].Read(OutBuffer.data^, RowLength) = 0 then
       begin
-        Loger.Add('get Row log fail!%s', [LSN2Str(LSN)]);
+        FLogSource.Loger.Add('get Row log fail!%s', [LSN2Str(LSN)]);
         FreeMem(OutBuffer.data);
         OutBuffer.data := nil;
         Exit;
@@ -254,7 +254,7 @@ begin
     FdataProvider[vlfs.fileId].Seek(posi + vlfs.VLFOffset, soBeginning);
     if (FdataProvider[vlfs.fileId].Read(abuf^, SizeOf(TlogBlock)) = 0) then
     begin
-      Loger.Add('read data Error...........');
+      FLogSource.Loger.Add('read data Error...........');
       break;
     end;
     if abuf.flag <> 0 then
@@ -331,6 +331,7 @@ begin
 
   FAnalyzer := TSql2014logAnalyzer.Create(pkgMgr, LogSource);
   Self.NameThreadForDebugging('TSql2014LogPicker', Self.ThreadID);
+  FLogSource.Loger.Add('LogPicker init...');
 end;
 
 destructor TSql2014LogPicker.Destroy;
@@ -344,7 +345,7 @@ begin
   Dispose(Fvlf);
 
   pkgMgr.Free;
-  Loger.Add('LogPicker.Destroy.....');
+  FLogSource.Loger.Add('LogPicker.Destroy.....');
   inherited;
 end;
 
@@ -380,26 +381,27 @@ var
   LogBlockBuf:Pointer;
 //  TmPPosition:Integer;
 begin
+  FLogSource.Loger.Add('LogPicker start...');
   if (FBeginLsn.LSN_1 = 0) or (FBeginLsn.LSN_2 = 0) or (FBeginLsn.LSN_3 = 0) then
   begin
-    Loger.Add('LogPicker.Execute:invalid lsn [0]!%s', [LSN2Str(FBeginLsn)], LOG_ERROR);
+    FLogSource.Loger.Add('LogPicker.Execute:invalid lsn [0]!%s', [LSN2Str(FBeginLsn)], LOG_ERROR);
     Exit;
   end;
   vlf := FLogSource.GetVlf_LSN(FBeginLsn);
   if (vlf = nil) or (vlf.SeqNo <> FBeginLsn.LSN_1) then
   begin
-    Loger.Add('LogPicker.Execute:lsn out of vlfs [1]!%s', [LSN2Str(FBeginLsn)], LOG_ERROR);
+    FLogSource.Loger.Add('LogPicker.Execute:lsn out of vlfs [1]!%s', [LSN2Str(FBeginLsn)], LOG_ERROR);
     Exit;
   end;
   Fvlf^ := vlf^;
   if (FLogReader.FdataProvider[Fvlf.fileId].Read_Bytes(FvlfHeader^, Fvlf.VLFOffset, SizeOf(TVLFHeader)) <> SizeOf(TVLFHeader)) then
   begin
-    Loger.Add('LogPicker.Execute:vlfHeader Read fail! no more data !%s', [LSN2Str(FBeginLsn)], LOG_ERROR);
+    FLogSource.Loger.Add('LogPicker.Execute:vlfHeader Read fail! no more data !%s', [LSN2Str(FBeginLsn)], LOG_ERROR);
     Exit;
   end;
   if (FvlfHeader.VLFHeadFlag <> $AB) or (FvlfHeader.SeqNo <> FBeginLsn.LSN_1) then
   begin
-    Loger.Add('LogPicker.Execute:vlfHeader check Error !%s', [LSN2Str(FBeginLsn)], LOG_ERROR);
+    FLogSource.Loger.Add('LogPicker.Execute:vlfHeader check Error !%s', [LSN2Str(FBeginLsn)], LOG_ERROR);
     Exit;
   end;
   LogBlockPosi := Fvlf.VLFOffset + $200;
@@ -407,7 +409,7 @@ begin
   begin
     if (FLogReader.FdataProvider[Fvlf.fileId].Read_Bytes(FlogBlock^, LogBlockPosi, SizeOf(TlogBlock)) <> SizeOf(TlogBlock)) then
     begin
-      Loger.Add('LogPicker.Execute:logBlock Read fail! no more data !%s', [LSN2Str(FBeginLsn)], LOG_ERROR);
+      FLogSource.Loger.Add('LogPicker.Execute:logBlock Read fail! no more data !%s', [LSN2Str(FBeginLsn)], LOG_ERROR);
       Exit;
     end;
     if logBlockRawCheck(FlogBlock^) then
@@ -434,14 +436,14 @@ begin
   end;
   if FlogBlock.BeginLSN.LSN_2 <> FBeginLsn.LSN_2 then
   begin
-    Loger.Add('LogPicker.Execute:logBlock No found! vlf Eof!%s', [LSN2Str(FBeginLsn)], LOG_ERROR);
+    FLogSource.Loger.Add('LogPicker.Execute:logBlock No found! vlf Eof!%s', [LSN2Str(FBeginLsn)], LOG_ERROR);
     Exit;
   end;
 
   if FBeginLsn.LSN_3 > FlogBlock.OperationCount then
   begin
     //当前块中没有这个id
-    Loger.Add('LogPicker.Execute:LSN RowId no found !%s', [LSN2Str(FBeginLsn)], LOG_ERROR);
+    FLogSource.Loger.Add('LogPicker.Execute:LSN RowId no found !%s', [LSN2Str(FBeginLsn)], LOG_ERROR);
     Exit;
   end;
   RIdx := FBeginLsn.LSN_3 - 1;
@@ -453,7 +455,7 @@ begin
       LogBlockBuf := GetMemory(FlogBlock.Size);
       if FLogReader.FdataProvider[Fvlf.fileId].Read_Bytes(LogBlockBuf^, LogBlockPosi, FlogBlock.Size)<>FlogBlock.Size then
       begin
-        Loger.Add('LogPicker.Execute:get LogBlock  fail!%s', [LSN2Str(FBeginLsn)], LOG_ERROR);
+        FLogSource.Loger.Add('LogPicker.Execute:get LogBlock  fail!%s', [LSN2Str(FBeginLsn)], LOG_ERROR);
         FreeMem(LogBlockBuf);
         Exit;
       end;
@@ -465,7 +467,7 @@ begin
       end;
       if FlogBlock.BeginLSN.LSN_3 <> 1 then
       begin
-        Loger.Add('LogPicker.Execute:FlogBlock is not begin from 1!%s', [LSN2Str(FBeginLsn)], LOG_ERROR);
+        FLogSource.Loger.Add('LogPicker.Execute:FlogBlock is not begin from 1!%s', [LSN2Str(FBeginLsn)], LOG_ERROR);
       end;
 
       while RIdx < FlogBlock.OperationCount do  //循环行
@@ -498,7 +500,7 @@ begin
         //如果队列太大，这里暂停读取数据
         while pkgMgr.FpaddingPrisePkg.Count > paddingPrisePkgMaxSize do
         begin
-          loger.Add('缓冲区已满！暂停读取日志。将于30s后继续！', log_warning or LOG_IMPORTANT);
+          FLogSource.loger.Add('缓冲区已满！暂停读取日志。将于30s后继续！', log_warning or LOG_IMPORTANT);
           for I := 0 to 30 - 1 do
           begin
             Sleep(100);
@@ -532,7 +534,7 @@ begin
         FLogReader.FdataProvider[Fvlf.fileId].flush();
         if (FLogReader.FdataProvider[Fvlf.fileId].Read_Bytes(FlogBlock^, LogBlockPosi, SizeOf(TlogBlock)) <> SizeOf(TlogBlock)) then
         begin
-          Loger.Add('LogPicker.Execute:Next logBlock Read fail! no more data !%s', [LSN2Str(FBeginLsn)], LOG_ERROR);
+          FLogSource.Loger.Add('LogPicker.Execute:Next logBlock Read fail! no more data !%s', [LSN2Str(FBeginLsn)], LOG_ERROR);
           Exit;
         end;
         if logBlockRawCheck(FlogBlock^) and (FBeginLsn.LSN_1 = FlogBlock.BeginLSN.LSN_1) then
@@ -589,7 +591,7 @@ begin
     begin
       if (FLogReader.FdataProvider[Fvlf.fileId].Read_Bytes(FlogBlock^, LogBlockPosi, SizeOf(TlogBlock)) <> SizeOf(TlogBlock)) then
       begin
-        Loger.Add('LogPicker.Execute:logBlock Read fail! no more data !%s', [LSN2Str(FBeginLsn)], LOG_ERROR);
+        FLogSource.Loger.Add('LogPicker.Execute:logBlock Read fail! no more data !%s', [LSN2Str(FBeginLsn)], LOG_ERROR);
         Exit;
       end;
       if logBlockRawCheck(FlogBlock^) and (FBeginLsn.LSN_1 = FlogBlock.BeginLSN.LSN_1) then
@@ -635,29 +637,29 @@ begin
 
   if rawlog = nil then
   begin
-    Loger.Add('LogPicker.getTransBlock:BeginLsn lsn invalid[0]! NULL', LOG_ERROR);
+    FLogSource.Loger.Add('LogPicker.getTransBlock:BeginLsn lsn invalid[0]! NULL', LOG_ERROR);
     Exit;
   end;
   if (rawlog.BeginLsn.LSN_1 = 0) or (rawlog.BeginLsn.LSN_2 = 0) or (rawlog.BeginLsn.LSN_3 = 0) then
   begin
-    Loger.Add('LogPicker.getTransBlock:BeginLsn lsn invalid[0]!%s', [LSN2Str(rawlog.BeginLsn)], LOG_ERROR);
+    FLogSource.Loger.Add('LogPicker.getTransBlock:BeginLsn lsn invalid[0]!%s', [LSN2Str(rawlog.BeginLsn)], LOG_ERROR);
     Exit;
   end;
   vlf := FLogSource.GetVlf_LSN(rawlog.BeginLsn);
   if (vlf = nil) or (vlf.SeqNo <> rawlog.BeginLsn.LSN_1) then
   begin
-    Loger.Add('LogPicker.getTransBlock:lsn out of vlfs [1]!%s', [LSN2Str(rawlog.BeginLsn)], LOG_ERROR);
+    FLogSource.Loger.Add('LogPicker.getTransBlock:lsn out of vlfs [1]!%s', [LSN2Str(rawlog.BeginLsn)], LOG_ERROR);
     Exit;
   end;
   Fpxvlf := vlf^;
   if (FLogReader.FdataProvider[Fpxvlf.fileId].Read_Bytes(vlfHeader^, Fpxvlf.VLFOffset, SizeOf(TVLFHeader)) <> SizeOf(TVLFHeader)) then
   begin
-    Loger.Add('LogPicker.getTransBlock:vlfHeader Read fail! no more data !%s', [LSN2Str(rawlog.BeginLsn)], LOG_ERROR);
+    FLogSource.Loger.Add('LogPicker.getTransBlock:vlfHeader Read fail! no more data !%s', [LSN2Str(rawlog.BeginLsn)], LOG_ERROR);
     Exit;
   end;
   if (vlfHeader.VLFHeadFlag <> $AB) or (vlfHeader.SeqNo <> rawlog.BeginLsn.LSN_1) then
   begin
-    Loger.Add('LogPicker.getTransBlock:vlfHeader check Error !%s', [LSN2Str(rawlog.BeginLsn)], LOG_ERROR);
+    FLogSource.Loger.Add('LogPicker.getTransBlock:vlfHeader check Error !%s', [LSN2Str(rawlog.BeginLsn)], LOG_ERROR);
     Exit;
   end;
   LogBlockPosi := Fpxvlf.VLFOffset + $200;
@@ -665,7 +667,7 @@ begin
   begin
     if (FLogReader.FdataProvider[Fpxvlf.fileId].Read_Bytes(logBlock^, LogBlockPosi, SizeOf(TlogBlock)) <> SizeOf(TlogBlock)) then
     begin
-      Loger.Add('LogPicker.getTransBlock:logBlock Read fail! no more data !%s', [LSN2Str(rawlog.BeginLsn)], LOG_ERROR);
+      FLogSource.Loger.Add('LogPicker.getTransBlock:logBlock Read fail! no more data !%s', [LSN2Str(rawlog.BeginLsn)], LOG_ERROR);
       Exit;
     end;
     if logBlockRawCheck(logBlock^) then
@@ -692,14 +694,14 @@ begin
   end;
   if logBlock.BeginLSN.LSN_2 <> rawlog.BeginLsn.LSN_2 then
   begin
-    Loger.Add('LogPicker.getTransBlock:logBlock No found! vlf Eof!%s', [LSN2Str(rawlog.BeginLsn)], LOG_ERROR);
+    FLogSource.Loger.Add('LogPicker.getTransBlock:logBlock No found! vlf Eof!%s', [LSN2Str(rawlog.BeginLsn)], LOG_ERROR);
     Exit;
   end;
 
   if rawlog.BeginLsn.LSN_3 > logBlock.OperationCount then
   begin
     //当前块中没有这个id
-    Loger.Add('LogPicker.getTransBlock:LSN RowId no found !%s', [LSN2Str(rawlog.BeginLsn)], LOG_ERROR);
+    FLogSource.Loger.Add('LogPicker.getTransBlock:LSN RowId no found !%s', [LSN2Str(rawlog.BeginLsn)], LOG_ERROR);
     Exit;
   end;
   RIdx := rawlog.BeginLsn.LSN_3 - 1;
@@ -711,7 +713,7 @@ begin
       LogBlockBuf := AllocMem(logBlock.Size);
       if FLogReader.FdataProvider[Fpxvlf.fileId].Read_Bytes(LogBlockBuf^, LogBlockPosi, logBlock.Size)<>logBlock.Size then
       begin
-        Loger.Add('LogPicker.Execute:get LogBlock  fail!%s', [LSN2Str(rawlog.BeginLsn)], LOG_ERROR);
+        FLogSource.Loger.Add('LogPicker.Execute:get LogBlock  fail!%s', [LSN2Str(rawlog.BeginLsn)], LOG_ERROR);
         FreeMem(LogBlockBuf);
         Exit;
       end;
@@ -781,12 +783,12 @@ begin
 
       if (FLogReader.FdataProvider[Fpxvlf.fileId].Read_Bytes(logBlock^, LogBlockPosi, SizeOf(TlogBlock)) <> SizeOf(TlogBlock)) then
       begin
-        Loger.Add('LogPicker.getTransBlock:Next logBlock Read fail! no more data !%s', [LSN2Str(rawlog.BeginLsn)], LOG_ERROR);
+        FLogSource.Loger.Add('LogPicker.getTransBlock:Next logBlock Read fail! no more data !%s', [LSN2Str(rawlog.BeginLsn)], LOG_ERROR);
         Exit;
       end;
       if (logBlock.flag = 0) or (logBlock.Size = 0) then
       begin
-        Loger.Add('LogPicker.getTransBlock:Next logBlock is null!%s', [LSN2Str(rawlog.BeginLsn)], LOG_ERROR);
+        FLogSource.Loger.Add('LogPicker.getTransBlock:Next logBlock is null!%s', [LSN2Str(rawlog.BeginLsn)], LOG_ERROR);
         Exit;
       end;
       //如果这个块还没有被初始化，就等10s在读取一次. <<<必须每秒响应一次 Terminated>>>
@@ -803,11 +805,11 @@ begin
       begin
         if (vlfHeader.VLFHeadFlag <> $AB) or (vlfHeader.SeqNo <> rawlog.BeginLsn.LSN_1 + 1) then
         begin
-          Loger.Add('LogPicker.getTransBlock:Cross vlf data read fail!%s', [LSN2Str(rawlog.BeginLsn)], LOG_ERROR);
+          FLogSource.Loger.Add('LogPicker.getTransBlock:Cross vlf data read fail!%s', [LSN2Str(rawlog.BeginLsn)], LOG_ERROR);
           Exit;
         end;
       end else begin
-        Loger.Add('LogPicker.getTransBlock:Cross vlf data read fail! no more data !%s', [LSN2Str(rawlog.BeginLsn)], LOG_ERROR);
+        FLogSource.Loger.Add('LogPicker.getTransBlock:Cross vlf data read fail! no more data !%s', [LSN2Str(rawlog.BeginLsn)], LOG_ERROR);
         Exit;
       end;
     end;
@@ -817,7 +819,7 @@ begin
     LogBlockPosi := Fpxvlf.VLFOffset + $200;
     if (FLogReader.FdataProvider[Fpxvlf.fileId].Read_Bytes(logBlock^, LogBlockPosi, SizeOf(TlogBlock)) <> SizeOf(TlogBlock)) then
     begin
-      Loger.Add('LogPicker.getTransBlock:vlf first logBlock Read fail! no more data !%s', [LSN2Str(rawlog.BeginLsn)], LOG_ERROR);
+      FLogSource.Loger.Add('LogPicker.getTransBlock:vlf first logBlock Read fail! no more data !%s', [LSN2Str(rawlog.BeginLsn)], LOG_ERROR);
       Exit;
     end;
     rawlog.BeginLsn.LSN_2 := logBlock.BeginLSN.LSN_2;

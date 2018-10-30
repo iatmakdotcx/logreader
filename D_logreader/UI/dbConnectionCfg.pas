@@ -358,7 +358,7 @@ begin
   edt_passwd.Text := 'aa1234569';
 {$ENDIF}
   logsource := Tlogsource.Create;
-  logsource.Fdbc := TdatabaseConnection.create;
+  logsource.Fdbc := TdatabaseConnection.create(logsource);
 
   Button2.Enabled := False;
   pnl_ipt.BringToFront;

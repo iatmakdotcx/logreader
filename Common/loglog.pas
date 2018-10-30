@@ -15,7 +15,7 @@ const
   WIN_EOL = #$D#$A;
 
 type
-  TMsgCallBack = procedure(aMsg: string; level: Integer);
+  TMsgCallBack = procedure(aMsg: string; level: Integer)of object;
 
 type
   TeventRecorder = class(TObject)
@@ -24,46 +24,48 @@ type
     lo4dLoger: TLogLogger;
     lo4dData: TLogLogger;
     lo4dImportant: TLogLogger;
-    FEnableCallback:Boolean;
+    FEnableCallback: Boolean;
   public
     procedure Add(aMsg: string; level: Integer = LOG_INFORMATION); overload;
     procedure Add(aMsg: string; const Args: array of const; level: Integer = LOG_INFORMATION); overload;
     procedure AddException(aMsg: string; level: Integer = LOG_INFORMATION); overload;
     procedure AddException(aMsg: string; const Args: array of const; level: Integer = LOG_INFORMATION); overload;
-    constructor Create;
+    constructor Create(logName:string='');
     destructor Destroy; override;
-    procedure registerCallBack(afunc: TMsgCallBack);
-    procedure removeCallBack(afunc: TMsgCallBack);
-    property EnableCallback:Boolean read FEnableCallback write FEnableCallback;
+    procedure registerCallBack(Obj:Tobject;afunc: TMsgCallBack);
+    procedure removeCallBack(Obj:Tobject;afunc: TMsgCallBack);
+    property EnableCallback: Boolean read FEnableCallback write FEnableCallback;
   end;
 
 procedure finalLoger;
 
 var
-  Loger: TeventRecorder;
+  DefLoger: TeventRecorder;
 
 implementation
+
 uses
   System.Types;
 
 procedure TeventRecorder.Add(aMsg: string; level: Integer = LOG_INFORMATION);
 var
   I: Integer;
-  ff: TMsgCallBack;
+  pm:PMethod;
 begin
   if (level and LOG_DEBUG) > 0 then
   begin
     lo4dLoger.Debug(aMsg);
   end
-  ELSE if (level and LOG_ERROR) > 0 then
+  else if (level and LOG_ERROR) > 0 then
   begin
     lo4dLoger.Error(aMsg);
+    level := level or LOG_IMPORTANT;
   end
   else if (level and LOG_WARNING) > 0 then
   begin
     lo4dLoger.Warn(aMsg);
   end
-  else if (level and LOG_INFORMATION) > 0 then
+  else
   begin
     lo4dLoger.Info(aMsg);
   end;
@@ -73,7 +75,7 @@ begin
     begin
       lo4dData.Debug(aMsg);
     end
-    ELSE if (level and LOG_ERROR) > 0 then
+    else if (level and LOG_ERROR) > 0 then
     begin
       lo4dData.Error(aMsg);
     end
@@ -81,7 +83,7 @@ begin
     begin
       lo4dData.Warn(aMsg);
     end
-    else if (level and LOG_INFORMATION) > 0 then
+    else
     begin
       lo4dData.Info(aMsg);
     end;
@@ -92,7 +94,7 @@ begin
     begin
       lo4dImportant.Debug(aMsg);
     end
-    ELSE if (level and LOG_ERROR) > 0 then
+    else if (level and LOG_ERROR) > 0 then
     begin
       lo4dImportant.Error(aMsg);
     end
@@ -100,17 +102,16 @@ begin
     begin
       lo4dImportant.Warn(aMsg);
     end
-    else if (level and LOG_INFORMATION) > 0 then
+    else
     begin
       lo4dImportant.Info(aMsg);
     end;
   end;
-  if FEnableCallback then  
   for I := 0 to FcallBackLst.Count - 1 do
   begin
     try
-      @ff := FcallBackLst[I];
-      ff(aMsg, level);
+      pm := FcallBackLst[I];
+      TMsgCallBack(pm^)(aMsg, level);
     except
     end;
   end;
@@ -132,7 +133,7 @@ begin
   AddException(Format(aMsg, Args), level)
 end;
 
-constructor TeventRecorder.Create;
+constructor TeventRecorder.Create(logName:string='');
 var
   projName: string;
 begin
@@ -141,38 +142,73 @@ begin
   projName := GetModuleName(HInstance);
   projName := Copy(projName, 1, length(projName) - 3) + 'ini';
   TLogPropertyConfigurator.Configure(projName);
-  lo4dLoger := TLogLogger.GetLogger('main');
-  lo4dData := TLogLogger.GetLogger('data');
-  lo4dImportant := TLogLogger.GetLogger('important');
-  FEnableCallback := True;
+  if logName = '' then
+  begin
+    lo4dLoger := TLogLogger.GetLogger('main');
+    lo4dData := TLogLogger.GetLogger('main.data');
+    lo4dImportant := TLogLogger.GetLogger('main.important');
+  end
+  else
+  begin
+    lo4dLoger := TLogLogger.GetLogger('main.' + logName);
+    lo4dData := TLogLogger.GetLogger('main.' + logName + '.data');
+    lo4dImportant := TLogLogger.GetLogger('main.' + logName + '.important');
+  end;
   Add('eventRecorder init...');
 end;
 
 destructor TeventRecorder.Destroy;
+var
+  I: Integer;
 begin
+  for I := 0 to FcallBackLst.Count - 1 do
+    Dispose(FcallBackLst[I]);
   FcallBackLst.Free;
   inherited Destroy;
 end;
 
-procedure TeventRecorder.registerCallBack(afunc: TMsgCallBack);
+procedure TeventRecorder.registerCallBack(Obj:Tobject; afunc: TMsgCallBack);
+var
+  pm:PMethod;
+  I: Integer;
 begin
-  if FcallBackLst.IndexOfItem(addr(afunc), TList.TDirection.FromBeginning) = -1 then
-    FcallBackLst.Add(addr(afunc));
+  for I := 0 to FcallBackLst.Count - 1 do
+  begin
+    pm := PMethod(FcallBackLst[i]);
+    if (pm.Code = Addr(afunc)) and (pm.Data = Obj) then
+    begin
+      Exit;
+    end;
+  end;
+  New(pm);
+  pm.Data := Obj;
+  pm.Code := Addr(afunc);
+  FcallBackLst.Add(pm);
 end;
 
-procedure TeventRecorder.removeCallBack(afunc: TMsgCallBack);
+procedure TeventRecorder.removeCallBack(Obj:Tobject; afunc: TMsgCallBack);
+var
+  pm:PMethod;
+  I: Integer;
 begin
-  FcallBackLst.Remove(addr(afunc));
+  for I := 0 to FcallBackLst.Count - 1 do
+  begin
+    pm := PMethod(FcallBackLst[i]);
+    if (pm.Code = Addr(afunc)) and (pm.Data = Obj) then
+    begin
+      FcallBackLst.Delete(i);
+    end;
+  end;
 end;
 
 procedure InitLoger;
 begin
-  Loger := TeventRecorder.Create;
+  DefLoger := TeventRecorder.Create;
 end;
 
 procedure finalLoger;
 begin
-  Loger.Free;
+  DefLoger.Free;
 end;
 
 initialization

@@ -3,11 +3,13 @@ unit databaseConnection;
 interface
 
 uses
-  ADODB, Classes, p_structDefine, dbDict, System.SyncObjs, plgSrcData;
+  ADODB, Classes, p_structDefine, dbDict, System.SyncObjs, plgSrcData,
+  I_LogSource;
 
 type
   TdatabaseConnection = class(TObject)
   private
+    FlogSource:TLogSourceBase;
     AdoQCs: TCriticalSection;
     AdoQ: TADOQuery;
     ADOConn: TADOConnection;
@@ -51,7 +53,7 @@ type
 
      //数据库字典
     dict: TDbDict;
-    constructor Create;
+    constructor Create(logSource:TLogSourceBase);
     destructor Destroy; override;
     procedure refreshConnection;
     procedure refreshDict;
@@ -65,6 +67,7 @@ type
     function GetCollationPropertyFromId(id: Integer): string;
     function GetSchemasName(schema_id: Integer): string;
     function GetObjectIdByPartitionid(partition_id: int64): integer;
+    function getCfgUid:string;
     function GetLastBackupInfo(var lsn: Tlog_LSN;  var backupTime: TDateTime): Boolean;
     /// <summary>
     /// 在Master表执行Sql ，并获取执行结果
@@ -100,7 +103,7 @@ implementation
 
 uses
   Windows, SysUtils, dbHelper, comm_func, MakCommonfuncs, loglog,
-  Winapi.ADOInt, System.Variants, Data.DB, dbFieldTypes, Memory_Common, math;
+  Winapi.ADOInt, System.Variants, Data.DB, dbFieldTypes, Memory_Common, math, HashHelper;
 
 function CloneRecordset(const Data: _Recordset): _Recordset;
 var
@@ -134,8 +137,9 @@ begin
   end;
 end;
 
-constructor TdatabaseConnection.Create;
+constructor TdatabaseConnection.Create(logSource:TLogSourceBase);
 begin
+  FlogSource:=logSource;
   //提取基本信息用
   AdoQCs := TCriticalSection.Create;
   ADOConn := TADOConnection.Create(nil);
@@ -273,22 +277,22 @@ begin
       begin
         if dbID <> rDataset.Fields[0].AsInteger then
         begin
-          Loger.Add('数据库id与配置不匹配！请重新配置。', LOG_ERROR);
+          FlogSource.Loger.Add('数据库id与配置不匹配！请重新配置。', LOG_ERROR);
           Exit;
         end;
         if dbVer_Major <> (microsoftversion shr 24) and $FF then
         begin
-          Loger.Add('数据库版本与配置不匹配！请重新配置。', LOG_ERROR);
+          FlogSource.Loger.Add('数据库版本与配置不匹配！请重新配置。', LOG_ERROR);
           Exit;
         end;
         if dbVer_Minor <> (microsoftversion shr 16) and $FF then
         begin
-          Loger.Add('数据库版本与配置不匹配！请重新配置。', LOG_ERROR);
+          FlogSource.Loger.Add('数据库版本与配置不匹配！请重新配置。', LOG_ERROR);
           Exit;
         end;
         if dbVer_BuildNumber <> microsoftversion and $FFFF then
         begin
-          Loger.Add('数据库版本与配置不匹配！请重新配置。', LOG_ERROR);
+          FlogSource.Loger.Add('数据库版本与配置不匹配！请重新配置。', LOG_ERROR);
           Exit;
         end;
       end else begin
@@ -371,13 +375,18 @@ begin
     except
       on e: Exception do
       begin
-        Loger.Add(' ExecSqlOnMaster fail。%s,[%s]', [e.Message, aSql], LOG_ERROR);
+        FlogSource.Loger.Add(' ExecSqlOnMaster fail。%s,[%s]', [e.Message, aSql], LOG_ERROR);
         resDataset.Free;
       end;
     end;
   finally
     AdoQCsMaster.Leave;
   end;
+end;
+
+function TdatabaseConnection.getCfgUid: string;
+begin
+  Result := GetStrHashMD5(host + dbName + user);
 end;
 
 function TdatabaseConnection.ExecSql(aSql:string;out resDataset:TCustomADODataSet;withOpen:Boolean=True):Boolean;
@@ -403,7 +412,7 @@ begin
     except
       on e: Exception do
       begin
-        Loger.Add(' ExecSql fail。%s,[%s]', [e.Message, aSql], LOG_ERROR);
+        FlogSource.Loger.Add(' ExecSql fail。%s,[%s]', [e.Message, aSql], LOG_ERROR);
         if resDataset<>nil then
           resDataset.Free;
       end;

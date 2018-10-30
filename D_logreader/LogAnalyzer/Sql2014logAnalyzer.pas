@@ -4,7 +4,7 @@ interface
 
 uses
   Classes, I_logAnalyzer, LogtransPkg, p_structDefine, LogSource, dbDict, System.SysUtils,
-  Contnrs, BinDataUtils, SqlDDLs, LogtransPkgMgr;
+  Contnrs, BinDataUtils, SqlDDLs, LogtransPkgMgr, hexValUtils;
 
 type
 
@@ -81,7 +81,7 @@ type
   TSql2014logAnalyzer = class(TlogAnalyzer)
   private
     FPkgMgr:TTransPkgMgr; //事务队列
-
+    Hvu:THexValueHelper;
     TransId: TTrans_Id;
     TransBeginTime: TDateTime;
     TransCommitTime: TDateTime;
@@ -112,7 +112,6 @@ type
     function DML_BuilderXML_Insert(aRowData: Tsql2014Opt): string;
     function DML_BuilderXML_Update(aRowData: Tsql2014Opt): string;
     function DML_BuilderXML_Delete(aRowData: Tsql2014Opt): string;
-    function DML_BuilderXML_Update2(aRowData: Tsql2014Opt): string;
     function Read_LCX_TEXT_MIX_DATA(tPkg: TTransPkgItem; BinReader: TbinDataReader): TBytes;
     procedure PriseDDLPkg(DataRow: Tsql2014Opt);
     procedure PriseDDLPkg_sysrscols(DataRow: Tsql2014Opt);
@@ -151,6 +150,7 @@ type
     procedure DDLClear;
     procedure DDLPretreatment;
     procedure PriseDDLPkg_sysidxstats(DataRow: Tsql2014Opt);
+    procedure logTranPkg(FTranspkg: TTransPkg);
   public
     /// <summary>
     ///
@@ -169,7 +169,7 @@ type
 implementation
 
 uses
-  loglog, plugins, OpCode, hexValUtils, contextCode, dbFieldTypes,comm_func,
+  loglog, plugins, OpCode, contextCode, dbFieldTypes,comm_func,
   Memory_Common, sqlextendedprocHelper, Windows, Xml.XMLIntf,Xml.XMLDoc;
 
 type
@@ -206,8 +206,9 @@ begin
   IDXs:=TDDL_Idxs_ColsMgr.Create;
   IDXstats:=TObjectList.create;
   Rscols := TObjectList.create;
-
+  Hvu := THexValueHelper.Create(LogSource);
   Self.NameThreadForDebugging('TSql2014logAnalyzer', Self.ThreadID);
+  FLogSource.Loger.Add('Analyzer init...');
 end;
 
 destructor TSql2014logAnalyzer.Destroy;
@@ -220,6 +221,7 @@ begin
   AllocUnitMgr.Free;
   IDXs.Free;
   IDXstats.free;
+  Hvu.Free;
   inherited;
 end;
 
@@ -492,7 +494,7 @@ begin
       Opt_Delete:
         Result := DML_BuilderSql_Delete(aRowData);
     else
-      Loger.Add('尚未定义的SQLBuilder：%d', [Integer(aRowData.OperaType)], log_error or LOG_IMPORTANT);
+      FLogSource.Loger.Add('尚未定义的SQLBuilder：%d', [Integer(aRowData.OperaType)], log_error or LOG_IMPORTANT);
     end;
   end;
 end;
@@ -517,7 +519,7 @@ begin
       for I := 0 to aRowData.old_data.Fields.Count - 1 do
       begin
         fieldval := PdbFieldValue(aRowData.old_data.Fields[I]);
-        whereStr := whereStr + Format('and %s=%s ', [fieldval.field.getSafeColName, Hvu_GetFieldStrValueWithQuoteIfNeed(fieldval.field, fieldval.value)]);
+        whereStr := whereStr + Format('and %s=%s ', [fieldval.field.getSafeColName, Hvu.GetFieldStrValueWithQuoteIfNeed(fieldval.field, fieldval.value)]);
       end;
       if whereStr.Length > 0 then
       begin
@@ -558,7 +560,7 @@ begin
             //var 值 ————>  null
             updateStr := updateStr + Format(', %s=NULL',[raw_old.field.getSafeColName]);
           end else if (raw_old = nil) or (not binEquals(raw_new.value, raw_old.value)) then begin
-            updateStr := updateStr + Format(', %s=%s',[raw_new.field.getSafeColName, Hvu_GetFieldStrValueWithQuoteIfNeed(raw_new.field, raw_new.value)]);
+            updateStr := updateStr + Format(', %s=%s',[raw_new.field.getSafeColName, Hvu.GetFieldStrValueWithQuoteIfNeed(raw_new.field, raw_new.value)]);
           end
         end;
       end;
@@ -594,7 +596,7 @@ begin
             //var 值 ————>  null
             updateStr := updateStr + Format(', %s=NULL',[raw_new.field.getSafeColName]);
           end else begin
-            updateStr := updateStr + Format(', %s=%s',[raw_new.field.getSafeColName, Hvu_GetFieldStrValueWithQuoteIfNeed(raw_new.field, raw_new.value)]);
+            updateStr := updateStr + Format(', %s=%s',[raw_new.field.getSafeColName, Hvu.GetFieldStrValueWithQuoteIfNeed(raw_new.field, raw_new.value)]);
           end;
         end;
       end;
@@ -624,13 +626,13 @@ begin
       for I := 0 to aRowData.old_data.Fields.Count - 1 do
       begin
         fieldval := PdbFieldValue(aRowData.old_data.Fields[I]);
-        whereStr := whereStr + Format('and %s=%s ', [fieldval.field.getSafeColName, Hvu_GetFieldStrValueWithQuoteIfNeed(fieldval.field, fieldval.value)]);
+        whereStr := whereStr + Format('and %s=%s ', [fieldval.field.getSafeColName, Hvu.GetFieldStrValueWithQuoteIfNeed(fieldval.field, fieldval.value)]);
       end;
     end else begin
       for I := 0 to aRowData.new_data.Fields.Count - 1 do
       begin
         fieldval := PdbFieldValue(aRowData.new_data.Fields[I]);
-        whereStr := whereStr + Format('and %s=%s ', [fieldval.field.getSafeColName, Hvu_GetFieldStrValueWithQuoteIfNeed(fieldval.field, fieldval.value)]);
+        whereStr := whereStr + Format('and %s=%s ', [fieldval.field.getSafeColName, Hvu.GetFieldStrValueWithQuoteIfNeed(fieldval.field, fieldval.value)]);
       end;
     end;
     if whereStr.Length > 0 then
@@ -653,7 +655,7 @@ begin
       Opt_Delete:
         Result := DML_BuilderXML_Delete(aRowData);
     else
-      Loger.Add('尚未定义的XMLBuilder：%d', [Integer(aRowData.OperaType)], log_error or LOG_IMPORTANT);
+      FLogSource.Loger.Add('尚未定义的XMLBuilder：%d', [Integer(aRowData.OperaType)], log_error or LOG_IMPORTANT);
     end;
   end;
 end;
@@ -683,7 +685,7 @@ begin
     for I := 0 to aRowData.old_data.Fields.Count - 1 do
     begin
       fieldval := PdbFieldValue(aRowData.old_data.Fields[I]);
-      StrVal := Hvu_GetFieldStrValue(fieldval.field, fieldval.value);
+      StrVal := Hvu.GetFieldStrValue(fieldval.field, fieldval.value);
       StrVal := DML_BuilderXML_SafeStr(StrVal);
       Result := Result + Format('<%s>%s</%s>', [fieldval.field.ColName,StrVal,fieldval.field.ColName]);
     end;
@@ -691,7 +693,7 @@ begin
     for I := 0 to aRowData.new_data.Fields.Count - 1 do
     begin
       fieldval := PdbFieldValue(aRowData.new_data.Fields[I]);
-      StrVal := Hvu_GetFieldStrValue(fieldval.field, fieldval.value);
+      StrVal := Hvu.GetFieldStrValue(fieldval.field, fieldval.value);
       StrVal := DML_BuilderXML_SafeStr(StrVal);
       Result := Result + Format('<%s>%s</%s>', [fieldval.field.ColName,StrVal,fieldval.field.ColName]);
     end;
@@ -708,7 +710,7 @@ begin
         fieldval := PdbFieldValue(aRowData.new_data.Fields[j]);
         if fieldval.field.Col_id=field.Col_id then
         begin
-          StrVal := Hvu_GetFieldStrValue(fieldval.field, fieldval.value);
+          StrVal := Hvu.GetFieldStrValue(fieldval.field, fieldval.value);
           StrVal := DML_BuilderXML_SafeStr(StrVal);
           Result := Result + Format('<%s>%s</%s>', [fieldval.field.ColName,StrVal,fieldval.field.ColName]);
           Break;
@@ -730,7 +732,7 @@ begin
   for I := 0 to aRowData.new_data.Fields.Count - 1 do
   begin
     fieldval := PdbFieldValue(aRowData.new_data.Fields[I]);
-    StrVal := Hvu_GetFieldStrValue(fieldval.field, fieldval.value);
+    StrVal := Hvu.GetFieldStrValue(fieldval.field, fieldval.value);
     StrVal := DML_BuilderXML_SafeStr(StrVal);
     Result := Result + Format('<%s>%s</%s>', [fieldval.field.ColName,StrVal,fieldval.field.ColName]);
   end;
@@ -790,7 +792,7 @@ begin
         begin
           TmpNode.Attributes['null']:= '1';
         end else begin
-          StrVal := Hvu_GetFieldStrValue(raw_old.field, raw_old.value);
+          StrVal := Hvu.GetFieldStrValue(raw_old.field, raw_old.value);
           if StrVal='NULL' then
           begin
             TmpNode.Attributes['null']:= '1';
@@ -804,7 +806,7 @@ begin
         begin
           TmpNode.Attributes['null']:= '1';
         end else begin
-          StrVal := Hvu_GetFieldStrValue(raw_new.field, raw_new.value);
+          StrVal := Hvu.GetFieldStrValue(raw_new.field, raw_new.value);
           if StrVal='NULL' then
           begin
             TmpNode.Attributes['null']:= '1';
@@ -817,184 +819,11 @@ begin
   except
     on ee:Exception do
     begin
-      Loger.Add('DML_BuilderXML_Update 生成xml 失败！' + ee.Message);
+      FLogSource.Loger.Add('DML_BuilderXML_Update 生成xml 失败！' + ee.Message);
     end
   end;
   Result := xml.XML.Text;
 end;
-
-function TSql2014logAnalyzer.DML_BuilderXML_Update2(aRowData: Tsql2014Opt): string;
-var
-  StrVal: string;
-  I,J: Integer;
-  isUniClustered:Boolean;
-  raw_old,raw_new: PdbFieldValue;
-
-  field: TdbFieldItem;
-begin
-  Result := '<opt type="update" table="'+aRowData.Table.getFullName+'">';
-  Result := Result + '<data>';
-  if aRowData.new_data = nil then
-  begin
-    //没有新数据。使用select封装
-//    updateStr := FLogSource.Fdbc.getUpdateSQLfromSelect(aRowData.Table, whereStr);
-//    if updateStr='' then
-//    begin
-//      Result := '数据行已丢失！'+whereStr;
-//      Exit;
-//    end;
-  end else begin
-    if aRowData.old_data<>nil then
-    begin
-      //新旧数据都有，则对比差异生成update
-      for I := 0 to aRowData.Table.Fields.Count - 1 do
-      begin
-        if aRowData.Table.Fields[i].isLogSkipCol then Continue;
-        raw_old := aRowData.old_data.getField(aRowData.Table.Fields[i].Col_id);
-        raw_new := aRowData.new_data.getField(aRowData.Table.Fields[i].Col_id);
-
-        Result := Result + '<'+raw_old.field.ColName+'>';
-        if raw_old = nil then
-        begin
-          Result := Result +'<old null="1"></old>';
-        end else begin
-          StrVal := Hvu_GetFieldStrValue(raw_old.field, raw_old.value);
-          StrVal := DML_BuilderXML_SafeStr(StrVal);
-          if StrVal='NULL' then
-          begin
-            Result := Result +'<old null="1"></old>';
-          end else begin
-            Result := Result + Format('<old>%s</old>', [StrVal]);
-          end;
-        end;
-        if raw_new = nil then
-        begin
-          Result := Result +'<new null="1"></new>';
-        end else begin
-          StrVal := Hvu_GetFieldStrValue(raw_new.field, raw_new.value);
-          StrVal := DML_BuilderXML_SafeStr(StrVal);
-          if StrVal='NULL' then
-          begin
-            Result := Result +'<new null="1"></new>';
-          end else begin
-            Result := Result + Format('<new>%s</new>', [StrVal]);
-          end;
-        end;
-        Result := Result + '</'+raw_old.field.ColName+'>';
-
-
-       (*//只生产差异数据的xml
-        if (raw_new=nil) and (raw_old=nil)then
-        begin
-
-        end else
-        if raw_new = nil then
-        begin
-          //var 值 ————>  null
-          StrVal := Hvu_GetFieldStrValue(raw_old.field, raw_old.value);
-          StrVal := DML_BuilderXML_SafeStr(StrVal);
-          Result := Result + '<'+raw_old.field.ColName+'>';
-          if StrVal='NULL' then
-          begin
-            Result := Result +'<OLD null="1"></OLD>';
-          end else begin
-            Result := Result + Format('<OLD>%s</OLD>', [StrVal]);
-          end;
-          Result := Result +'<NEW null="1"></NEW>';
-          Result := Result + '</'+raw_old.field.ColName+'>';
-        end else if (raw_old = nil) or (not binEquals(raw_new.value, raw_old.value)) then begin
-          Result := Result + '<'+raw_old.field.ColName+'>';
-          if raw_old = nil then
-          begin
-            Result := Result +'<OLD null="1"></OLD>';
-          end else begin
-            StrVal := Hvu_GetFieldStrValue(raw_old.field, raw_old.value);
-            StrVal := DML_BuilderXML_SafeStr(StrVal);
-            if StrVal='NULL' then
-            begin
-              Result := Result +'<OLD null="1"></OLD>';
-            end else begin
-              Result := Result + Format('<OLD>%s</OLD>', [StrVal]);
-            end;
-          end;
-          StrVal := Hvu_GetFieldStrValue(raw_new.field, raw_new.value);
-          StrVal := DML_BuilderXML_SafeStr(StrVal);
-          if StrVal='NULL' then
-          begin
-            Result := Result +'<NEW null="1"></NEW>';
-          end else begin
-            Result := Result + Format('<NEW>%s</NEW>', [StrVal]);
-          end;
-          Result := Result + '</'+raw_old.field.ColName+'>';
-        end *)
-      end;
-    end else begin
-      //没有old，根据新的全部字段生成update（除唯一聚合
-      for I := 0 to aRowData.Table.Fields.Count - 1 do
-      begin
-        if aRowData.Table.Fields[i].isLogSkipCol then Continue;
-        isUniClustered := False;
-        for J := 0 to aRowData.Table.UniqueClusteredKeys.Count-1 do
-        begin
-          if TdbFieldItem(aRowData.Table.UniqueClusteredKeys[j]).Col_id = aRowData.Table.Fields[i].Col_id then
-          begin
-            isUniClustered := True;
-            Break;
-          end;
-        end;
-
-        if not isUniClustered then
-        begin
-          raw_new := aRowData.new_data.getField(aRowData.Table.Fields[i].Col_id);
-          Result := Result + '<'+aRowData.Table.Fields[i].ColName+'>';
-          if raw_new = nil then
-          begin
-            //var 值 ————>  null
-            Result := Result +'<new null="1"></new>';
-          end else begin
-            StrVal := Hvu_GetFieldStrValue(raw_new.field, raw_new.value);
-            StrVal := DML_BuilderXML_SafeStr(StrVal);
-            if StrVal='NULL' then
-            begin
-              Result := Result +'<new null="1"></new>';
-            end else begin
-              Result := Result + Format('<new>%s</new>', [StrVal]);
-            end;
-          end;
-          Result := Result + '</'+aRowData.Table.Fields[i].ColName+'>';
-        end;
-      end;
-    end
-  end;
-  Result := Result + '</data>';
-  Result := Result + '<key>';
-  if aRowData.table.UniqueClusteredKeys.Count>0 then
-  begin
-    for I := 0 to aRowData.table.UniqueClusteredKeys.Count-1 do
-    begin
-      field := TdbFieldItem(aRowData.table.UniqueClusteredKeys[i]);
-      if aRowData.new_data <> nil then
-      begin
-        for J := 0 to aRowData.new_data.Fields.Count -1 do
-        begin
-          raw_old := PdbFieldValue(aRowData.new_data.Fields[j]);
-          if raw_old.field.Col_id=field.Col_id then
-          begin
-            StrVal := Hvu_GetFieldStrValue(raw_old.field, raw_old.value);
-            StrVal := DML_BuilderXML_SafeStr(StrVal);
-            Result := Result + Format('<%s>%s</%s>', [raw_old.field.ColName,StrVal,raw_old.field.ColName]);
-            Break;
-          end;
-        end;
-      end else begin
-        Result := Result + aRowData.UniqueClusteredKeys;
-      end;
-    end;
-  end;
-  Result := Result + '</key>';
-  Result := Result + '</opt>';
-end;
-
 
 function TSql2014logAnalyzer.DML_BuilderSql_Insert(aRowData: Tsql2014Opt): string;
 var
@@ -1009,7 +838,7 @@ begin
   begin
     fieldval := PdbFieldValue(aRowData.new_data.Fields[I]);
     fields := fields + ',' + fieldval.field.getSafeColName;
-    StrVal := StrVal + ',' + Hvu_GetFieldStrValueWithQuoteIfNeed(fieldval.field, fieldval.value);
+    StrVal := StrVal + ',' + Hvu.GetFieldStrValueWithQuoteIfNeed(fieldval.field, fieldval.value);
   end;
   if aRowData.new_data.Fields.Count > 0 then
   begin
@@ -1042,7 +871,7 @@ begin
         fieldval := PdbFieldValue(aRowData.new_data.Fields[j]);
         if fieldval.field.Col_id=field.Col_id then
         begin
-          whereStr := whereStr + Format('and %s=%s ', [field.getSafeColName, Hvu_GetFieldStrValueWithQuoteIfNeed(field, fieldval.value)]);
+          whereStr := whereStr + Format('and %s=%s ', [field.getSafeColName, Hvu.GetFieldStrValueWithQuoteIfNeed(field, fieldval.value)]);
           Break;
         end;
       end;
@@ -1053,11 +882,74 @@ begin
   Result := Format('DELETE FROM %s WHERE %s;', [aRowData.Table.getFullName, whereStr]);
 end;
 
+procedure TSql2014logAnalyzer.logTranPkg(FTranspkg: TTransPkg);
+var
+  xmlStr:string;
+  I:Integer;
+  TTpi: TTransPkgItem;
+  rl:PRawLog;
+  OriginRowData:TBytes;
+  partition_id :UInt64;
+  Rldo: PRawLog_DataOpt;
+  table:TdbTableItem;
+  objlst:TList;
+begin
+  try
+    objlst:=TList.Create;
+    xmlStr := '<root><transId>' + TranId2Str(FTranspkg.Ftransid) + '</transId><rows>';
+    for I := 0 to FTranspkg.Items.Count - 1 do
+    begin
+      TTpi := TTransPkgItem(FTranspkg.Items[I]);
+      xmlStr := xmlStr + '<item lsn="' + lsn2str(TTpi.LSN) + '">';
+      xmlStr := xmlStr + '<bin>' + DumpMemory2Str(TTpi.Raw.data, TTpi.Raw.dataSize) + '</bin>';
+      rl := TTpi.Raw.data;
+      partition_id := 0;
+      if (rl.OpCode = LOP_MODIFY_ROW) or (rl.OpCode = LOP_MODIFY_COLUMNS) then
+      begin
+        OriginRowData := getUpdateSoltData(FLogSource.Fdbc, rl.PreviousLSN);
+        if OriginRowData <> nil then
+        begin
+          xmlStr := xmlStr + '<data>' + DumpMemory2Str(@OriginRowData[0], Length(OriginRowData)) + '</data>';
+        end;
+        Rldo := TTpi.Raw.data;
+        partition_id := Rldo.PartitionId;
+      end else if (rl.OpCode = LOP_INSERT_ROWS) or (rl.OpCode = LOP_DELETE_ROWS) then begin
+        Rldo := TTpi.Raw.data;
+        partition_id := Rldo.PartitionId;
+      end;
+      if partition_id>0 then
+      begin
+        if objlst.IndexOf(Pointer(partition_id))=-1 then
+          objlst.Add(Pointer(partition_id));
+
+      end;
+      xmlStr := xmlStr + '</item>'
+    end;
+    xmlStr := xmlStr + '</rows><tables>';
+    for I := 0 to objlst.Count - 1 do
+    begin
+      table := FLogSource.Fdbc.dict.tables.GetItemByPartitionId(uint64(objlst[I]));
+      if table <> nil then
+      begin
+        xmlStr := xmlStr + table.AsXml;
+      end;
+    end;
+    xmlStr := xmlStr + '</tables></root>';
+    FLogSource.Loger.Add(xmlStr, LOG_IMPORTANT or LOG_DATA);
+  except
+    on dd: Exception do
+    begin
+      FLogSource.Loger.Add('dump logTranPkg fail!!' + dd.Message, LOG_ERROR);
+    end;
+  end;
+end;
+
 procedure TSql2014logAnalyzer.Execute;
 var
   TTsPkg: TTransPkg;
 begin
   inherited;
+  FLogSource.Loger.Add('Analyzer Start...');
   while not Terminated do
   begin
     if FPkgMgr.FpaddingPrisePkg.Count > 0 then
@@ -1075,7 +967,8 @@ begin
       except
         on ee:Exception do
         begin
-          Loger.Add('TSql2014logAnalyzer.事务块处理失败！TranId:' + TranId2Str(TTsPkg.Ftransid) + '.' + ee.Message, LOG_ERROR);
+          FLogSource.Loger.Add('TSql2014logAnalyzer.事务块处理失败！TranId:' + TranId2Str(TTsPkg.Ftransid) + '.' + ee.Message, LOG_ERROR);
+          logTranPkg(TTsPkg);
         end;
       end;
       TTsPkg.Free;
@@ -1094,8 +987,8 @@ var
   DMLitem: TDMLItem;
   TmpBinReader: TbinDataReader;
 begin
-  Loger.Add(FormatDateTime('====>yyyy-MM-dd HH:nn:ss.zzz',now), LOG_DEBUG);
-  Loger.Add('TSql2014logAnalyzer.Execute ==> transId:%s, MinLsn:%s', [TranId2Str(FTranspkg.Ftransid),LSN2Str(TTransPkgItem(FTranspkg.Items[0]).lsn)],LOG_DEBUG);
+  FLogSource.Loger.Add(FormatDateTime('====>yyyy-MM-dd HH:nn:ss.zzz',now), LOG_DEBUG);
+  FLogSource.Loger.Add('TSql2014logAnalyzer.Execute ==> transId:%s, MinLsn:%s, cnt:%d', [TranId2Str(FTranspkg.Ftransid),LSN2Str(TTransPkgItem(FTranspkg.Items[0]).lsn), FTranspkg.Items.Count],LOG_DEBUG);
   //通知插件
   serializeToBin(FTranspkg, mm);
   PluginsMgr.onTransPkgRev(FLogSource.Fdbc.GetPlgSrc, mm);
@@ -1138,7 +1031,7 @@ begin
       end;
     end;
 
-    Loger.Add('-->' + DML_BuilderSql(DataRow_buf), LOG_DEBUG);
+    FLogSource.Loger.Add('-->' + DML_BuilderSql(DataRow_buf), LOG_DEBUG);
     //continue;
     if DataRow_buf.Table.Owner = 'sys' then
     begin
@@ -1484,7 +1377,7 @@ begin
     TmpStr := TmpStr +'objName:'+ ddlitem.objName+ WIN_EOL;
     TmpStr := TmpStr +'tableid:'+ IntToStr(ddlitem.tableid)+ WIN_EOL;
     TmpStr := TmpStr +'value:'+ ddlitem.value+ WIN_EOL;
-    Loger.Add('GenSql_CreateCheck fail! ->' + TmpStr, LOG_ERROR or LOG_IMPORTANT);
+    FLogSource.Loger.Add('GenSql_CreateCheck fail! ->' + TmpStr, LOG_ERROR or LOG_IMPORTANT);
 
     Exit;
   end;
@@ -1536,7 +1429,7 @@ begin
     TmpStr := TmpStr +'colid:'+ IntToStr(ddlitem.colid)+ WIN_EOL;
     TmpStr := TmpStr +'value:'+ ddlitem.value+ WIN_EOL;
     TmpStr := TmpStr +'isCLUSTERED:'+ BoolToStr(ddlitem.isCLUSTERED,True)+ WIN_EOL;
-    Loger.Add('GenSql_CreateUniqueKey fail! ->' + TmpStr, LOG_ERROR or LOG_IMPORTANT);
+    FLogSource.Loger.Add('GenSql_CreateUniqueKey fail! ->' + TmpStr, LOG_ERROR or LOG_IMPORTANT);
 
     Exit;
   end;
@@ -1919,11 +1812,11 @@ begin
     pdd_field_ColName := LowerCase(pdd.field.ColName);
     if pdd_field_ColName = 'id' then
     begin
-      TableId := StrToInt(Hvu_GetFieldStrValue(pdd.field, pdd.value));
+      TableId := StrToInt(Hvu.GetFieldStrValue(pdd.field, pdd.value));
     end
     else if pdd_field_ColName = 'name' then
     begin
-      ColName := Hvu_GetFieldStrValue(pdd.field, pdd.value);
+      ColName := Hvu.GetFieldStrValue(pdd.field, pdd.value);
     end;
   end;
 
@@ -2097,7 +1990,7 @@ begin
       end else begin
         FieldItem.Free;
         //不是表不存在
-        Loger.Add('Error Message:PriseDDLPkg_U_syscolpars table not exists!tableid:%d',[ObjId]);
+        FLogSource.Loger.Add('Error Message:PriseDDLPkg_U_syscolpars table not exists!tableid:%d',[ObjId]);
       end;
     end;
   end;
@@ -2131,23 +2024,23 @@ begin
     pdd_field_ColName := LowerCase(pdd.field.ColName);
     if pdd_field_ColName = 'rsid' then
     begin
-      rowsetid := StrToInt64(Hvu_GetFieldStrValue(pdd.field, pdd.value));
+      rowsetid := StrToInt64(Hvu.GetFieldStrValue(pdd.field, pdd.value));
     end
     else if pdd_field_ColName = 'rscolid' then
     begin
-      ColId := StrToInt(Hvu_GetFieldStrValue(pdd.field, pdd.value));
+      ColId := StrToInt(Hvu.GetFieldStrValue(pdd.field, pdd.value));
     end
     else if pdd_field_ColName = 'status' then
     begin
-      statusCode := StrToInt(Hvu_GetFieldStrValue(pdd.field, pdd.value));
+      statusCode := StrToInt(Hvu.GetFieldStrValue(pdd.field, pdd.value));
     end
     else if pdd_field_ColName = 'offset' then
     begin
-      DataOffset := Hvu_getShort(pdd.value, 0, 2);
+      DataOffset := Hvu.getShort(pdd.value, 0, 2);
     end
     else if pdd_field_ColName = 'nullbit' then
     begin
-      Nullbit := Hvu_getShort(pdd.value, 0, 2);
+      Nullbit := Hvu.getShort(pdd.value, 0, 2);
     end;
   end;
   ObjId := AllocUnitMgr.GetObjId(rowsetid);
@@ -2343,16 +2236,16 @@ begin
     pdd_field_ColName := LowerCase(pdd.field.ColName);
     if pdd_field_ColName = 'id' then
     begin
-      objId := StrToInt(Hvu_GetFieldStrValue(pdd.field, pdd.value));
+      objId := StrToInt(Hvu.GetFieldStrValue(pdd.field, pdd.value));
     end else if pdd_field_ColName = 'name' then
     begin
-      idxName := Hvu_GetFieldStrValue(pdd.field, pdd.value);
+      idxName := Hvu.GetFieldStrValue(pdd.field, pdd.value);
     end else if pdd_field_ColName = 'status' then
     begin
-      status := StrToInt(Hvu_GetFieldStrValue(pdd.field, pdd.value));
+      status := StrToInt(Hvu.GetFieldStrValue(pdd.field, pdd.value));
     end else if pdd_field_ColName = 'type' then
     begin
-      idxtype := StrToInt(Hvu_GetFieldStrValue(pdd.field, pdd.value));
+      idxtype := StrToInt(Hvu.GetFieldStrValue(pdd.field, pdd.value));
     end;
   end;
 
@@ -2386,16 +2279,16 @@ begin
     pdd_field_ColName := LowerCase(pdd.field.ColName);
     if pdd_field_ColName = 'idmajor' then
     begin
-      objId := StrToInt(Hvu_GetFieldStrValue(pdd.field, pdd.value));
+      objId := StrToInt(Hvu.GetFieldStrValue(pdd.field, pdd.value));
     end else if pdd_field_ColName = 'idminor' then
     begin
-      indexId := StrToInt(Hvu_GetFieldStrValue(pdd.field, pdd.value));
+      indexId := StrToInt(Hvu.GetFieldStrValue(pdd.field, pdd.value));
     end else if pdd_field_ColName = 'status' then
     begin
-      status := StrToInt(Hvu_GetFieldStrValue(pdd.field, pdd.value));
+      status := StrToInt(Hvu.GetFieldStrValue(pdd.field, pdd.value));
     end else if pdd_field_ColName = 'intprop' then
     begin
-      fieldId := StrToInt(Hvu_GetFieldStrValue(pdd.field, pdd.value));
+      fieldId := StrToInt(Hvu.GetFieldStrValue(pdd.field, pdd.value));
     end;
   end;
   IDXs.Add(objId, indexId, fieldId, (status and 4) > 0);
@@ -2426,11 +2319,11 @@ begin
     end else
     if pdd_field_ColName = 'objid' then
     begin
-      objId := StrToInt(Hvu_GetFieldStrValue(pdd.field, pdd.value));
+      objId := StrToInt(Hvu.GetFieldStrValue(pdd.field, pdd.value));
     end
     else if pdd_field_ColName = 'imageval' then
     begin
-      value := Hvu_GetFieldStrValue(pdd.field, pdd.value);
+      value := Hvu.GetFieldStrValue(pdd.field, pdd.value);
     end;
   end;
 
@@ -2488,23 +2381,23 @@ begin
     pdd_field_ColName := LowerCase(pdd.field.ColName);
     if pdd_field_ColName = 'id' then
     begin
-      ObjId := StrToInt(Hvu_GetFieldStrValue(pdd.field, pdd.value));
+      ObjId := StrToInt(Hvu.GetFieldStrValue(pdd.field, pdd.value));
     end
     else if pdd_field_ColName = 'name' then
     begin
-      ObjName := Hvu_GetFieldStrValue(pdd.field, pdd.value);
+      ObjName := Hvu.GetFieldStrValue(pdd.field, pdd.value);
     end
     else if pdd_field_ColName = 'nsid' then
     begin
-      nsid := StrToInt(Hvu_GetFieldStrValue(pdd.field, pdd.value));
+      nsid := StrToInt(Hvu.GetFieldStrValue(pdd.field, pdd.value));
     end
     else if pdd_field_ColName = 'type' then
     begin
-      ObjType := Hvu_GetFieldStrValue(pdd.field, pdd.value);
+      ObjType := Hvu.GetFieldStrValue(pdd.field, pdd.value);
     end
     else if pdd_field_ColName = 'pid' then
     begin
-      pid := StrToInt(Hvu_GetFieldStrValue(pdd.field, pdd.value));
+      pid := StrToInt(Hvu.GetFieldStrValue(pdd.field, pdd.value));
     end
     else if pdd_field_ColName = 'intprop' then
     begin
@@ -2597,27 +2490,27 @@ begin
     pdd_field_ColName := LowerCase(pdd.field.ColName);
     if pdd_field_ColName = 'id' then
     begin
-      ObjId := StrToInt(Hvu_GetFieldStrValue(pdd.field, pdd.value));
+      ObjId := StrToInt(Hvu.GetFieldStrValue(pdd.field, pdd.value));
     end
     else if pdd_field_ColName = 'name' then
     begin
-      ObjName := Hvu_GetFieldStrValue(pdd.field, pdd.value);
+      ObjName := Hvu.GetFieldStrValue(pdd.field, pdd.value);
     end
     else if pdd_field_ColName = 'nsid' then
     begin
-      nsid := StrToInt(Hvu_GetFieldStrValue(pdd.field, pdd.value));
+      nsid := StrToInt(Hvu.GetFieldStrValue(pdd.field, pdd.value));
     end
     else if pdd_field_ColName = 'type' then
     begin
-      ObjType := Hvu_GetFieldStrValue(pdd.field, pdd.value);
+      ObjType := Hvu.GetFieldStrValue(pdd.field, pdd.value);
     end
     else if pdd_field_ColName = 'pid' then
     begin
-      pid := StrToInt(Hvu_GetFieldStrValue(pdd.field, pdd.value));
+      pid := StrToInt(Hvu.GetFieldStrValue(pdd.field, pdd.value));
     end
     else if pdd_field_ColName = 'intprop' then
     begin
-      initprop := StrToInt(Hvu_GetFieldStrValue(pdd.field, pdd.value));
+      initprop := StrToInt(Hvu.GetFieldStrValue(pdd.field, pdd.value));
     end;
   end;
   ObjType := Trim(LowerCase(ObjType));
@@ -2725,23 +2618,23 @@ begin
     pdd_field_ColName := LowerCase(pdd.field.ColName);
     if pdd_field_ColName = 'rsid' then
     begin
-      rowsetid := StrToInt64(Hvu_GetFieldStrValue(pdd.field, pdd.value));
+      rowsetid := StrToInt64(Hvu.GetFieldStrValue(pdd.field, pdd.value));
     end
     else if pdd_field_ColName = 'rscolid' then
     begin
-      ColId := StrToInt(Hvu_GetFieldStrValue(pdd.field, pdd.value));
+      ColId := StrToInt(Hvu.GetFieldStrValue(pdd.field, pdd.value));
     end
     else if pdd_field_ColName = 'status' then
     begin
-      statusCode := StrToInt(Hvu_GetFieldStrValue(pdd.field, pdd.value));
+      statusCode := StrToInt(Hvu.GetFieldStrValue(pdd.field, pdd.value));
     end
     else if pdd_field_ColName = 'offset' then
     begin
-      DataOffset := Hvu_getShort(pdd.value, 0, 2);
+      DataOffset := Hvu.getShort(pdd.value, 0, 2);
     end
     else if pdd_field_ColName = 'nullbit' then
     begin
-      Nullbit := Hvu_getShort(pdd.value, 0, 2);
+      Nullbit := Hvu.getShort(pdd.value, 0, 2);
     end;
   end;
   ObjId := AllocUnitMgr.GetObjId(rowsetid);
@@ -2890,6 +2783,7 @@ begin
             New(fieldval);
             fieldval.field := aField;
             SetLength(fieldval.value,0);
+            fieldval.StrValue := Hvu.GetFieldStrValue(fieldval.field, fieldval.value);
             DataRow.Fields.Add(fieldval);
           end
           else
@@ -2915,6 +2809,7 @@ begin
                 raise exx;
               end;
             end;
+            fieldval.StrValue := Hvu.GetFieldStrValue(fieldval.field, fieldval.value);
             DataRow.Fields.Add(fieldval);
           end;
         end else begin
@@ -2922,6 +2817,7 @@ begin
           New(fieldval);
           fieldval.field := aField;
           SetLength(fieldval.value,0);
+          fieldval.StrValue := Hvu.GetFieldStrValue(fieldval.field, fieldval.value);
           DataRow.Fields.Add(fieldval);
         end;
       end
@@ -2955,6 +2851,7 @@ begin
             raise exx;
           end;
         end;
+        fieldval.StrValue := Hvu.GetFieldStrValue(fieldval.field, fieldval.value);
         DataRow.Fields.Add(fieldval);
       end;
     end;
@@ -3099,7 +2996,7 @@ begin
           Read_LCX_TEXT_MIX_DATA(tPkg, BinReader);
         end;
     else
-      Loger.Add('PriseRowLog_Insert 遇到尚未处理的 ContextCode :' + contextCodeToStr(Rldo.normalData.ContextCode));
+      FLogSource.Loger.Add('PriseRowLog_Insert 遇到尚未处理的 ContextCode :' + contextCodeToStr(Rldo.normalData.ContextCode));
     end;
   finally
     if BinReader <> nil then
@@ -3117,9 +3014,9 @@ var
 begin
   RowFlag := BinReader.readWord;
   { TODO -oChin -c : 测试用代码 2017-09-16 11:42:40 }
-  if RowFlag <> $0008 then
+  if RowFlag <> $0008 then  //GAM page?
   begin
-    Loger.AddException('LCX_TEXT_MIX 行首发现未确认值 ' + lsn2str(tPkg.LSN));
+    FLogSource.Loger.AddException('LCX_TEXT_MIX 行首发现未确认值 ' + lsn2str(tPkg.LSN));
   end;
 
   BinReader.skip(2);  //R0长度
@@ -3137,7 +3034,7 @@ begin
   end
   else
   begin
-    Loger.AddException('LCX_TEXT_MIX 行首发现未确认值 MixDataType ' + lsn2str(tPkg.LSN));
+    FLogSource.Loger.AddException('LCX_TEXT_MIX 行首发现未确认值 MixDataType ' + lsn2str(tPkg.LSN));
   end;
 end;
 
@@ -3325,7 +3222,7 @@ begin
           //var 字段数量
           fieldCnt := BinReader.readWord;
           SetLength(varFxIdx, fieldCnt);
-          tmpCardinal := BinReader.Position;
+          tmpCardinal := BinReader.getRangePosition + fieldCnt * 2;
           for j := 0 to fieldCnt -1 do
           begin
             varFxIdx[i] := BinReader.readWord - tmpCardinal;
@@ -3343,7 +3240,7 @@ begin
     begin
       fieldval := values[I];
       Result := Result + Format('and %s=%s ', [fieldval.field.getSafeColName,
-        Hvu_GetFieldStrValueWithQuoteIfNeed(fieldval.field, fieldval.value)]);
+        Hvu.GetFieldStrValueWithQuoteIfNeed(fieldval.field, fieldval.value)]);
     end;
     if values.Count>0 then
     begin
@@ -3400,6 +3297,7 @@ var
   tmpdata:Pointer;
   DataRow_buf: Tsql2014Opt;
   RawDataLen:Integer;
+  Rawssssss:TTransPkgItem;
 begin
   BinReader := nil;
   DataRow_buf := nil;
@@ -3517,13 +3415,25 @@ begin
                 DataRow_buf.UniqueClusteredKeys := PriseRowLog_UniqueClusteredKeys(BinReader, DbTable);
               end;
 
+              if FLogSource.FFFFIsDebug then
+              begin
+                for I := 0 to FLogSource.pageDatalist.Count-1 do
+                begin
+                  Rawssssss := TTransPkgItem(FLogSource.pageDatalist[i]);
+                  if (Rawssssss.LSN.LSN_1=tPkg.LSN.LSN_1) and (Rawssssss.LSN.LSN_2=tPkg.LSN.LSN_2) and (Rawssssss.LSN.LSN_3=tPkg.LSN.LSN_3) then
+                  begin
+                    SetLength(OriginRowData,Rawssssss.Raw.dataSize);
+                    CopyMemory(@OriginRowData[0], Rawssssss.Raw.data, Rawssssss.Raw.dataSize);
+                  end;
+                end;
+              end else
               OriginRowData := getUpdateSoltData(FLogSource.Fdbc, Rldo.normalData.PreviousLSN);
               if OriginRowData = nil then
               begin
-                Loger.Add('获取行原始数据失败！' + lsn2str(tPkg.LSN) + ',pLSN:' + lsn2str(Rldo.normalData.PreviousLSN), LOG_WARNING or LOG_IMPORTANT);
+                FLogSource.Loger.Add('获取行原始数据失败！' + lsn2str(tPkg.LSN) + ',pLSN:' + lsn2str(Rldo.normalData.PreviousLSN), LOG_WARNING or LOG_IMPORTANT);
                 if (DataRow_buf.UniqueClusteredKeys = '') or (DbTable.Owner='sys') then   //sys表可能没有select权限，所以直接读page
                 begin
-                  Loger.Add('表[%s]没有唯一聚合,对此表的Update操作将被忽略！如您不希望Update被忽略，请启用数据库插件.',[DbTable.getFullName]);
+                  FLogSource.Loger.Add('表[%s]没有唯一聚合,对此表的Update操作将被忽略！如您不希望Update被忽略，请启用数据库插件.',[DbTable.getFullName]);
                   DataRow_buf.Free;
                   Exit;
                   //TODO:极不靠谱，不能保证page数据与当前lsn之间产生了哪些变化
@@ -3569,7 +3479,7 @@ begin
           end;
         end;
     else
-      Loger.Add('PriseRowLog_MODIFY_ROW 遇到尚未处理的 ContextCode :' + contextCodeToStr(Rldo.normalData.ContextCode));
+      FLogSource.Loger.Add('PriseRowLog_MODIFY_ROW 遇到尚未处理的 ContextCode :' + contextCodeToStr(Rldo.normalData.ContextCode));
     end;
   finally
     if BinReader <> nil then
@@ -3578,6 +3488,7 @@ begin
 end;
 
 procedure TSql2014logAnalyzer.PriseRowLog_MODIFY_COLUMNS(tPkg: TTransPkgItem);
+
 procedure applyChange(srcData, pdata: Pointer; offset, size_old, size_new, datarowCnt: Integer);
 var
   tmpdata:Pointer;
@@ -3622,6 +3533,7 @@ var
   tmpdata:Pointer;
   RawDataLen:Integer;
   tmpLen:Word;
+  Rawssssss :TTransPkgItem;
 begin
   BinReader := nil;
   Rldo := tPkg.Raw.data;
@@ -3779,14 +3691,25 @@ begin
                 BinReader.SetRange(R_Info[2].Offset, R_Info[2].Length);
                 DataRow_buf.UniqueClusteredKeys := PriseRowLog_UniqueClusteredKeys(BinReader, DbTable);
               end;
-
+              if FLogSource.FFFFIsDebug then
+              begin
+                for I := 0 to FLogSource.pageDatalist.Count-1 do
+                begin
+                  Rawssssss := TTransPkgItem(FLogSource.pageDatalist[I]);
+                  if (Rawssssss.LSN.LSN_1 = tPkg.LSN.LSN_1) and (Rawssssss.LSN.LSN_2 = tPkg.LSN.LSN_2) and (Rawssssss.LSN.LSN_3 = tPkg.LSN.LSN_3) then
+                  begin
+                    SetLength(OriginRowData, Rawssssss.Raw.dataSize);
+                    CopyMemory(@OriginRowData[0], Rawssssss.Raw.data, Rawssssss.Raw.dataSize);
+                  end;
+                end;
+              end else
               OriginRowData := getUpdateSoltData(FLogSource.Fdbc, Rldo.normalData.PreviousLSN);
               if OriginRowData = nil then
               begin
-                Loger.Add('获取行原始数据失败！' + lsn2str(tPkg.LSN) + ',pLSN:' + lsn2str(Rldo.normalData.PreviousLSN), LOG_WARNING or LOG_IMPORTANT);
+                FLogSource.Loger.Add('获取行原始数据失败！' + lsn2str(tPkg.LSN) + ',pLSN:' + lsn2str(Rldo.normalData.PreviousLSN), LOG_WARNING or LOG_IMPORTANT);
                 if (DataRow_buf.UniqueClusteredKeys = '') or (DbTable.Owner='sys') then   //sys表可能没有select权限，所以直接读page
                 begin
-                  Loger.Add('表[%s]没有唯一聚合,对此表的Update操作将被忽略！如您不希望Update被忽略，请启用数据库插件.',[DbTable.getFullName]);
+                  FLogSource.Loger.Add('表[%s]没有唯一聚合,对此表的Update操作将被忽略！如您不希望Update被忽略，请启用数据库插件.',[DbTable.getFullName]);
                   DataRow_buf.Free;
                   Exit;
                 end else begin
@@ -3828,7 +3751,7 @@ begin
           end;
         end;
     else
-      Loger.Add('PriseRowLog_MODIFY_COLUMNS 遇到尚未处理的 ContextCode :' + contextCodeToStr(Rldo.normalData.ContextCode));
+      FLogSource.Loger.Add('PriseRowLog_MODIFY_COLUMNS 遇到尚未处理的 ContextCode :' + contextCodeToStr(Rldo.normalData.ContextCode));
     end;
   finally
     if BinReader <> nil then
@@ -3863,14 +3786,14 @@ begin
     else if Rl.OpCode = LOP_BEGIN_XACT then
     begin
       Rlbx := tPkg.Raw.data;
-      TransBeginTime := Hvu_Hex2Datetime(Rlbx.Time);
+      TransBeginTime := Hvu.Hex2Datetime(Rlbx.Time);
       TransId := Rlbx.normalData.TransID;
     end
     else if Rl.OpCode = LOP_COMMIT_XACT then
     begin
       Rlcx := tPkg.Raw.data;
       TransCommitLsn := tPkg.LSN;
-      TransCommitTime := Hvu_Hex2Datetime(Rlcx.Time);
+      TransCommitTime := Hvu.Hex2Datetime(Rlcx.Time);
     end
     else
     begin
@@ -3879,7 +3802,7 @@ begin
   except
     on E: Exception do
     begin
-      Loger.Add(E.Message + '-->LSN:' + lsn2str(tPkg.LSN), LOG_ERROR);
+      FLogSource.Loger.Add(E.Message + '-->LSN:' + lsn2str(tPkg.LSN), LOG_ERROR);
     end;
   end;
 end;
@@ -3986,14 +3909,13 @@ var
 begin
   //没有的字段默认null
   Result := 'NULL';
-  //DONE:此方式效率低，（写成代码中if效率也很低
   FieldName := LowerCase(FieldName);
   for I := 0 to fields.Count - 1 do
   begin
     pdd := PdbFieldValue(fields[I]);
     if LowerCase(pdd.field.ColName) = FieldName then
     begin
-      Result := Hvu_GetFieldStrValue(pdd.field, pdd.value);
+      Result := pdd.StrValue;
       Break;
     end;
   end;

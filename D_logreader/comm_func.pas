@@ -12,7 +12,7 @@ function checkXmlNodeExists(node: IXMLNode; nodeName: string): Boolean;
 implementation
 
 uses
-  Windows, SysUtils, MakCommonfuncs, loglog, StrUtils;
+  Windows, SysUtils, MakCommonfuncs, StrUtils;
   
 type
   PSYSTEM_HANDLE_INFORMATION = ^SYSTEM_HANDLE_INFORMATION;
@@ -118,8 +118,7 @@ begin
   sqlHandle := OpenProcess(PROCESS_DUP_HANDLE, False, pid);
   if sqlHandle = 0 then
   begin
-    loger.Add('GetldfHandle fail :Could not open PID %d! (%s)', [pid, SysErrorMessage(GetLastError)]);
-    exit;
+    Exit;
   end;
   bufSize := $2000;
   dwSize := 0;
@@ -136,13 +135,11 @@ begin
         Status := ZwQuerySystemInformation(SystemHandleInformation, pbuffer, bufSize,nil);
         if not Succeeded(Status) then
         begin
-          loger.Add('ZwQuerySystemInformation Call Error 2£¡' + SysErrorMessage(GetLastError));
           Exit;
         end;
       end
       else
       begin
-        loger.Add('ZwQuerySystemInformation Call Error£¡' + SysErrorMessage(GetLastError));
         Exit;
       end;
     end;

@@ -48,7 +48,9 @@ uses
   winshellHelper in 'winshellHelper.pas',
   plgSrcData in '..\Common\plgSrcData.pas',
   Log4D in '..\Common\Log4D.pas',
-  loglog in '..\Common\loglog.pas';
+  loglog in '..\Common\loglog.pas',
+  HashHelper in '..\Common\HashHelper.pas',
+  I_LogSource in 'intf\I_LogSource.pas';
 
 {$R *.res}
 
@@ -58,7 +60,7 @@ begin
   if IsRunningAsAdmin then
   begin
     Application.CreateForm(TForm1, Form1);
-    Application.Run;
+  Application.Run;
   end else begin
     showmessage('必须“使用管理员身份”运行本程序');
   end;

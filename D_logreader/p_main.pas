@@ -5,7 +5,8 @@ interface
 uses
   Windows, Messages, SysUtils, Variants, Classes, Graphics, Controls, Forms,
   Dialogs, StdCtrls, LogSource, Vcl.ComCtrls, System.ImageList, Vcl.ImgList,
-  Vcl.Menus, Xml.XMLIntf, System.Contnrs, plugins, Vcl.ExtCtrls;
+  Vcl.Menus, Xml.XMLIntf, System.Contnrs, plugins, Vcl.ExtCtrls,
+  System.SyncObjs;
 
 type
   TPluginMenuActionItem = class(TObject)
@@ -39,12 +40,16 @@ type
     PopupMenu1: TPopupMenu;
     N6: TMenuItem;
     N7: TMenuItem;
+    Button1: TButton;
+    Button2: TButton;
+    Debug1: TMenuItem;
+    CompareDictFromdb1: TMenuItem;
+    ViewAllTable1: TMenuItem;
     procedure FormCreate(Sender: TObject);
     procedure btn_newCfgClick(Sender: TObject);
     procedure FormDestroy(Sender: TObject);
     procedure Button7Click(Sender: TObject);
     procedure btn_ReloadListClick(Sender: TObject);
-    procedure Button5Click(Sender: TObject);
     procedure btn_jobStartClick(Sender: TObject);
     procedure btn_jobStopClick(Sender: TObject);
     procedure Button14Click(Sender: TObject);
@@ -55,15 +60,27 @@ type
     procedure N6Click(Sender: TObject);
     procedure PopupMenu1Popup(Sender: TObject);
     procedure N7Click(Sender: TObject);
+    procedure Button1Click(Sender: TObject);
+    procedure Button2Click(Sender: TObject);
+    procedure CompareDictFromdb1Click(Sender: TObject);
+    procedure ListView1Change(Sender: TObject; Item: TListItem;
+      Change: TItemChange);
+    procedure ListView1Click(Sender: TObject);
+    procedure ListView1Changing(Sender: TObject; Item: TListItem;
+      Change: TItemChange; var AllowChange: Boolean);
+    procedure Button5Click(Sender: TObject);
   private
     menuActions:TobjectList;
     procedure InitPluginsMenus;
     procedure CreatePluginsMenus(items: TMenuItem; node: IXMLNode;PluginItem:TPluginItem);
     procedure PluginMenuItemClick(Sender: TObject);
     procedure ListViewRefresh;
+    procedure XmlDebug(aXmlText: string);
     { Private declarations }
   public
     { Public declarations }
+    MMO_LOGCS:TCriticalSection;
+    procedure ShwLogMsg(aMsg: string; level: Integer);
   end;
 
 var
@@ -73,7 +90,8 @@ implementation
 
 uses
   dbConnectionCfg, databaseConnection, p_structDefine, Memory_Common,
-  MakCommonfuncs, loglog, sqlextendedprocHelper, XMLDoc;
+  MakCommonfuncs, loglog, sqlextendedprocHelper, XMLDoc, LogtransPkg, dbDict, 
+  LogtransPkgMgr, Sql2014logAnalyzer;
 
 {$R *.dfm}
 
@@ -125,6 +143,165 @@ begin
   end;
 end;
 
+procedure TForm1.Button1Click(Sender: TObject);
+var
+  ItemIdx:Integer;
+  tlsObj:TLogSource;
+  tmpStr:string;
+begin
+  if ListView1.Selected <> nil then
+  begin
+    ItemIdx := StrToInt(ListView1.Selected.Caption) - 1;
+    tlsObj := LogSourceList.Get(ItemIdx);
+    tmpStr := '';
+    if tlsObj.Fdbc.dict.tables.Count>0 then
+    begin
+      tmpStr := tlsObj.Fdbc.dict.tables[0].AsXml;
+    end;
+    MMO_LOG.Lines.Add(tmpStr);
+  end;
+end;
+
+procedure TForm1.Button2Click(Sender: TObject);
+var
+  opendia:TOpenDialog;
+  ff:TStringList;
+begin
+  opendia:=TOpenDialog.Create(nil);
+  try
+    if opendia.Execute then
+    begin
+      ff:=TStringList.Create;
+      try
+        ff.LoadFromFile(opendia.FileName);
+        XmlDebug(ff.Text);
+      finally
+        ff.Free;
+      end;
+    end;
+  finally
+    opendia.Free;
+  end;
+end;
+
+procedure TForm1.Button5Click(Sender: TObject);
+var
+  tlsObj : TLogSource;
+begin
+  if ListView1.Selected <> nil then
+  begin
+    tlsObj := ListView1.Selected.Data;
+
+    tlsObj.Loger.Add('aaaaaaaaaa',LOG_ERROR);
+  end;
+end;
+
+procedure TForm1.XmlDebug(aXmlText:string);
+var
+  logsource : Tlogsource;
+  pkgMgr: TTransPkgMgr;
+  logAnalyzer:TSql2014logAnalyzer;
+  xml:IXMLDocument;
+  TTsPkg: TTransPkg;
+  log: TTransPkgItem;
+  TmpStr:string;
+  root,rows,tables,tmpNode:IXMLNode;
+  transId:TTrans_Id;
+  I:Integer;
+  lsn:Tlog_LSN; 
+  tmpBytes:TBytes;
+  Raw: TMemory_data;
+  pageDatalist:TObjectList;
+  table:TdbTableItem;
+begin
+  xml:=TXMLDocument.Create(nil);
+  xml.XML.Text := aXmlText;
+  xml.Active := True;
+  root := xml.DocumentElement;
+  transId := Str2TranId(root.ChildValues['transId']);
+  if (transId.Id1=0) and (transId.Id2=0) then
+  begin
+    ShowMessage('Xml.TransId无效');
+    Exit;
+  end;
+  rows := root.ChildNodes['rows'];
+  TTsPkg := TTransPkg.Create(transId);
+  pageDatalist := TObjectList.Create;
+  for I := 0 to rows.ChildNodes.Count - 1 do
+  begin
+    if rows.ChildNodes[I].NodeName = 'item' then
+    begin
+      tmpNode := rows.ChildNodes[I];
+      if tmpNode.HasAttribute('lsn') then
+      begin
+        TmpStr := tmpNode.Attributes['lsn'];
+        lsn := Str2LSN(TmpStr);
+        if (lsn.LSN_1 = 0) or (lsn.LSN_2 = 0) or (lsn.LSN_3 = 0) then
+        begin
+          ShowMessage('Xml.rows.Lsn无效:' + TmpStr);
+          Continue;
+        end;
+        if VarIsNull(tmpNode.ChildValues['bin']) then
+        begin
+          ShowMessage('Xml.rows.bin无效:' + TmpStr);
+          Continue;
+        end;
+        TmpStr := tmpNode.ChildValues['bin'];
+        tmpBytes := strToBytes(TmpStr);
+        Raw.dataSize := Length(tmpBytes);
+        Raw.data := GetMemory(Raw.dataSize);
+        CopyMemory(Raw.data, @tmpBytes[0], Raw.dataSize);
+        SetLength(tmpBytes, 0);
+        log := TTransPkgItem.Create(lsn, Raw);        
+        TTsPkg.addRawLog(log);
+        if not VarIsNull(tmpNode.ChildValues['data']) then
+        begin
+          //如果包含pagedata
+          TmpStr := tmpNode.ChildValues['data'];
+          tmpBytes := strToBytes(TmpStr);
+          Raw.dataSize := Length(tmpBytes);
+          Raw.data := GetMemory(Raw.dataSize);
+          CopyMemory(Raw.data, @tmpBytes[0], Raw.dataSize);
+          SetLength(tmpBytes, 0);
+          pageDatalist.Add(TTransPkgItem.Create(lsn, Raw));
+        end;        
+      end;
+    end;
+  end;
+  if TTsPkg.Items.Count>0 then
+  begin
+    logsource := Tlogsource.Create; 
+    LogSource.FFFFIsDebug := True;
+    logsource.Fdbc := TdatabaseConnection.Create(LogSource);
+    LogSource.pageDatalist := pageDatalist;
+    pkgMgr := TTransPkgMgr.Create(logsource);
+    pkgMgr.FpaddingPrisePkg.Push(TTsPkg);
+    //读取表信息
+    tables := root.ChildNodes['tables'];
+    for I := 0 to tables.ChildNodes.Count - 1 do
+    begin
+      if tables.ChildNodes[I].NodeName = 'table' then
+      begin
+        table:=TdbTableItem.Create;
+        if table.loadXml(tables.ChildNodes[I]) then
+        begin
+          logsource.Fdbc.dict.tables.addTable(table);
+        end else begin
+          LogSource.Loger.Add('加载表信息失败！！');
+          table.Free;        
+        end;    
+      end;
+    end;
+    
+    logAnalyzer := TSql2014logAnalyzer.Create(pkgMgr, logsource);
+//    logAnalyzer.Terminate;
+//    logAnalyzer.WaitFor;
+//    logAnalyzer.Free;
+//    pkgMgr.Free;
+//    logsource.Free;
+  end;
+end;
+
 procedure TForm1.btn_newCfgClick(Sender: TObject);
 var
   savePath:string;
@@ -135,13 +312,13 @@ begin
     if frm_dbConnectionCfg.ShowModal = mrOk then
     begin
       logsource := frm_dbConnectionCfg.logsource;
-      savePath := ExtractFilePath(GetModuleName(0)) + Format('cfg\%d.lrd',[logsource.Fdbc.dbID]);
+      savePath := ExtractFilePath(GetModuleName(0)) + Format('cfg\%s.lrd',[logsource.Fdbc.getCfgUid]);
       if logsource.saveToFile(savePath) then
       begin
         //保存配置成功才继续，否则处理失败
         LogSourceList.Add(logsource);
         setDbOn(logsource.Fdbc);
-        Loger.Add('新增配置完成！！');
+        DefLoger.Add('新增配置完成！！');
         ListViewRefresh;
       end else begin
         logsource.Free;
@@ -201,12 +378,6 @@ begin
   Form1.mmo_log.Lines.add(FormatDateTime('yyyy-MM-dd HH:mm:ss', Now) + ' - ' + IntToStr(level) + ' >>' + aMsg);
 end;
 
-procedure TForm1.Button5Click(Sender: TObject);
-begin
-  loger.registerCallBack(msgOut);
-  loger.Add('=================loger callback======================');
-end;
-
 procedure TForm1.Button7Click(Sender: TObject);
 var
   oum: TMemory_data;
@@ -222,6 +393,11 @@ begin
   mmp.SaveToFile('d:\2_log.bin');
   mmp.Free;
   FreeMem(oum.data);
+end;
+
+procedure TForm1.CompareDictFromdb1Click(Sender: TObject);
+begin
+  Button14Click(nil);
 end;
 
 procedure TForm1.CreatePluginsMenus(items:TMenuItem; node:IXMLNode;PluginItem:TPluginItem);
@@ -251,7 +427,7 @@ begin
   end;
   if (menuI = nil) or node.HasAttribute('actionid') then
   begin
-    //是要有事件，一律不允许重复
+    //有事件，一律不允许重复
     menuI := TMenuItem.Create(Self);
     menuI.Caption := caption;
     items.Add(menuI);
@@ -291,7 +467,7 @@ begin
       resV := PluginsMgr.Items[i]._Lr_PluginMenu(menuXml);
       if not Succeeded(resV) then
       begin
-        Loger.Add('%s 插件 %s 已加载.获取菜单失败！Code：%d', [PluginsMgr.Items[i].dllname, PluginsMgr.Items[i].name, resV]);
+        DefLoger.Add('%s 插件 %s 已加载.获取菜单失败！Code：%d', [PluginsMgr.Items[i].dllname, PluginsMgr.Items[i].name, resV]);
       end else begin
         Xml := TXMLDocument.Create(nil);
         Xml.LoadFromXML(menuXml);
@@ -315,6 +491,7 @@ begin
   Panel1.Visible := False;
   GroupBox1.Visible := False;
 {$ENDIF}
+  MMO_LOGCS := TCriticalSection.Create;
   menuActions := TobjectList.Create;
 
   InitPluginsMenus;
@@ -323,6 +500,7 @@ end;
 procedure TForm1.FormDestroy(Sender: TObject);
 begin
   menuActions.Free;
+  MMO_LOGCS.Free;
 end;
 
 procedure TForm1.N2Click(Sender: TObject);
@@ -360,13 +538,11 @@ end;
 procedure TForm1.PluginMenuItemClick(Sender: TObject);
 var
   aitem:TPluginMenuActionItem;
-  ItemIdx:Integer;
   tlsObj:TLogSource;
 begin
   if ListView1.Selected <> nil then
   begin
-    ItemIdx := StrToInt(ListView1.Selected.Caption) - 1;
-    tlsObj := LogSourceList.Get(ItemIdx);
+    tlsObj := ListView1.Selected.Data;
     if Sender is TMenuItem then
     begin
       aitem := TPluginMenuActionItem(menuActions[(Sender as TMenuItem).Tag]);
@@ -379,12 +555,10 @@ end;
 procedure TForm1.PopupMenu1Popup(Sender: TObject);
 var
   tlsObj : TLogSource;
-  ItemIdx:Integer;
 begin
   if ListView1.Selected <> nil then
   begin
-    ItemIdx := StrToInt(ListView1.Selected.Caption) - 1;
-    tlsObj := LogSourceList.Get(ItemIdx);
+    tlsObj := ListView1.Selected.Data;
     if tlsObj.status = tLS_running then
     begin
       N6.Caption := '停止';
@@ -394,6 +568,27 @@ begin
     N6.Enabled := True;
   end else begin
     N6.Enabled := False;
+  end;
+end;
+
+procedure TForm1.ShwLogMsg(aMsg: string; level: Integer);
+begin
+  if MMO_LOG<>nil then
+  begin
+    try
+      MMO_LOGCS.Enter;
+      try
+        MMO_LOG.lines.Add(FormatDateTime('yyyy-MM-dd HH:nn:ss.zzz', Now) + IntToStr(level) + ' >> ' + aMsg);
+        MMO_LOG.Perform(WM_VSCROLL, SB_BOTTOM, 0);
+        if MMO_LOG.Lines.Count >= 1000 then
+        begin
+          MMO_LOG.Lines.Delete(0);
+        end;
+      finally
+        MMO_LOGCS.Leave;
+      end;
+    Except
+    end;
   end;
 end;
 
@@ -435,6 +630,35 @@ begin
   ListViewRefresh;
 end;
 
+procedure TForm1.ListView1Change(Sender: TObject; Item: TListItem; Change: TItemChange);
+begin
+  ListView1Click(Sender);
+end;
+
+procedure TForm1.ListView1Changing(Sender: TObject; Item: TListItem;
+  Change: TItemChange; var AllowChange: Boolean);
+var
+  tlsObj: TLogSource;
+begin
+  if (Item <> nil) and (Item.Data<>nil) then
+  begin
+    tlsObj := TLogSource(Item.Data);
+    tlsObj.MainMSGDISPLAY := nil;
+  end;
+end;
+
+procedure TForm1.ListView1Click(Sender: TObject);
+var
+  tlsObj: TLogSource;
+begin
+  if ListView1.Selected <> nil then
+  begin
+    tlsObj := TLogSource(ListView1.Selected.Data);
+    MMO_LOG.text := tlsObj.FFmsg.Text;
+    tlsObj.MainMSGDISPLAY := ShwLogMsg;
+  end;
+end;
+
 procedure TForm1.ListViewRefresh;
 var
   I,J,K,L: Integer;
@@ -454,6 +678,7 @@ begin
   begin
     Tmplogsource := LogSourceList.Get(i);
     lv_row := ListView1.Items.Add;
+    lv_row.Data := Tmplogsource;
 
     lv_row.ImageIndex := ord(Tmplogsource.status);
     lv_row.Caption := IntToStr(i + 1);
