@@ -620,6 +620,7 @@ object Form1: TForm1
       end
       object ViewAllTable1: TMenuItem
         Caption = 'ViewTable'
+        OnClick = ViewAllTable1Click
       end
     end
   end

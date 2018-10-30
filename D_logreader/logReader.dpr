@@ -50,7 +50,8 @@ uses
   Log4D in '..\Common\Log4D.pas',
   loglog in '..\Common\loglog.pas',
   HashHelper in '..\Common\HashHelper.pas',
-  I_LogSource in 'intf\I_LogSource.pas';
+  I_LogSource in 'intf\I_LogSource.pas',
+  p_tableview in 'UI\p_tableview.pas' {frm_tableview};
 
 {$R *.res}
 
@@ -60,6 +61,7 @@ begin
   if IsRunningAsAdmin then
   begin
     Application.CreateForm(TForm1, Form1);
+  Application.CreateForm(Tfrm_tableview, frm_tableview);
   Application.Run;
   end else begin
     showmessage('必须“使用管理员身份”运行本程序');

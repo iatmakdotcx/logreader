@@ -69,6 +69,7 @@ type
     procedure ListView1Changing(Sender: TObject; Item: TListItem;
       Change: TItemChange; var AllowChange: Boolean);
     procedure Button5Click(Sender: TObject);
+    procedure ViewAllTable1Click(Sender: TObject);
   private
     menuActions:TobjectList;
     procedure InitPluginsMenus;
@@ -91,7 +92,7 @@ implementation
 uses
   dbConnectionCfg, databaseConnection, p_structDefine, Memory_Common,
   MakCommonfuncs, loglog, sqlextendedprocHelper, XMLDoc, LogtransPkg, dbDict, 
-  LogtransPkgMgr, Sql2014logAnalyzer;
+  LogtransPkgMgr, Sql2014logAnalyzer, p_tableview;
 
 {$R *.dfm}
 
@@ -589,6 +590,16 @@ begin
       end;
     Except
     end;
+  end;
+end;
+
+procedure TForm1.ViewAllTable1Click(Sender: TObject);
+  var
+  tlsObj: TLogSource;
+begin
+  if ListView1.Selected <> nil then
+  begin
+    showtables(TLogSource(ListView1.Selected.Data));
   end;
 end;
 

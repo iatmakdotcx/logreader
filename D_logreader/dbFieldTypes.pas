@@ -42,7 +42,6 @@ function getSingleDataTypeStr(type_id: Integer): string;
 
 implementation
 
-
 function getSingleDataTypeStr(type_id: Integer): string;
 begin
   case type_id of

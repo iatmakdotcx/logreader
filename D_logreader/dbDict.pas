@@ -25,6 +25,7 @@ type
     isLogSkipCol:Boolean;
     function getSafeColName: string;
     constructor Create;
+    function getTypeStr: string;
   end;
 
   TdbFields = class(TObject)
@@ -117,7 +118,7 @@ type
 implementation
 
 uses
-  loglog, Types, Variants, Xml.XMLDoc;
+  loglog, Types, Variants, Xml.XMLDoc, dbFieldTypes;
 
 { TDbDict }
 
@@ -807,6 +808,105 @@ begin
   Result := '[' + ColName.Replace(']',']]') + ']';
 end;
 
+function TdbFieldItem.getTypeStr: string;
+begin
+  case type_id of
+    MsTypes.IMAGE:
+      Result := '[IMAGE]';
+    MsTypes.TEXT:
+      Result := '[TEXT]';
+    MsTypes.UNIQUEIDENTIFIER:
+      Result := '[UNIQUEIDENTIFIER]';
+    MsTypes.DATE:
+      Result := '[DATE]';
+    MsTypes.TIME:
+      Result := Format('[TIME](%d)', [scale]);
+    MsTypes.DATETIME2:
+      Result := Format('[DATETIME2](%d)', [scale]);
+    MsTypes.DATETIMEOFFSET:
+      Result := Format('[DATETIMEOFFSET](%d)', [scale]);
+    MsTypes.TINYINT:
+      Result := '[TINYINT]';
+    MsTypes.SMALLINT:
+      Result := '[SMALLINT]';
+    MsTypes.INT:
+      Result := '[INT]';
+    MsTypes.SMALLDATETIME:
+      Result := '[SMALLDATETIME]';
+    MsTypes.REAL:
+      Result := '[REAL]';
+    MsTypes.MONEY:
+      Result := '[MONEY]';
+    MsTypes.DATETIME:
+      Result := '[DATETIME]';
+    MsTypes.FLOAT:
+      Result := '[FLOAT]';
+    MsTypes.SQL_VARIANT:
+      Result := '[SQL_VARIANT]';
+    MsTypes.NTEXT:
+      Result := '[NTEXT]';
+    MsTypes.BIT:
+      Result := '[BIT]';
+    MsTypes.DECIMAL:
+      Result := Format('[DECIMAL](%d,%d)', [procision, scale]);
+    MsTypes.NUMERIC:
+      Result := Format('[NUMERIC](%d,%d)', [procision, scale]);
+    MsTypes.SMALLMONEY:
+      Result := '[SMALLMONEY]';
+    MsTypes.BIGINT:
+      Result := '[BIGINT]';
+    MsTypes.VARBINARY:
+      if Max_length = $FFFF then
+      begin
+        Result := '[VARBINARY](MAX)';
+      end
+      else
+        Result := Format('[VARBINARY](%d)', [Max_length]);
+    MsTypes.VARCHAR:
+      if Max_length = $FFFF then
+      begin
+        Result := '[VARCHAR](MAX)';
+      end
+      else
+        Result := Format('[VARCHAR](%d)', [Max_length]);
+    MsTypes.BINARY:
+      if Max_length = $FFFF then
+      begin
+        Result := '[BINARY](MAX)';
+      end
+      else
+        Result := Format('[BINARY](%d)', [Max_length]);
+    MsTypes.CHAR:
+      if Max_length = $FFFF then
+      begin
+        Result := '[CHAR](MAX)';
+      end
+      else
+        Result := Format('[CHAR](%d)', [Max_length]);
+    MsTypes.TIMESTAMP:
+      Result := '[TIMESTAMP]';
+    MsTypes.NVARCHAR:
+      if Max_length = $FFFF then
+      begin
+        Result := '[NVARCHAR](MAX)';
+      end
+      else
+        Result := Format('[NVARCHAR](%d)', [Max_length]);
+    MsTypes.NCHAR:
+      if Max_length = $FFFF then
+      begin
+        Result := '[NCHAR](MAX)';
+      end
+      else
+        Result := Format('[NCHAR](%d)', [Max_length]);
+    MsTypes.XML:
+      Result := '[XML]';
+    MsTypes.GEOGRAPHY:
+      Result := '[GEOGRAPHY]';
+  else
+    Result := '';
+  end;
+end;
 
 end.
 

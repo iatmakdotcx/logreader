@@ -143,7 +143,6 @@ type
     procedure PriseDDLPkg_sysiscols(DataRow: Tsql2014Opt);
     procedure Execute2(FTranspkg: TTransPkg);
     procedure PriseDDLPkg_syscolpars(DataRow: Tsql2014Opt);
-    function getColsTypeStr(col: TdbFieldItem): string;
     procedure PriseRowLog_MODIFY_ROW(tPkg: TTransPkgItem);
     procedure PriseRowLog_MODIFY_COLUMNS(tPkg: TTransPkgItem);
     function PriseRowLog_UniqueClusteredKeys(BinReader: TbinDataReader; DbTable: TdbTableItem): string;
@@ -1245,7 +1244,7 @@ var
 begin
   Result := '--alter Column table id:'+IntToStr(ddlitem.Table.TableId);
   tmpStr := ddlitem.field.getSafeColName + ' ';
-  tmpStr := tmpStr + getColsTypeStr(ddlitem.field) + ' ';
+  tmpStr := tmpStr + ddlitem.field.getTypeStr + ' ';
   if ddlitem.field.collation_name<>'' then
   begin
     tmpStr := tmpStr + 'COLLATE '+ ddlitem.field.collation_name + ' ';
@@ -1331,7 +1330,7 @@ begin
     resStr.Add('--ALTER TABLE Add Column');
     resStr.Add('--Tableid:'+inttostr(ddlitem.Table.TableId));
     resStr.Add('--columnName:'+ddlitem.field.ColName);
-    tmpStr := getColsTypeStr(ddlitem.field) + ' ';
+    tmpStr := ddlitem.field.getTypeStr + ' ';
     if ddlitem.field.collation_name<>'' then
     begin
       tmpStr := tmpStr + 'COLLATE '+ ddlitem.field.collation_name + ' ';
@@ -1579,106 +1578,6 @@ begin
   end;
 end;
 
-function TSql2014logAnalyzer.getColsTypeStr(col: TdbFieldItem): string;
-begin
-  case col.type_id of
-    MsTypes.IMAGE:
-      Result := '[IMAGE]';
-    MsTypes.TEXT:
-      Result := '[TEXT]';
-    MsTypes.UNIQUEIDENTIFIER:
-      Result := '[UNIQUEIDENTIFIER]';
-    MsTypes.DATE:
-      Result := '[DATE]';
-    MsTypes.TIME:
-      Result := Format('[TIME](%d)', [col.scale]);
-    MsTypes.DATETIME2:
-      Result := Format('[DATETIME2](%d)', [col.scale]);
-    MsTypes.DATETIMEOFFSET:
-      Result := Format('[DATETIMEOFFSET](%d)', [col.scale]);
-    MsTypes.TINYINT:
-      Result := '[TINYINT]';
-    MsTypes.SMALLINT:
-      Result := '[SMALLINT]';
-    MsTypes.INT:
-      Result := '[INT]';
-    MsTypes.SMALLDATETIME:
-      Result := '[SMALLDATETIME]';
-    MsTypes.REAL:
-      Result := '[REAL]';
-    MsTypes.MONEY:
-      Result := '[MONEY]';
-    MsTypes.DATETIME:
-      Result := '[DATETIME]';
-    MsTypes.FLOAT:
-      Result := '[FLOAT]';
-    MsTypes.SQL_VARIANT:
-      Result := '[SQL_VARIANT]';
-    MsTypes.NTEXT:
-      Result := '[NTEXT]';
-    MsTypes.BIT:
-      Result := '[BIT]';
-    MsTypes.DECIMAL:
-      Result := Format('[DECIMAL](%d,%d)', [col.procision, col.scale]);
-    MsTypes.NUMERIC:
-      Result := Format('[NUMERIC](%d,%d)', [col.procision, col.scale]);
-    MsTypes.SMALLMONEY:
-      Result := '[SMALLMONEY]';
-    MsTypes.BIGINT:
-      Result := '[BIGINT]';
-    MsTypes.VARBINARY:
-      if col.Max_length = $FFFF then
-      begin
-        Result := '[VARBINARY](MAX)';
-      end
-      else
-        Result := Format('[VARBINARY](%d)', [col.Max_length]);
-    MsTypes.VARCHAR:
-      if col.Max_length = $FFFF then
-      begin
-        Result := '[VARCHAR](MAX)';
-      end
-      else
-        Result := Format('[VARCHAR](%d)', [col.Max_length]);
-    MsTypes.BINARY:
-      if col.Max_length = $FFFF then
-      begin
-        Result := '[BINARY](MAX)';
-      end
-      else
-        Result := Format('[BINARY](%d)', [col.Max_length]);
-    MsTypes.CHAR:
-      if col.Max_length = $FFFF then
-      begin
-        Result := '[CHAR](MAX)';
-      end
-      else
-        Result := Format('[CHAR](%d)', [col.Max_length]);
-    MsTypes.TIMESTAMP:
-      Result := '[TIMESTAMP]';
-    MsTypes.NVARCHAR:
-      if col.Max_length = $FFFF then
-      begin
-        Result := '[NVARCHAR](MAX)';
-      end
-      else
-        Result := Format('[NVARCHAR](%d)', [col.Max_length]);
-    MsTypes.NCHAR:
-      if col.Max_length = $FFFF then
-      begin
-        Result := '[NCHAR](MAX)';
-      end
-      else
-        Result := Format('[NCHAR](%d)', [col.Max_length]);
-    MsTypes.XML:
-      Result := '[XML]';
-    MsTypes.GEOGRAPHY:
-      Result := '[GEOGRAPHY]';
-  else
-    Result := '';
-  end;
-end;
-
 function TSql2014logAnalyzer.GenSql_CreateTable(ddlitem: TDDLItem): string;
 const
   SQLTEMPLATE = 'CREATE TABLE %s(%s);';
@@ -1698,7 +1597,7 @@ begin
     begin
       FieldItem:=TdbFieldItem(table.TableObj.Fields[I]);
       tmpStr := FieldItem.getSafeColName + ' ';
-      tmpStr := tmpStr + getColsTypeStr(FieldItem) + ' ';
+      tmpStr := tmpStr + FieldItem.getTypeStr + ' ';
       if (FieldItem.collation_name<>'') then
       begin
         tmpStr := tmpStr + 'COLLATE '+ FieldItem.collation_name + ' ';
