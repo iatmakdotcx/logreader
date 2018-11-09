@@ -8,27 +8,21 @@ uses
 type
   TLocalDbLogProvider = class(TLogProvider)
   private
-    Fposition: Int64;
     FfileHandle: THandle;
-    Fsize: Int64;
     FBuffer: Pointer;
     FBufferStartOffsetOfFile: Integer;
     FBufferSize: Integer;
     Flpap: POverlapped;
-    procedure refreshFileSize;
   public
     constructor Create;
     destructor Destroy; override;
-    function init(fileHandle: THandle): Boolean;
-    function Read(var Buffer; Count: Longint): Longint; override;
-    function Seek(const Offset: Int64; Origin: TSeekOrigin): Int64; override;
+    function init(fileHandle: THandle): Boolean;override;
+    function Read(var Buffer; posiOfBegin: Int64; Count: Longint): Integer; override;
     function Read_Byte(var Buffer; posiOfBegin: Int64): Boolean; override;
     function Read_Word(var Buffer; posiOfBegin: Int64): Boolean; override;
     function Read_Dword(var Buffer; posiOfBegin: Int64): Boolean; override;
     function Read_Qword(var Buffer; posiOfBegin: Int64): Boolean; override;
-    function Read_Bytes(var Buffer; posiOfBegin: Int64; Count: Longint): Integer; override;
-    function getFileSize: Int64; override;
-    procedure flush();override;
+    procedure flush;override;
   end;
 
 implementation
@@ -40,11 +34,9 @@ constructor TLocalDbLogProvider.Create;
 begin
   inherited;
   FfileHandle := 0;
-  Fposition := 0;
-  Fsize := 0;
   fBufferStartOffsetOfFile := 0;
   fBufferSize := 0;
-  fBuffer := nil;
+  GetMem(fBuffer, $10000);
 
   New(Flpap);
   Flpap.Internal := 0;
@@ -52,6 +44,7 @@ begin
   Flpap.Offset := 0;
   Flpap.OffsetHigh := 0;
   Flpap.hEvent := CreateEvent(nil, False, False, nil);
+
 end;
 
 destructor TLocalDbLogProvider.Destroy;
@@ -60,10 +53,7 @@ begin
   begin
     CloseHandle(FfileHandle)
   end;
-  if fBuffer <> nil then
-  begin
-    FreeMem(fBuffer);
-  end;
+  FreeMem(fBuffer);
   Dispose(Flpap);
   inherited;
 end;
@@ -74,12 +64,9 @@ begin
   fBufferSize := 0;
 end;
 
-function TLocalDbLogProvider.getFileSize: Int64;
-begin
-  Result := Fsize;
-end;
-
 function TLocalDbLogProvider.init(fileHandle: THandle): Boolean;
+var
+  hSize: LARGE_INTEGER;
 begin
   Result := False;
   if (fileHandle = 0) or (fileHandle = INVALID_HANDLE_VALUE) then
@@ -87,53 +74,28 @@ begin
     Exit;
   end;
   FfileHandle := fileHandle;
-  refreshFileSize;
-  Result := Fsize > 0;
+  Result := GetFileSizeEx(FfileHandle, hSize);
 end;
 
-function TLocalDbLogProvider.Read(var Buffer; Count: Integer): Longint;
+function TLocalDbLogProvider.Read(var Buffer; posiOfBegin: Int64; Count: Integer): Integer;
 var
   readRes: BOOL;
 begin
   if (Count > 0) and (FfileHandle > 0) then
   begin
-    if fBuffer = nil then
-    begin
-      GetMem(fBuffer, $10000);
-      fBufferStartOffsetOfFile := -1;
-      fBufferSize := 0;
-    end;
-    if Fposition > Fsize then
-    begin
-      refreshFileSize;
-      if Fposition > Fsize then
-      begin
-        Result := 0;
-        Exit;
-      end;
-    end;
-    if Fposition + Count > Fsize then
-    begin
-      Count := Fsize - Fposition;
-    end;
-    if (Count < 1) or (Fposition < 0) then
-    begin
-      Result := 0;
-      Exit;
-    end;
-
-    if (Fposition >= fBufferStartOffsetOfFile) and (Fposition + Count < fBufferStartOffsetOfFile + fBufferSize) then
+    if (posiOfBegin >= fBufferStartOffsetOfFile) and (posiOfBegin + Count < fBufferStartOffsetOfFile + fBufferSize) then
     begin
       //in range
       Result := Count;
+      Move(Pointer(UIntPtr(fBuffer) + (posiOfBegin - fBufferStartOffsetOfFile))^, Buffer, Count);
     end
     else
     begin
       //not in range
       Flpap.Internal := 0;
       Flpap.InternalHigh := 0;
-      Flpap.Offset := Fposition and $FFFFFFFF;
-      Flpap.OffsetHigh := (Fposition shr 32) and $FFFFFFFF;
+      Flpap.Offset := posiOfBegin and $FFFFFFFF;
+      Flpap.OffsetHigh := (posiOfBegin shr 32) and $FFFFFFFF;
       if Count > $10000 then
       begin
         //´óÓÚ»º³åÇø
@@ -154,92 +116,44 @@ begin
       if not readRes then
       begin
         Result := 0;
-        //Loger.Add('read log File fail:' + SysErrorMessage(GetLastError));
         Exit;
       end
-      else if Count > $10000 then
+      else if Count <= $10000 then
       begin
-        Count := 0;
-      end
-      else
-      begin
-        fBufferStartOffsetOfFile := Fposition;
+        fBufferStartOffsetOfFile := posiOfBegin;
         fBufferSize := Result;
 
-        if Count > Result then
-        begin
-          Count := Result;
-        end else begin
-          Result := Count;
-        end;
+        Move(Pointer(UIntPtr(fBuffer) + (posiOfBegin - fBufferStartOffsetOfFile))^, Buffer, Count);
       end;
     end;
-    Move(Pointer(UIntPtr(fBuffer) + (Fposition - fBufferStartOffsetOfFile))^, Buffer, Count);
-    Fposition := Fposition + Count;
   end
   else if FfileHandle < 1 then
   begin
     Result := 0;
-    //Loger.Add('TLocalDbLogProvider not init.');
   end;
-end;
-
-function TLocalDbLogProvider.Read_Bytes(var Buffer; posiOfBegin: Int64; Count: Integer): Integer;
-begin
-  Fposition := posiOfBegin;
-  Result := Read(Buffer, Count);
 end;
 
 function TLocalDbLogProvider.Read_Byte(var Buffer; posiOfBegin: Int64): Boolean;
 begin
-  Fposition := posiOfBegin;
-  Result := Read(Buffer, 1) <> 0;
+  Result := Read(Buffer,posiOfBegin, 1) <> 0;
 end;
 
 function TLocalDbLogProvider.Read_Word(var Buffer; posiOfBegin: Int64): Boolean;
 begin
-  Fposition := posiOfBegin;
-  Result := Read(Buffer, 2) <> 0;
+  Result := Read(Buffer,posiOfBegin, 2) <> 0;
 end;
 
 function TLocalDbLogProvider.Read_Dword(var Buffer; posiOfBegin: Int64): Boolean;
 begin
-  Fposition := posiOfBegin;
-  Result := Read(Buffer, 4) <> 0;
+  Result := Read(Buffer,posiOfBegin, 4) <> 0;
 end;
 
 function TLocalDbLogProvider.Read_Qword(var Buffer; posiOfBegin: Int64): Boolean;
 begin
-  Fposition := posiOfBegin;
-  Result := Read(Buffer, 8) <> 0;
+  Result := Read(Buffer,posiOfBegin, 8) <> 0;
 end;
 
-procedure TLocalDbLogProvider.refreshFileSize;
-var
-  hSize: LARGE_INTEGER;
-begin
-  if not GetFileSizeEx(FfileHandle, hSize) then
-  begin
-    Fsize := -1;
-  end
-  else
-  begin
-    Fsize := hSize.QuadPart;
-  end;
-end;
 
-function TLocalDbLogProvider.Seek(const Offset: Int64; Origin: TSeekOrigin): Int64;
-begin
-  case Origin of
-    soBeginning:
-      Fposition := Offset;
-    soCurrent:
-      Fposition := Fposition + Offset;
-    soEnd:
-      Fposition := Fsize - Offset;
-  end;
-  Result := Fposition;
-end;
 
 end.
 

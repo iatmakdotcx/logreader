@@ -3,8 +3,15 @@ unit LogSource;
 interface
 
 uses
-  I_LogProvider, I_logReader, databaseConnection, p_structDefine, Types,
+  I_LogProvider, databaseConnection, p_structDefine, Types,
   System.Classes, System.SyncObjs, System.Contnrs, loglog, I_LogSource;
+
+type
+   TLogPicker = class(TThread)
+
+   public
+     function GetRawLogByLSN(LSN: Tlog_LSN; var OutBuffer: TMemory_data): Boolean;virtual;abstract;
+   end;
 
 type
   LS_STATUE = (tLS_unknown, tLS_NotConfig, tLS_NotConnectDB, tLs_noLogReader, tLS_running, tLS_stopped, tLS_suspension);
@@ -14,12 +21,13 @@ type
   private
     FCfgFilePath:string;
     FRunCs: TCriticalSection;
+    FmsgCs:TCriticalSection;
     procedure ClrLogSource;
     procedure ReSetLoger;
   public
     FFmsg: TStringList;
     FProcCurLSN: Tlog_LSN;  //当前处理的位置
-    FLogReader: TlogReader;
+
     Fdbc: TdatabaseConnection;
     FLogPicker:TLogPicker;
     FisLocal:Boolean;
@@ -28,18 +36,11 @@ type
     MainMSGDISPLAY:TMsgCallBack;
     constructor Create;
     destructor Destroy; override;
-    function GetVlf_LSN(LSN: Tlog_LSN): PVLF_Info;
     function GetVlf_SeqNo(SeqNo:DWORD): PVLF_Info;
     function GetRawLogByLSN(LSN: Tlog_LSN;var OutBuffer: TMemory_data): Boolean;
     function Create_picker:Boolean;
     procedure Stop_picker;
     function status:LS_STATUE;
-    //test func
-    procedure listVlfs;
-    procedure listLogBlock(SeqNo:DWORD);
-    procedure cpyFile(fileid:Byte;var OutBuffer: TMemory_data);
-    function init_Process(Pid, hdl: Cardinal): Boolean;
-    procedure NotifySubscribe(lsn: Tlog_LSN; Raw: TMemory_data);
 
     function loadFromFile(aPath: string):Boolean;
     function saveToFile(aPath: string = ''):Boolean;
@@ -56,6 +57,11 @@ type
     /// <returns></returns>
     function CompareDict:string;
     procedure AddFmsg(aMsg: string; level: Integer);
+
+    /// <summary>
+    /// 监测数据库状态，如果在线则连接，如果不在线，等待上线后连接。
+    /// </summary>
+    procedure CreateAutoStartTimer;
   end;
 
   TLogSourceList = class(TObject)
@@ -78,17 +84,22 @@ var
 implementation
 
 uses
-  LdfLogProvider, Sql2014LogReader, LocalDbLogProvider, MakCommonfuncs,
+  LocalDbLogProvider, MakCommonfuncs,
   Windows, SysUtils;
 
 { TLogSource }
 
 procedure TLogSource.AddFmsg(aMsg: string; level: Integer);
 begin
-  FFmsg.Add(FormatDateTime('yyyy-MM-dd HH:nn:ss.zzz', Now) + IntToStr(level) + ' >> ' + aMsg);
-  if FFmsg.Count>=100 then
-  begin
-    FFmsg.Delete(0);
+  FmsgCs.Enter;
+  try
+    FFmsg.Add(FormatDateTime('yyyy-MM-dd HH:nn:ss.zzz', Now) + IntToStr(level) + ' >> ' + aMsg);
+    if FFmsg.Count >= 100 then
+    begin
+      FFmsg.Delete(0);
+    end;
+  finally
+    FmsgCs.Leave
   end;
   if Assigned(MainMSGDISPLAY) then
     MainMSGDISPLAY(aMsg, level);
@@ -99,8 +110,6 @@ begin
   Stop_picker;
   if Fdbc <> nil then
     FreeAndNil(Fdbc);
-  if FLogReader <> nil then
-    FreeAndNil(FLogReader);
 end;
 
 function TLogSource.CompareDict: string;
@@ -108,13 +117,9 @@ begin
   Result := Fdbc.CompareDict;
 end;
 
-procedure TLogSource.cpyFile(fileid:Byte;var OutBuffer: TMemory_data);
-begin
-  FLogReader.custRead(fileid, 0, -1, OutBuffer);
-end;
-
 constructor TLogSource.Create;
 begin
+  FmsgCs:=TCriticalSection.Create;
   MainMSGDISPLAY := nil;
   inherited;
   FLoger := DefLoger;
@@ -122,34 +127,34 @@ begin
   FProcCurLSN.LSN_2 := 0;
   FProcCurLSN.LSN_3 := 0;
   FisLocal := True;
-  FLogReader := nil;
   Fdbc := nil;
   FLogPicker := nil;
   FRunCs:=TCriticalSection.Create;
   FFFFIsDebug := False;
   pageDatalist := nil;
 
-  FFmsg:=TStringList.Create;
+  FFmsg := TStringList.Create;
+end;
+
+procedure TLogSource.CreateAutoStartTimer;
+begin
+  //TODO:测试数据库连接状态。启动前，应该先监测数据库状态。
+  if Fdbc<>nil then
+  begin
+
+
+  end;
 end;
 
 function TLogSource.CreateLogReader(ExistsRenew:Boolean = False):Boolean;
 begin
   ReSetLoger;
   Result := False;
-  if FLogReader<>nil then
-  begin
-    if ExistsRenew then
-    begin
-      FreeAndNil(FLogReader);
-    end else begin
-      Exit;
-    end;
-  end;
   Fdbc.getDb_allLogFiles;
   if (Fdbc.dbVer_Major > 10) and (Fdbc.dbVer_Major <= 12) then
   begin
     //2008之后的版本都用这个读取方式
-    FLogReader := TSql2014LogReader.Create(Self);
+//    FLogReader := TSql2014LogReader.Create(Self);
     Result := True;
   end;
 end;
@@ -168,7 +173,7 @@ begin
     try
       if FLogPicker = nil then
       begin
-        FLogPicker := TSql2014LogPicker.Create(Self, FProcCurLSN);
+//        FLogPicker := TSql2014LogPicker.Create(Self, FProcCurLSN);
         Result := True;
       end;
     finally
@@ -182,19 +187,15 @@ begin
   ClrLogSource;
   FRunCs.Free;
   pageDatalist.Free;
-  FFmsg.Free;
   if FLoger = DefLoger then
   begin
     Loger.removeCallBack(Self, AddFmsg);
   end else begin
     FLoger.Free;
   end;
+  FFmsg.Free;
+  FmsgCs.Free;
   inherited;
-end;
-
-function TLogSource.GetVlf_LSN(LSN: Tlog_LSN): PVLF_Info;
-begin
-  Result := GetVlf_SeqNo(LSN.LSN_1);
 end;
 
 function TLogSource.GetVlf_SeqNo(SeqNo:DWORD): PVLF_Info;
@@ -209,77 +210,29 @@ begin
   begin
     if Fdbc.FVLF_List[I].SeqNo = SeqNo then
     begin
-      Result := @Fdbc.FVLF_List[I];
+      new(Result);
+      Result^ := Fdbc.FVLF_List[I];
       Break;
     end;
   end;
 end;
 
 function TLogSource.GetRawLogByLSN(LSN: Tlog_LSN;var OutBuffer: TMemory_data): Boolean;
-var
-  vlf:PVLF_Info;
 begin
-  vlf := GetVlf_LSN(LSN);
-  Result := FLogReader.GetRawLogByLSN(LSN, vlf, OutBuffer);
+  Result := FLogPicker.GetRawLogByLSN(LSN, OutBuffer);
 end;
 
 function TLogSource.status: LS_STATUE;
 begin
-//LS_STATUE = (tLS_unknown, tLS_NotConfig, tLS_NotConnectDB, tLs_noLogReader,
-//             tLS_running, tLS_stopped, tLS_suspension);
   if Fdbc = nil then
   begin
     Result := tLS_NotConfig;
-  end else if FLogReader = nil then
-  begin
-    Result := tLs_noLogReader;
   end else if FLogPicker = nil then
   begin
     Result := tLS_stopped;
   end else
   begin
     Result := tLS_running;
-  end;
-end;
-
-function TLogSource.init_Process(Pid, hdl: Cardinal): Boolean;
-var
-  localHandle: THandle;
-begin
-  localHandle := DuplicateHandleToCurrentProcesses(Pid, hdl);
-  if localHandle <> 0 then
-  begin
-    FLogReader := TSql2014LogReader.Create(Self);
-    Result := True;
-  end
-  else
-  begin
-    Result := False;
-  end;
-end;
-
-procedure TLogSource.listLogBlock(SeqNo: DWORD);
-begin
-  if FLogReader <> nil then
-  begin
-    FLogReader.listLogBlock(GetVlf_SeqNo(SeqNo));
-  end;
-end;
-
-procedure TLogSource.listVlfs;
-begin
-  if FLogReader <> nil then
-    FLogReader.listVlfs(2);
-end;
-
-procedure TLogSource.NotifySubscribe(lsn: Tlog_LSN; Raw: TMemory_data);
-var
-  rl : PRawLog;
-begin
-  if Raw.dataSize>0 then
-  begin
-    rl := Raw.data;
-    loger.add(LSN2Str(lsn) + '==>' + inttostr(rl.fixedLen) + '==>' + inttostr(rl.OpCode));
   end;
 end;
 

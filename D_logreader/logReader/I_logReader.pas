@@ -14,8 +14,7 @@ type
    end;
 
 
-   TLogPicker = class(TThread)
-   end;
+
 
 
 implementation

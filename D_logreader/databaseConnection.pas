@@ -7,6 +7,9 @@ uses
   I_LogSource;
 
 type
+  TDbConnectionState = (UNKNOWN);
+
+type
   TdatabaseConnection = class(TObject)
   private
     FlogSource:TLogSourceBase;
@@ -97,6 +100,8 @@ type
     function GetServiceAccount:string;
 
     function GetPlgSrc:Pplg_source;
+
+    function Check: TDbConnectionState;
   end;
 
 implementation
@@ -115,6 +120,13 @@ begin
   Data.Save(stm, adPersistADTG);
   newRec.Open(stm, EmptyParam, CursorTypeEnum(adOpenUnspecified), LockTypeEnum(adLockReadOnly), 0);
   Result := newRec;
+end;
+
+function TdatabaseConnection.Check: TDbConnectionState;
+begin
+
+
+
 end;
 
 function TdatabaseConnection.CheckIsLocalHost: Boolean;
@@ -207,7 +219,7 @@ var
 begin
   if dbVer_Major < 10 then
   begin
-    //2008之前的版本只能遍历句柄
+    //2008之前的版本只能遍历句柄;
     aSql := 'SELECT fileid,name,[filename] FROM sysfiles WHERE status & 0x40 = 0x40 ORDER BY fileid';
     if ExecSql(aSql, rDataset) then
     begin

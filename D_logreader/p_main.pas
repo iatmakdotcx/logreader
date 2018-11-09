@@ -48,7 +48,6 @@ type
     procedure FormCreate(Sender: TObject);
     procedure btn_newCfgClick(Sender: TObject);
     procedure FormDestroy(Sender: TObject);
-    procedure Button7Click(Sender: TObject);
     procedure btn_ReloadListClick(Sender: TObject);
     procedure btn_jobStartClick(Sender: TObject);
     procedure btn_jobStopClick(Sender: TObject);
@@ -379,23 +378,6 @@ begin
   Form1.mmo_log.Lines.add(FormatDateTime('yyyy-MM-dd HH:mm:ss', Now) + ' - ' + IntToStr(level) + ' >>' + aMsg);
 end;
 
-procedure TForm1.Button7Click(Sender: TObject);
-var
-  oum: TMemory_data;
-  mmp: TMemoryStream;
-  logsource :TLogSource;
-begin
-  logsource := LogSourceList.Get(StrToInt(ListView1.Selected.Caption) - 1);
-
-  logsource.cpyFile(2, oum);
-  mmp := TMemoryStream.Create;
-  mmp.WriteBuffer(oum.data^, oum.dataSize);
-  mmp.Seek(0, 0);
-  mmp.SaveToFile('d:\2_log.bin');
-  mmp.Free;
-  FreeMem(oum.data);
-end;
-
 procedure TForm1.CompareDictFromdb1Click(Sender: TObject);
 begin
   Button14Click(nil);
@@ -594,8 +576,6 @@ begin
 end;
 
 procedure TForm1.ViewAllTable1Click(Sender: TObject);
-  var
-  tlsObj: TLogSource;
 begin
   if ListView1.Selected <> nil then
   begin
