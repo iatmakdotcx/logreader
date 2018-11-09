@@ -37,7 +37,6 @@ type
   private
     FLogReader: TSql2014LogReader;
     FLogSource: TLogSource;
-    FBeginLsn:Tlog_LSN;
     //FvlfHeader: PVLFHeader;
     //FlogBlock: PlogBlock;
     //Fvlf:PVLF_Info;
@@ -45,7 +44,7 @@ type
     FAnalyzer:TSql2014logAnalyzer;
     Fspm:TSqlProcessMonitor;
   public
-    constructor Create(LogSource: TLogSource; BeginLsn: Tlog_LSN);
+    constructor Create(AutoRun:Boolean; LogSource: TLogSource);
     destructor Destroy; override;
     procedure Execute; override;
     procedure TerminateDelegate;
@@ -229,12 +228,19 @@ begin
       end;
       RepairLogBlockOverlay(logBlockBuffer);
 
-      RowOffset := Uintptr(logBlockBuffer) + logBlockHeader.endOfBlock - (LSN.LSN_3 - logBlockHeader.BeginLSN.LSN_3 + 1) * 2;
-      OutBuffer.dataSize := PageRowCalcLength(Pointer(RowOffset));
+      RowOffset := PWORD(Uintptr(logBlockBuffer) + logBlockHeader.endOfBlock - (LSN.LSN_3 - logBlockHeader.BeginLSN.LSN_3 + 1) * 2)^;
+      if LSN.LSN_3 = logBlockHeader.BeginLSN.LSN_3 + logBlockHeader.OperationCount - 1 then
+      begin
+        //last one
+        OutBuffer.dataSize := PWORD(Uintptr(logBlockBuffer) + logBlockHeader.endOfBlock - logBlockHeader.OperationCount * 2)^ - RowOffset;
+      end else begin
+        OutBuffer.dataSize := PWORD(Uintptr(logBlockBuffer) + logBlockHeader.endOfBlock - (LSN.LSN_3 - logBlockHeader.BeginLSN.LSN_3 + 2) * 2)^ - RowOffset;
+      end;
+
       if OutBuffer.dataSize > 0 then
       begin
         OutBuffer.data := GetMemory(OutBuffer.dataSize);
-        Move(Pointer(RowOffset)^, OutBuffer.data^, OutBuffer.dataSize);
+        Move(Pointer(Uintptr(logBlockBuffer) + RowOffset)^, OutBuffer.data^, OutBuffer.dataSize);
         Result := True;
       end else begin
         FLogSource.Loger.Add('read logBlock length Error...%s', [LSN2Str(LSN)], LOG_ERROR);
@@ -266,12 +272,11 @@ end;
 
 { TSql2014LogPicker }
 
-constructor TSql2014LogPicker.Create(LogSource: TLogSource; BeginLsn: Tlog_LSN);
+constructor TSql2014LogPicker.Create(AutoRun:Boolean; LogSource: TLogSource);
 begin
-  inherited Create(False);
+  inherited Create(not AutoRun);
   FLogReader := TSql2014LogReader.Create(LogSource);
   FLogSource := LogSource;
-  FBeginLsn := BeginLsn;
 
   pkgMgr := TTransPkgMgr.Create(FLogSource);
 
@@ -320,7 +325,7 @@ var
   RowOffset:UIntPtr;
   I, J: Integer;
   RawData: TMemory_data;
-
+  FBeginLsn:Tlog_LSN;
 
   vlf: TVLF_Info;
   vlfHeader: TVLFHeader;
@@ -330,7 +335,7 @@ var
   CurLSN:Tlog_LSN;
 begin
   FLogSource.Loger.Add('LogPicker start...');
-
+  FBeginLsn := FLogSource.FProcCurLSN;
   if (FBeginLsn.LSN_1 = 0) or (FBeginLsn.LSN_2 = 0) or (FBeginLsn.LSN_3 = 0) then
   begin
     FLogSource.Loger.Add('LogPicker.Execute:invalid lsn [0]!%s', [LSN2Str(FBeginLsn)], LOG_ERROR);

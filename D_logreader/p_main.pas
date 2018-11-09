@@ -313,7 +313,7 @@ begin
     begin
       logsource := frm_dbConnectionCfg.logsource;
       savePath := ExtractFilePath(GetModuleName(0)) + Format('cfg\%s.lrd',[logsource.Fdbc.getCfgUid]);
-      if logsource.saveToFile(savePath) then
+      if logsource.saveToFile_XML(savePath) then
       begin
         //保存配置成功才继续，否则处理失败
         LogSourceList.Add(logsource);
@@ -369,7 +369,7 @@ begin
 {$IFDEF DEBUG}
     //setLsn(tlsObj);
 {$ENDIF}
-    tlsObj.Create_picker;
+    tlsObj.Create_picker(True);
   end;
 end;
 
@@ -597,7 +597,7 @@ begin
   begin
     MMO_LOG.Lines.Add(lst[I]);
     Tmplogsource := TLogSource.Create;
-    if Tmplogsource.loadFromFile(lst[I]) then
+    if Tmplogsource.loadFromFile_Xml(lst[I]) then
     begin
       ItemIdx := LogSourceList.Add(Tmplogsource);
       if ItemIdx = -1 then
@@ -609,7 +609,7 @@ begin
       begin
         Tmplogsource.Fdbc.refreshConnection;
         Tmplogsource.Fdbc.getDb_dbInfo(True);
-        Tmplogsource.CreateLogReader;
+        Tmplogsource.Create_picker(True);
       end;
     end
     else

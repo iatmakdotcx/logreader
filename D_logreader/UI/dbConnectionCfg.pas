@@ -70,7 +70,8 @@ var
 implementation
 
 uses
-  dbHelper, ResHelper, sqlextendedprocHelper, MakCommonfuncs, winshellHelper, loglog;
+  dbHelper, ResHelper, sqlextendedprocHelper, MakCommonfuncs, winshellHelper,
+  loglog;
 
 {$R *.dfm}
 
@@ -198,7 +199,7 @@ begin
   SetImgData(Image3,'img_load','IMG');
   Application.ProcessMessages;
   //查看数据库版本是否支持
-  if not logsource.CreateLogReader(True) then
+  if getLogReader(logsource.Fdbc)=nil then
   begin
     SetImgData(Image3,'img_err','IMG');
     mon_EMsg.Text := '当前数据库不在可支持的范围内。支持的数据库版本：2000-2014';
@@ -281,7 +282,9 @@ begin
     //效验lsn是否有效
     TmpLst := TStringList.Create;
     try
-      TmpLst.Text := StringReplace(Edit1.Text,':',WIN_EOL,[rfReplaceAll]);
+      TmpLst.StrictDelimiter := True;
+      TmpLst.Delimiter := ':';
+      TmpLst.DelimitedText := Edit1.Text;
       if TmpLst.Count<>3 then
       begin
         mon_eMsg2.Text := 'LSN格式化无效！';

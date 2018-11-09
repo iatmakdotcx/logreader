@@ -69,7 +69,8 @@ type
 
     function Serialize:TMemoryStream;
     procedure Deserialize(data:TMemoryStream);
-    function AsXml:string;
+    function AsXml:string;overload;
+    function AsXml(Node:IXMLNode):Boolean;overload;
     function loadXml(tableNode:IXMLNode):Boolean;
   end;
 
@@ -105,6 +106,7 @@ type
 
     function Serialize:TMemoryStream;
     procedure Deserialize(data: TMemoryStream);
+    procedure toXml(node:IXMLNode);
   end;
 
   PdbFieldValue = ^TdbFieldValue;
@@ -251,6 +253,18 @@ begin
   wter.WriteInteger(10);
   wter.FlushBuffer;
   wter.Free;
+end;
+
+procedure TDbDict.toXml(node: IXMLNode);
+var
+  I: Integer;
+  aTable:TdbTableItem;
+begin
+  for I := 0 to tables.Count-1 do
+  begin
+    aTable := tables.Items[i];
+    aTable.AsXml(node);
+  end;
 end;
 
 procedure TDbDict.Deserialize(data: TMemoryStream);
@@ -575,14 +589,24 @@ end;
 
 function TdbTableItem.AsXml: string;
 var
-  I: Integer;
-  field:TdbFieldItem;
   xml:IXMLDocument;
-  rootNode,fieldsNode,tmpNode:IXMLNode;
 begin
   xml := TXMLDocument.create(nil);
   xml.Active := True;
-  rootNode := xml.AddChild('table');
+  if AsXml(xml.DocumentElement) then
+  begin
+    Result := xml.XML.Text;
+  end else
+    Result := '';
+end;
+
+function TdbTableItem.AsXml(Node: IXMLNode): Boolean;
+var
+  I: Integer;
+  field:TdbFieldItem;
+  rootNode,fieldsNode,tmpNode:IXMLNode;
+begin
+  rootNode := Node.AddChild('table');
   rootNode.Attributes['partition_id'] := partition_id;
   rootNode.Attributes['TableId'] := TableId;
   rootNode.Attributes['Owner'] := Owner;
@@ -613,7 +637,6 @@ begin
     tmpNode := fieldsNode.AddChild('field');
     tmpNode.Attributes['Col_id'] := field.Col_id;
   end;
-  Result := xml.XML.Text;
 end;
 
 function TdbTableItem.loadXml(tableNode: IXMLNode): Boolean;
@@ -683,6 +706,7 @@ begin
   end;
   Result := True;
 end;
+
 
 constructor TdbTableItem.Create;
 begin

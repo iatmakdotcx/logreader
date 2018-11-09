@@ -38,19 +38,16 @@ type
     destructor Destroy; override;
     function GetVlf_SeqNo(SeqNo:DWORD): PVLF_Info;
     function GetRawLogByLSN(LSN: Tlog_LSN;var OutBuffer: TMemory_data): Boolean;
-    function Create_picker:Boolean;
+    function Create_picker(AutoRun:Boolean):Boolean;
     procedure Stop_picker;
     function status:LS_STATUE;
 
-    function loadFromFile(aPath: string):Boolean;
-    function saveToFile(aPath: string = ''):Boolean;
+    function loadFromFile_bin(aPath: string):Boolean;
+    function saveToFile_bin(aPath: string = ''):Boolean;
 
-    /// <summary>
-    ///
-    /// </summary>
-    /// <param name="ExistsRenew">如果已存在，释放。重新创建</param>
-    /// <returns></returns>
-    function CreateLogReader(ExistsRenew:Boolean = False):Boolean;
+    function loadFromFile_Xml(aPath: string):Boolean;
+    function saveToFile_Xml(aPath: string = ''):Boolean;
+
     /// <summary>
     /// 从数据库对比字典差异
     /// </summary>
@@ -78,15 +75,30 @@ type
   end;
 
 
+function getLogReader(Fdbc: TdatabaseConnection):TClass;
+
 var
   LogSourceList:TLogSourceList;
 
 implementation
 
 uses
-  LocalDbLogProvider, MakCommonfuncs,
-  Windows, SysUtils;
+  MakCommonfuncs, Windows, SysUtils, Xml.XMLDoc, Xml.XMLIntf,
+  Sql2014LogReader;
 
+
+function getLogReader(Fdbc: TdatabaseConnection):TClass;
+begin
+  Result := nil;
+  if Fdbc.CheckIsLocalHost then
+  begin
+    if (Fdbc.dbVer_Major > 10) and (Fdbc.dbVer_Major <= 12) then
+    begin
+      //2008之后的版本都用这个读取方式
+      Result := TSql2014LogPicker;
+    end;
+  end;
+end;
 { TLogSource }
 
 procedure TLogSource.AddFmsg(aMsg: string; level: Integer);
@@ -146,39 +158,27 @@ begin
   end;
 end;
 
-function TLogSource.CreateLogReader(ExistsRenew:Boolean = False):Boolean;
-begin
-  ReSetLoger;
-  Result := False;
-  Fdbc.getDb_allLogFiles;
-  if (Fdbc.dbVer_Major > 10) and (Fdbc.dbVer_Major <= 12) then
-  begin
-    //2008之后的版本都用这个读取方式
-//    FLogReader := TSql2014LogReader.Create(Self);
-    Result := True;
-  end;
-end;
-
-function TLogSource.Create_picker: Boolean;
+function TLogSource.Create_picker(AutoRun:Boolean): Boolean;
+var
+  logreaderClass:TClass;
 begin
   Result := False;
-  if FProcCurLSN.LSN_1 = 0 then
-  begin
-    Loger.Add(' FProcCurLSN 为空启动logpicker失败');
-    Exit;
-  end
-  else
-  begin
-    FRunCs.Enter;
-    try
-      if FLogPicker = nil then
+  FRunCs.Enter;
+  try
+    if FLogPicker = nil then
+    begin
+      logreaderClass := getLogReader(Fdbc);
+      if logreaderClass<>nil then
       begin
-//        FLogPicker := TSql2014LogPicker.Create(Self, FProcCurLSN);
+        //2008之后的版本都用这个读取方式
+        FLogPicker := TSql2014LogPicker.Create(AutoRun, Self);
         Result := True;
       end;
-    finally
-      FRunCs.Leave;
+    end else begin
+      FLogPicker.Start;
     end;
+  finally
+    FRunCs.Leave;
   end;
 end;
 
@@ -202,7 +202,7 @@ function TLogSource.GetVlf_SeqNo(SeqNo:DWORD): PVLF_Info;
 var
   I: Integer;
 begin
-  if Length(Fdbc.FVLF_List)=0 then
+  if Length(Fdbc.FVLF_List) = 0 then
     Fdbc.getDb_VLFs;
 
   Result := nil;
@@ -219,6 +219,8 @@ end;
 
 function TLogSource.GetRawLogByLSN(LSN: Tlog_LSN;var OutBuffer: TMemory_data): Boolean;
 begin
+  if FLogPicker=nil then
+    Create_picker(False);
   Result := FLogPicker.GetRawLogByLSN(LSN, OutBuffer);
 end;
 
@@ -266,7 +268,7 @@ begin
   end;
 end;
 
-function TLogSource.loadFromFile(aPath: string):Boolean;
+function TLogSource.loadFromFile_bin(aPath: string):Boolean;
 var
   mmo: TMemoryStream;
   Rter: TReader;
@@ -319,7 +321,12 @@ begin
   end;
 end;
 
-function TLogSource.saveToFile(aPath: string):Boolean;
+function TLogSource.loadFromFile_Xml(aPath: string): Boolean;
+begin
+
+end;
+
+function TLogSource.saveToFile_bin(aPath: string):Boolean;
 var
   wter: TWriter;
   mmo: TMemoryStream;
@@ -378,6 +385,52 @@ begin
       end;
     finally
       mmo.Free;
+    end;
+  end;
+end;
+
+function TLogSource.saveToFile_Xml(aPath: string): Boolean;
+var
+  xmlDoc:IXMLDocument;
+  RootNode,xmlNode:IXMLNode;
+  pathName:string;
+begin
+  Result := False;
+  if aPath = '' then
+    aPath := FCfgFilePath;
+  if aPath <> '' then
+  begin
+    xmlDoc := TXMLDocument.Create(nil);
+    xmlDoc.Active := True;
+    RootNode := xmlDoc.AddChild('LogSource');
+    RootNode.Attributes['Cdate'] := FormatDateTime('yyyy-MM-dd HH:nn:ss.zzz', Now);
+    RootNode.AddChild('LSN').Text := LSN2Str(FProcCurLSN);
+
+    xmlNode := RootNode.AddChild('DBC');
+    xmlNode.Attributes['Host'] := Fdbc.Host;
+    xmlNode.Attributes['user'] := Fdbc.user;
+    xmlNode.Attributes['PassWd'] := Fdbc.PassWd;
+    xmlNode.Attributes['dbName'] := Fdbc.dbName;
+    xmlNode.Attributes['dbID'] := Fdbc.dbID;
+    xmlNode.Attributes['dbV1'] := Fdbc.dbVer_Major;
+    xmlNode.Attributes['dbV2'] := Fdbc.dbVer_Minor;
+    xmlNode.Attributes['dbV3'] := Fdbc.dbVer_BuildNumber;
+    xmlNode := RootNode.AddChild('tables');
+    Fdbc.dict.toXml(xmlNode);
+
+    pathName := ExtractFilePath(aPath);
+    if not DirectoryExists(pathName) then
+    begin
+      Loger.Add('目录创建:' + BoolToStr(ForceDirectories(pathName), true) + ':' + pathName);
+    end;
+    try
+      xmlDoc.SaveToFile(aPath);
+      Result := True;
+    except
+      on ee: Exception do
+      begin
+        Loger.Add('LogSource.saveToFile 配置保存失败！' + ee.message);
+      end;
     end;
   end;
 end;
