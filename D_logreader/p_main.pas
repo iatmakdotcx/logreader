@@ -145,14 +145,12 @@ end;
 
 procedure TForm1.Button1Click(Sender: TObject);
 var
-  ItemIdx:Integer;
   tlsObj:TLogSource;
   tmpStr:string;
 begin
   if ListView1.Selected <> nil then
   begin
-    ItemIdx := StrToInt(ListView1.Selected.Caption) - 1;
-    tlsObj := LogSourceList.Get(ItemIdx);
+    tlsObj := TLogSource(ListView1.Selected.Data);
     tmpStr := '';
     if tlsObj.Fdbc.dict.tables.Count>0 then
     begin
@@ -312,12 +310,11 @@ begin
     if frm_dbConnectionCfg.ShowModal = mrOk then
     begin
       logsource := frm_dbConnectionCfg.logsource;
-      savePath := ExtractFilePath(GetModuleName(0)) + Format('cfg\%s.lrd',[logsource.Fdbc.getCfgUid]);
-      if logsource.saveToFile_XML(savePath) then
+      savePath := ExtractFilePath(GetModuleName(0)) + Format('cfg\%s.lrd',[logsource.Uid]);
+      if logsource.saveToFile(savePath) then
       begin
         //保存配置成功才继续，否则处理失败
         LogSourceList.Add(logsource);
-        setDbOn(logsource.Fdbc);
         DefLoger.Add('新增配置完成！！');
         ListViewRefresh;
       end else begin
@@ -597,7 +594,7 @@ begin
   begin
     MMO_LOG.Lines.Add(lst[I]);
     Tmplogsource := TLogSource.Create;
-    if Tmplogsource.loadFromFile_Xml(lst[I]) then
+    if Tmplogsource.loadFromFile(lst[I]) then
     begin
       ItemIdx := LogSourceList.Add(Tmplogsource);
       if ItemIdx = -1 then
@@ -609,7 +606,7 @@ begin
       begin
         Tmplogsource.Fdbc.refreshConnection;
         Tmplogsource.Fdbc.getDb_dbInfo(True);
-        Tmplogsource.Create_picker(True);
+        //Tmplogsource.Create_picker(True);
       end;
     end
     else

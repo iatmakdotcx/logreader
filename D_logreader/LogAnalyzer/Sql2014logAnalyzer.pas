@@ -1065,7 +1065,7 @@ begin
   ApplySysDDLChange;
 
   FLogSource.FProcCurLSN := TransCommitLsn;
-  FLogSource.saveToFile_xml;
+  FLogSource.saveToFile;
 end;
 
 function TSql2014logAnalyzer.GenSql: string;

@@ -70,7 +70,6 @@ type
     function GetCollationPropertyFromId(id: Integer): string;
     function GetSchemasName(schema_id: Integer): string;
     function GetObjectIdByPartitionid(partition_id: int64): integer;
-    function getCfgUid:string;
     function GetLastBackupInfo(var lsn: Tlog_LSN;  var backupTime: TDateTime): Boolean;
     /// <summary>
     /// 在Master表执行Sql ，并获取执行结果
@@ -394,11 +393,6 @@ begin
   finally
     AdoQCsMaster.Leave;
   end;
-end;
-
-function TdatabaseConnection.getCfgUid: string;
-begin
-  Result := GetStrHashMD5(host + dbName + user);
 end;
 
 function TdatabaseConnection.ExecSql(aSql:string;out resDataset:TCustomADODataSet;withOpen:Boolean=True):Boolean;

@@ -70,7 +70,7 @@ type
     function Serialize:TMemoryStream;
     procedure Deserialize(data:TMemoryStream);
     function AsXml:string;overload;
-    function AsXml(Node:IXMLNode):Boolean;overload;
+    procedure AsXml(Node:IXMLNode);overload;
     function loadXml(tableNode:IXMLNode):Boolean;
   end;
 
@@ -107,6 +107,7 @@ type
     function Serialize:TMemoryStream;
     procedure Deserialize(data: TMemoryStream);
     procedure toXml(node:IXMLNode);
+    procedure fromXml(node:IXMLNode);
   end;
 
   PdbFieldValue = ^TdbFieldValue;
@@ -264,6 +265,22 @@ begin
   begin
     aTable := tables.Items[i];
     aTable.AsXml(node);
+  end;
+end;
+
+procedure TDbDict.fromXml(node: IXMLNode);
+var
+  table:TdbTableItem;
+  I: Integer;
+begin
+  for I := 0 to node.ChildNodes.Count - 1 do
+  begin
+    if node.ChildNodes[I].NodeName = 'table' then
+    begin
+      table := TdbTableItem.Create;
+      table.loadXml(node.ChildNodes[I]);
+      tables.addTable(table);
+    end;
   end;
 end;
 
@@ -593,14 +610,11 @@ var
 begin
   xml := TXMLDocument.create(nil);
   xml.Active := True;
-  if AsXml(xml.DocumentElement) then
-  begin
-    Result := xml.XML.Text;
-  end else
-    Result := '';
+  AsXml(xml.AddChild('tables'));
+  Result := xml.XML.Text;
 end;
 
-function TdbTableItem.AsXml(Node: IXMLNode): Boolean;
+procedure TdbTableItem.AsXml(Node: IXMLNode);
 var
   I: Integer;
   field:TdbFieldItem;

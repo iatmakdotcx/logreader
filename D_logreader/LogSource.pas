@@ -25,6 +25,7 @@ type
     procedure ClrLogSource;
     procedure ReSetLoger;
   public
+    uid:string;
     FFmsg: TStringList;
     FProcCurLSN: Tlog_LSN;  //当前处理的位置
 
@@ -42,11 +43,8 @@ type
     procedure Stop_picker;
     function status:LS_STATUE;
 
-    function loadFromFile_bin(aPath: string):Boolean;
-    function saveToFile_bin(aPath: string = ''):Boolean;
-
-    function loadFromFile_Xml(aPath: string):Boolean;
-    function saveToFile_Xml(aPath: string = ''):Boolean;
+    function loadFromFile(aPath: string):Boolean;
+    function saveToFile(aPath: string = ''):Boolean;
 
     /// <summary>
     /// 从数据库对比字典差异
@@ -84,7 +82,7 @@ implementation
 
 uses
   MakCommonfuncs, Windows, SysUtils, Xml.XMLDoc, Xml.XMLIntf,
-  Sql2014LogReader;
+  Sql2014LogReader, sqlextendedprocHelper;
 
 
 function getLogReader(Fdbc: TdatabaseConnection):TClass;
@@ -130,6 +128,8 @@ begin
 end;
 
 constructor TLogSource.Create;
+var
+  Guid: TGUID;
 begin
   FmsgCs:=TCriticalSection.Create;
   MainMSGDISPLAY := nil;
@@ -146,6 +146,10 @@ begin
   pageDatalist := nil;
 
   FFmsg := TStringList.Create;
+  if CreateGUID(Guid) <> S_OK then
+    uid := FormatDateTime('yyyymmddHHnnsszzz',Now)
+  else
+    uid := GUIDToString(Guid);
 end;
 
 procedure TLogSource.CreateAutoStartTimer;
@@ -163,6 +167,7 @@ var
   logreaderClass:TClass;
 begin
   Result := False;
+  setDbOn(Fdbc);
   FRunCs.Enter;
   try
     if FLogPicker = nil then
@@ -250,7 +255,7 @@ begin
     end else begin
       FLoger.Free;
     end;
-    newLog := Fdbc.dbName + '_' + Fdbc.getCfgUid;
+    newLog := Fdbc.dbName + '_' + Uid;
     Loger.Add('Log redirect ==> ' + newLog);
     FLoger := TeventRecorder.Create(newLog);
     Loger.registerCallBack(Self, AddFmsg);
@@ -268,52 +273,59 @@ begin
   end;
 end;
 
-function TLogSource.loadFromFile_bin(aPath: string):Boolean;
+function TLogSource.loadFromFile(aPath: string): Boolean;
+function ReadXmlAttr(xmlNode:IXMLNode;attrName:string):string;
+begin
+  if not xmlNode.HasAttribute(attrName) then
+  begin
+    raise Exception.Create('LogSource/XML/DBC.'+attrName);
+  end;
+  Result := xmlNode.Attributes[attrName];
+end;
 var
   mmo: TMemoryStream;
-  Rter: TReader;
-  tmpStr: string;
+  xmlDoc:IXMLDocument;
+  RootNode,xmlNode:IXMLNode;
 begin
   Result := False;
   ClrLogSource;
-
   mmo := TMemoryStream.Create;
   try
     try
       mmo.LoadFromFile(aPath);
-      Rter := TReader.Create(mmo, 1);
-      try
-        if Rter.ReadInteger = $FB then
-        begin
-          tmpStr := Rter.ReadStr;
-          if tmpStr = 'TDbDict v 1.0' then
-          begin
-            Fdbc := TdatabaseConnection.create(Self);
-            Fdbc.Host := Rter.ReadString;
-            Fdbc.user := Rter.ReadString;
-            Fdbc.PassWd := Rter.ReadString;
-            Fdbc.dbName := Rter.ReadString;
-            Fdbc.dbID :=  Rter.ReadInteger;
-            Fdbc.dbVer_Major :=  Rter.ReadInteger;
-            Fdbc.dbVer_Minor :=  Rter.ReadInteger;
-            Fdbc.dbVer_BuildNumber :=  Rter.ReadInteger;
-            FProcCurLSN.LSN_1 := Rter.ReadInteger;
-            FProcCurLSN.LSN_2 := Rter.ReadInteger;
-            FProcCurLSN.LSN_3 := Rter.ReadInteger;
-            Fdbc.dict.Deserialize(mmo);
-            //init;
-            Result := True;
 
-            FCfgFilePath := aPath;
-          end;
-        end;
-      finally
-        Rter.Free;
-      end;
-    except
-      on EE:Exception do
+      xmlDoc := TXMLDocument.Create(nil);
+      mmo.Seek(0, 0);
+      xmlDoc.LoadFromStream(mmo);
+      xmlDoc.Active := True;
+      RootNode := xmlDoc.DocumentElement;
+      if RootNode.NodeName<>'LogSource' then
       begin
-        Loger.Add('配置文件读取失败:'+aPath);
+        raise Exception.Create('Xml格式异常');
+      end;
+      if RootNode.HasAttribute('uid') then
+        uid := RootNode.Attributes['uid'];
+      FProcCurLSN := Str2LSN(RootNode.ChildValues['LSN']);
+      xmlNode := RootNode.ChildNodes['DBC'];
+      Fdbc := TdatabaseConnection.create(Self);
+      Fdbc.Host := ReadXmlAttr(xmlNode, 'Host');
+      Fdbc.user := ReadXmlAttr(xmlNode, 'user');
+      Fdbc.PassWd := ReadXmlAttr(xmlNode, 'PassWd');
+      Fdbc.dbName := ReadXmlAttr(xmlNode, 'dbName');
+      Fdbc.dbID := StrToInt(ReadXmlAttr(xmlNode, 'dbID'));
+      Fdbc.dbVer_Major := StrToInt(ReadXmlAttr(xmlNode, 'dbV1'));
+      Fdbc.dbVer_Minor := StrToInt(ReadXmlAttr(xmlNode, 'dbV2'));
+      Fdbc.dbVer_BuildNumber := StrToInt(ReadXmlAttr(xmlNode, 'dbV3'));
+      xmlNode := RootNode.ChildNodes['tables'];
+      Fdbc.dict.fromXml(xmlNode);
+
+      FCfgFilePath := aPath;
+      Result := True;
+      ReSetLoger;
+    except
+      on EE: Exception do
+      begin
+        Loger.Add('配置文件读取失败:' + aPath + ' >>' + EE.Message);
       end;
     end;
   finally
@@ -321,75 +333,7 @@ begin
   end;
 end;
 
-function TLogSource.loadFromFile_Xml(aPath: string): Boolean;
-begin
-
-end;
-
-function TLogSource.saveToFile_bin(aPath: string):Boolean;
-var
-  wter: TWriter;
-  mmo: TMemoryStream;
-  dictBin: TMemoryStream;
-  pathName:string;
-begin
-  Result := False;
-  if aPath = '' then
-    aPath := FCfgFilePath;
-
-  if aPath <> '' then
-  begin
-    FCfgFilePath := aPath;
-
-    Result := False;
-    mmo := TMemoryStream.Create;
-    try
-      wter := TWriter.Create(mmo, 1);
-      wter.WriteInteger($FB);
-      wter.WriteStr('TDbDict v 1.0');
-      //连接信息
-      wter.WriteString(Fdbc.Host);
-      wter.WriteString(Fdbc.user);
-      wter.WriteString(Fdbc.PassWd);
-      wter.WriteString(Fdbc.dbName);
-      wter.WriteInteger(Fdbc.dbID);
-      wter.WriteInteger(Fdbc.dbVer_Major);
-      wter.WriteInteger(Fdbc.dbVer_Minor);
-      wter.WriteInteger(Fdbc.dbVer_BuildNumber);
-      wter.WriteInteger(FProcCurLSN.LSN_1);
-      wter.WriteInteger(FProcCurLSN.LSN_2);
-      wter.WriteInteger(FProcCurLSN.LSN_3);
-      //表结构
-      dictBin := Fdbc.dict.Serialize;
-      dictBin.seek(0, 0);
-      wter.Write(dictBin.Memory^, dictBin.Size);
-      dictBin.Free;
-      //
-      wter.FlushBuffer;
-      wter.Free;
-
-      pathName := ExtractFilePath(aPath);
-      if not DirectoryExists(pathName) then
-      begin
-        Loger.Add('目录创建:' + BoolToStr(ForceDirectories(pathName), true) + ':' + pathName);
-      end;
-
-      try
-        mmo.SaveToFile(aPath);
-        Result := True;
-      except
-        on ee:Exception do
-        begin
-          Loger.Add('LogSource.saveToFile 配置保存失败！' + ee.message);
-        end;
-      end;
-    finally
-      mmo.Free;
-    end;
-  end;
-end;
-
-function TLogSource.saveToFile_Xml(aPath: string): Boolean;
+function TLogSource.saveToFile(aPath: string): Boolean;
 var
   xmlDoc:IXMLDocument;
   RootNode,xmlNode:IXMLNode;
@@ -401,9 +345,11 @@ begin
   if aPath <> '' then
   begin
     xmlDoc := TXMLDocument.Create(nil);
+    xmlDoc.Encoding := 'utf-8';
     xmlDoc.Active := True;
     RootNode := xmlDoc.AddChild('LogSource');
     RootNode.Attributes['Cdate'] := FormatDateTime('yyyy-MM-dd HH:nn:ss.zzz', Now);
+    RootNode.Attributes['uid'] := uid;
     RootNode.AddChild('LSN').Text := LSN2Str(FProcCurLSN);
 
     xmlNode := RootNode.AddChild('DBC');
