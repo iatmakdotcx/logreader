@@ -45,6 +45,8 @@ type
 
     function loadFromFile(aPath: string):Boolean;
     function saveToFile(aPath: string = ''):Boolean;
+    procedure loadFromFile_LSN;
+    procedure saveToFile_LSN;
 
     /// <summary>
     /// 从数据库对比字典差异
@@ -292,6 +294,7 @@ begin
   mmo := TMemoryStream.Create;
   try
     try
+      FCfgFilePath := aPath;
       mmo.LoadFromFile(aPath);
 
       xmlDoc := TXMLDocument.Create(nil);
@@ -306,6 +309,7 @@ begin
       if RootNode.HasAttribute('uid') then
         uid := RootNode.Attributes['uid'];
       FProcCurLSN := Str2LSN(RootNode.ChildValues['LSN']);
+      loadFromFile_LSN;
       xmlNode := RootNode.ChildNodes['DBC'];
       Fdbc := TdatabaseConnection.create(Self);
       Fdbc.Host := ReadXmlAttr(xmlNode, 'Host');
@@ -319,7 +323,6 @@ begin
       xmlNode := RootNode.ChildNodes['tables'];
       Fdbc.dict.fromXml(xmlNode);
 
-      FCfgFilePath := aPath;
       Result := True;
       ReSetLoger;
     except
@@ -333,6 +336,49 @@ begin
   end;
 end;
 
+procedure TLogSource.loadFromFile_LSN;
+var
+  Fhandle:THandle;
+  nrsize:Cardinal;
+  LsnLSTdata:array[0..64] of AnsiChar;
+  lsns:TStringList;
+  I: Integer;
+
+  Tmplsm:Tlog_LSN;
+begin
+  Fhandle := CreateFile(PChar(FCfgFilePath + '.lsn'), GENERIC_READ, FILE_SHARE_READ or FILE_SHARE_WRITE, nil, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, 0);
+  if Fhandle = INVALID_HANDLE_VALUE then
+  begin
+    RaiseLastOSError;
+  end;
+  
+  SetFilePointer(Fhandle, -52, nil, soFromEnd);
+  if not ReadFile(Fhandle, LsnLSTdata[0], 52, nrsize, nil) then
+  begin
+    CloseHandle(Fhandle);
+    raise Exception.Create('读取LSN出错：' + SysErrorMessage(GetLastError));
+  end;
+  CloseHandle(Fhandle);
+    
+  lsns := TStringList.Create;
+  lsns.Text := LsnLSTdata;
+  for I := lsns.Count-1 downto 0 do
+  begin
+    if (Length(lsns[i]) = 24) and lsns[i].StartsWith('0x') then
+    begin
+      Tmplsm := Str2LSN(lsns[i]);
+      if (Tmplsm.LSN_1 <> 0) and (Tmplsm.LSN_2 <> 0) and (Tmplsm.LSN_3 <> 0) then
+      begin
+        FProcCurLSN := Tmplsm;
+        lsns.Text := lsns[i];
+        lsns.SaveToFile(FCfgFilePath + '.lsn');
+        Break;
+      end;
+    end;
+  end;
+  lsns.Free; 
+end;
+
 function TLogSource.saveToFile(aPath: string): Boolean;
 var
   xmlDoc:IXMLDocument;
@@ -342,11 +388,13 @@ begin
   Result := False;
   if aPath = '' then
     aPath := FCfgFilePath;
+  if FCfgFilePath = '' then
+    FCfgFilePath := aPath;
   if aPath <> '' then
   begin
     xmlDoc := TXMLDocument.Create(nil);
-    xmlDoc.Encoding := 'utf-8';
     xmlDoc.Active := True;
+    xmlDoc.Encoding := 'utf-8';
     RootNode := xmlDoc.AddChild('LogSource');
     RootNode.Attributes['Cdate'] := FormatDateTime('yyyy-MM-dd HH:nn:ss.zzz', Now);
     RootNode.Attributes['uid'] := uid;
@@ -363,13 +411,13 @@ begin
     xmlNode.Attributes['dbV3'] := Fdbc.dbVer_BuildNumber;
     xmlNode := RootNode.AddChild('tables');
     Fdbc.dict.toXml(xmlNode);
-
     pathName := ExtractFilePath(aPath);
     if not DirectoryExists(pathName) then
     begin
       Loger.Add('目录创建:' + BoolToStr(ForceDirectories(pathName), true) + ':' + pathName);
     end;
     try
+      saveToFile_LSN;
       xmlDoc.SaveToFile(aPath);
       Result := True;
     except
@@ -378,6 +426,27 @@ begin
         Loger.Add('LogSource.saveToFile 配置保存失败！' + ee.message);
       end;
     end;
+  end;
+end;
+
+procedure TLogSource.saveToFile_LSN;
+var
+  F: TextFile;
+begin
+  //append的方式按行存储
+  AssignFile(F, FCfgFilePath + '.lsn');
+  try
+    if FileExists(FCfgFilePath + '.lsn') then
+    begin
+      Append(F);
+    end
+    else
+    begin
+      Rewrite(F);
+    end;
+    Writeln(F, LSN2Str(FProcCurLSN));
+  finally
+    CloseFile(F);
   end;
 end;
 

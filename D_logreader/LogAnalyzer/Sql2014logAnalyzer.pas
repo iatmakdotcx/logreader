@@ -162,7 +162,7 @@ type
     /// <summary>
     /// 将表更改操作，应用到当前系统。以免读取的日志与表结构不匹配
     /// </summary>
-    procedure ApplySysDDLChange;
+    function ApplySysDDLChange:Boolean;
   end;
 
 implementation
@@ -326,7 +326,7 @@ begin
   end;
 end;
 
-procedure TSql2014logAnalyzer.ApplySysDDLChange;
+function TSql2014logAnalyzer.ApplySysDDLChange:Boolean;
 procedure addUcK(tableid:Integer);
 var
   cols:TObjectList;
@@ -380,6 +380,7 @@ begin
 
     if (ddlitem.OpType = Opt_Insert) then
     begin
+      Result := True;
       if ddlitem.xType = 'u' then
       begin
         ctable := TDDL_Create_Table(ddlitem);
@@ -405,6 +406,7 @@ begin
         end;
       end;
     end else if (ddlitem.OpType = Opt_Delete) then begin
+      Result := True;
       if ddlitem.xType = 'u' then
       begin
         dtable := TDDL_Delete_Table(ddlitem);
@@ -433,6 +435,7 @@ begin
         end;
       end;
     end else if (ddlitem.OpType = Opt_Update) then begin
+      Result := True;
       if ddlitem.xType = 'rename' then
       begin
         renameObj := TDDL_Update_RenameObj(ddlitem);
@@ -1062,10 +1065,14 @@ begin
   PluginsMgr.onTransXml(FLogSource.Fdbc.GetPlgSrc, GenXML);
 //  Loger.Add(GenSql);
 //  Loger.Add(GenXML);
-  ApplySysDDLChange;
+  if ApplySysDDLChange then
+  begin
+    //如果表结构有变更，重新保存表结构
+    FLogSource.saveToFile;
+  end;
 
   FLogSource.FProcCurLSN := TransCommitLsn;
-  FLogSource.saveToFile;
+  FLogSource.saveToFile_LSN;
 end;
 
 function TSql2014logAnalyzer.GenSql: string;
