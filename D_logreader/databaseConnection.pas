@@ -100,7 +100,7 @@ type
 
     function GetPlgSrc:Pplg_source;
 
-    function Check: TDbConnectionState;
+    procedure reConnect;
   end;
 
 implementation
@@ -121,11 +121,15 @@ begin
   Result := newRec;
 end;
 
-function TdatabaseConnection.Check: TDbConnectionState;
+procedure TdatabaseConnection.reConnect;
 begin
-
-
-
+  AdoQCs.Enter;
+  try
+    ADOConn.Connected := False;
+    ADOConn.Connected := True;
+  finally
+    AdoQCs.Leave;
+  end;
 end;
 
 function TdatabaseConnection.CheckIsLocalHost: Boolean;
@@ -343,6 +347,7 @@ begin
     rDataset.Free;
   end;
 end;
+
 
 procedure TdatabaseConnection.refreshConnection;
 begin

@@ -20,6 +20,15 @@ type
     procedure Execute; override;
   end;
 
+  TSqlConntest = class(TThread)
+  private
+    FLogSource: TLogSource;
+  public
+    constructor Create(LogSource: TLogSource);
+    destructor Destroy; override;
+    procedure Execute; override;
+  end;
+
   TSql2014LogReader = class(TObject)
   private
     FLogSource: TLogSource;
@@ -37,9 +46,7 @@ type
   private
     FLogReader: TSql2014LogReader;
     FLogSource: TLogSource;
-    //FvlfHeader: PVLFHeader;
-    //FlogBlock: PlogBlock;
-    //Fvlf:PVLF_Info;
+    FPicking: Boolean;
     pkgMgr: TTransPkgMgr;
     FAnalyzer:TSql2014logAnalyzer;
     Fspm:TSqlProcessMonitor;
@@ -47,15 +54,17 @@ type
     constructor Create(AutoRun:Boolean; LogSource: TLogSource);
     destructor Destroy; override;
     procedure Execute; override;
+    procedure TerminatedSet;override;
     procedure TerminateDelegate;
     function GetRawLogByLSN(LSN: Tlog_LSN; var OutBuffer: TMemory_data): Boolean; override;
+    procedure getRawLogTrans(LSN: Tlog_LSN; tranCommitData: TMemory_data);
   end;
 
 implementation
 
 uses
   Windows, SysUtils, Memory_Common, loglog, LocalDbLogProvider, OpCode,
-  plugins, hexValUtils;
+  plugins, hexValUtils, ADOdb, db;
 
 
 function logBlockRawCheck(Lb: TlogBlock): boolean;
@@ -274,9 +283,10 @@ end;
 
 constructor TSql2014LogPicker.Create(AutoRun:Boolean; LogSource: TLogSource);
 begin
-  inherited Create(not AutoRun);
-  FLogReader := TSql2014LogReader.Create(LogSource);
+  FPicking := AutoRun;
   FLogSource := LogSource;
+  inherited Create(False);
+  FLogReader := TSql2014LogReader.Create(LogSource);
 
   pkgMgr := TTransPkgMgr.Create(FLogSource);
 
@@ -317,152 +327,115 @@ begin
   FLogSource.CreateAutoStartTimer;
 end;
 
+procedure TSql2014LogPicker.TerminatedSet;
+begin
+  FPicking := False;
+end;
+
 procedure TSql2014LogPicker.Execute;
+label
+  beginPoint;
 var
   Tmpvlf: PVLF_Info;
-  LogBlockPosi: Int64;
-  RowLength: Integer;
-  RowOffset:UIntPtr;
-  I, J: Integer;
-  RawData: TMemory_data;
-  FBeginLsn:Tlog_LSN;
-
   vlf: TVLF_Info;
   vlfHeader: TVLFHeader;
   LogBlockBuf:Pointer;
   DataProvider:TLogProvider;
   logBlockHeader: PlogBlock;
+  LogBlockPosi: Int64;
+  RowOffset:UIntPtr;
+  I, J: Integer;
   CurLSN:Tlog_LSN;
+  RowLength: Integer;
+  RawData: TMemory_data;
+  sctest:TSqlConntest;
 begin
-  FLogSource.Loger.Add('LogPicker start...');
-  FBeginLsn := FLogSource.FProcCurLSN;
-  if (FBeginLsn.LSN_1 = 0) or (FBeginLsn.LSN_2 = 0) or (FBeginLsn.LSN_3 = 0) then
-  begin
-    FLogSource.Loger.Add('LogPicker.Execute:invalid lsn [0]!%s', [LSN2Str(FBeginLsn)], LOG_ERROR);
-    Exit;
-  end;
-  Tmpvlf := FLogSource.GetVlf_SeqNo(FBeginLsn.LSN_1);
-  try
-    if (Tmpvlf = nil) or (Tmpvlf.SeqNo <> FBeginLsn.LSN_1) then
-    begin
-      FLogSource.Loger.Add('LogPicker.Execute:lsn out of vlfs [1]!%s', [LSN2Str(FBeginLsn)], LOG_ERROR);
-      Exit;
-    end;
-    DataProvider := FLogReader.getDataProvider(Tmpvlf.fileId);
-    if DataProvider = nil then
-    begin
-      FLogSource.Loger.Add('LogPicker.Execute:由于获取DataProvider失败！GetRawLogByLSN取消！',[LOG_ERROR]);
-      Exit;
-    end;
-    LogBlockPosi := Tmpvlf.VLFOffset + FBeginLsn.LSN_2 * $200;
-    vlf := Tmpvlf^;
-  finally
-    Dispose(Tmpvlf);
-  end;
   New(logBlockHeader);
-  try
-    if (DataProvider.Read(logBlockHeader^, LogBlockPosi, SizeOf(TlogBlock)) = 0) then
+  while not Terminated do
+  begin
+    Sleep(100);
+    if not FPicking then Continue;
+    FLogSource.Loger.Add('LogPicker Search begin Offset...');
+    while pkgMgr.FpaddingPrisePkg.Count > 0 do
     begin
-      FLogSource.Loger.Add('LogPicker.Execute:read logBlock data Error...%s', [LSN2Str(FBeginLsn)], LOG_ERROR);
-      Exit;
-    end;
-    if (logBlockHeader.BeginLSN.LSN_1 <> FBeginLsn.LSN_1) and
-       (logBlockHeader.BeginLSN.LSN_2 <> FBeginLsn.LSN_2) and
-       (not logBlockRawCheck(logBlockHeader^)) then
-    begin
-      FLogSource.Loger.Add('LogPicker.Execute:logBlock data invalid...%s', [LSN2Str(FBeginLsn)], LOG_ERROR);
-      Exit;
+      FLogSource.loger.Add('等待缓冲区清空！', log_warning);
+      sleep(1000);
+      if not FPicking then
+        goto beginPoint;
     end;
 
-    if FBeginLsn.LSN_3 > logBlockHeader.OperationCount then
-    begin
-      //当前块中没有这个id
-      FLogSource.Loger.Add('LogPicker.Execute:invalid lsn [4] RowId no found !%s', [LSN2Str(FBeginLsn)], LOG_ERROR);
-      Exit;
-    end;
+      CurLSN := FLogSource.FProcCurLSN;
+      if (CurLSN.LSN_1 = 0) or (CurLSN.LSN_2 = 0) or (CurLSN.LSN_3 = 0) then
+      begin
+        FLogSource.Loger.Add('LogPicker.Execute:invalid lsn [0]!%s', [LSN2Str(CurLSN)], LOG_ERROR);
+        Sleep(1000);
+        Continue;
+      end;
+      sctest := TSqlConntest.create(FLogSource);
+      if WaitForSingleObject(sctest.Handle, 3000) = WAIT_TIMEOUT then
+      begin
+        sctest.FreeOnTerminate := True;
+        FLogSource.Loger.Add('连接数据库超时!%s', [LSN2Str(CurLSN)], LOG_ERROR);
+        Break;
+      end;
+      sctest.Free;
+      FLogSource.Loger.Add('数据库连接成功...');
+
+      Tmpvlf := FLogSource.GetVlf_SeqNo(CurLSN.LSN_1);
+      try
+        if (Tmpvlf = nil) or (Tmpvlf.SeqNo <> CurLSN.LSN_1) then
+        begin
+          FLogSource.Loger.Add('LogPicker.Execute:lsn out of vlfs [1]!%s', [LSN2Str(CurLSN)], LOG_ERROR);
+          Sleep(1000);
+          Continue;
+        end;
+        DataProvider := FLogReader.getDataProvider(Tmpvlf.fileId);
+        if DataProvider = nil then
+        begin
+          FLogSource.Loger.Add('LogPicker.Execute:由于获取DataProvider失败！GetRawLogByLSN取消！',[LOG_ERROR]);
+          Sleep(1000);
+          Continue;
+        end;
+        LogBlockPosi := Tmpvlf.VLFOffset + CurLSN.LSN_2 * $200;
+        vlf := Tmpvlf^;
+      finally
+        if Tmpvlf<>nil then
+          Dispose(Tmpvlf);
+      end;
+
+      if (DataProvider.Read(logBlockHeader^, LogBlockPosi, SizeOf(TlogBlock)) <> SizeOf(TlogBlock)) then
+      begin
+        FLogSource.Loger.Add('LogPicker.Execute:read logBlock data Error...%s', [LSN2Str(CurLSN)], LOG_ERROR);
+        Sleep(1000);
+        Continue;
+      end;
+      if (logBlockHeader.BeginLSN.LSN_1 <> CurLSN.LSN_1) and
+         (logBlockHeader.BeginLSN.LSN_2 <> CurLSN.LSN_2) and
+         (not logBlockRawCheck(logBlockHeader^)) then
+      begin
+        FLogSource.Loger.Add('LogPicker.Execute:logBlock data invalid...%s', [LSN2Str(CurLSN)], LOG_ERROR);
+        Sleep(1000);
+        Continue;
+      end;
+
+      if CurLSN.LSN_3 > logBlockHeader.OperationCount then
+      begin
+        //当前块中没有这个id
+        FLogSource.Loger.Add('LogPicker.Execute:invalid lsn [4] RowId no found !%s', [LSN2Str(CurLSN)], LOG_ERROR);
+        Sleep(1000);
+        Continue;
+      end;
+
     //跳到下一个块（之后循环读取数据
     LogBlockPosi := LogBlockPosi + logBlockHeader.Size;
-
-    if (DataProvider.Read(logBlockHeader^, LogBlockPosi, SizeOf(TlogBlock)) <> SizeOf(TlogBlock)) then
+    while FPicking do
     begin
-      FLogSource.Loger.Add('LogPicker.Execute:read logBlock data Error...%s', [LSN2Str(FBeginLsn)], LOG_ERROR);
-      Exit;
-    end;
-    if (logBlockHeader.BeginLSN.LSN_1 <> FBeginLsn.LSN_1) and
-       (logBlockHeader.BeginLSN.LSN_2 <> FBeginLsn.LSN_2) and
-       (not logBlockRawCheck(logBlockHeader^)) then
-    begin
-      FLogSource.Loger.Add('LogPicker.Execute:logBlock data invalid...%s', [LSN2Str(FBeginLsn)], LOG_ERROR);
-      Exit;
-    end;
-
-    while not Terminated do
-    begin
-      while True do  //循环块
+      while True do
       begin
-        //先读出整个块，然后处理末尾的修复数据
-        LogBlockBuf := GetMemory(logBlockHeader.Size);
-        try
-          CurLSN := logBlockHeader.BeginLSN;
-          if DataProvider.Read(LogBlockBuf^, LogBlockPosi, logBlockHeader.Size) <> logBlockHeader.Size then
-          begin
-            FLogSource.Loger.Add('LogPicker.Execute:get LogBlock  fail!%s', [LSN2Str(CurLSN)], LOG_ERROR);
-            Exit;
-          end;
-          FLogReader.RepairLogBlockOverlay(LogBlockBuf);
-          for I := 0 to logBlockHeader.OperationCount - 1 do
-          begin
-            RowOffset := PWORD(UIntPtr(LogBlockBuf) + logBlockHeader.endOfBlock - I * 2 - 2)^;
-            if I = logBlockHeader.OperationCount - 1 then
-            begin
-            //last one
-              RowLength := logBlockHeader.endOfBlock - logBlockHeader.OperationCount * 2 - RowOffset;
-            end
-            else
-            begin
-              RowLength := PWORD(UIntPtr(LogBlockBuf) + logBlockHeader.endOfBlock - I * 2 - 2)^ - RowOffset;
-            end;
-
-            RawData.dataSize := RowLength;
-            RawData.data := GetMemory(RowLength);
-            Move(RawData.data^, Pointer(UIntPtr(LogBlockBuf) + RowOffset)^, RowLength);
-
-            if pkgMgr.addRawLog(CurLSN, RawData, False) = Pkg_Err_NoBegin then
-            begin
-              FreeMem(RawData.data);
-            end;
-          //如果队列太大，这里暂停读取数据
-            while pkgMgr.FpaddingPrisePkg.Count > paddingPrisePkgMaxSize do
-            begin
-              FLogSource.loger.Add('缓冲区已满！暂停读取日志。将于30s后继续！', log_warning or LOG_IMPORTANT);
-              for J := 0 to 30 - 1 do
-              begin
-                Sleep(100);
-                if Terminated then
-                begin
-                //响应 Terminated
-                  Exit;
-                end;
-              end;
-            end;
-
-            if Terminated then
-            begin
-            //响应 Terminated
-              Exit;
-            end;
-            CurLSN.LSN_3 := CurLSN.LSN_3 + 1;
-          end;
-        finally
-          FreeMem(LogBlockBuf);
-        end;
-
-        //一个块儿处理完 继续下一个块
-        LogBlockPosi := LogBlockPosi + logBlockHeader.Size;
         if (LogBlockPosi + SizeOf(TlogBlock)) > (vlf.VLFOffset + vlf.VLFSize) then
         begin
           //vlf已读完
-          break;
+          Break;
         end;
         //循环直到下一块生效
         while True do
@@ -471,10 +444,9 @@ begin
           if (DataProvider.Read(logBlockHeader^, LogBlockPosi, SizeOf(TlogBlock)) <> SizeOf(TlogBlock)) then
           begin
             FLogSource.Loger.Add('LogPicker.Execute:read logBlock data Error...%s', [LSN2Str(CurLSN)], LOG_ERROR);
-            Exit;
+            goto beginPoint;
           end;
-          if (logBlockHeader.BeginLSN.LSN_1 = CurLSN.LSN_1) and
-             logBlockRawCheck(logBlockHeader^) then
+          if (logBlockHeader.BeginLSN.LSN_1 = CurLSN.LSN_1) and logBlockRawCheck(logBlockHeader^) then
           begin
             Break;
           end;
@@ -482,15 +454,70 @@ begin
           for I := 0 to 10 - 1 do
           begin
             Sleep(1000);
-            if Terminated then
+            if not FPicking then
             begin
-              //响应 Terminated
-              Exit;
+              goto beginPoint;
             end;
           end;
         end;
+        //处理整个块
+        LogBlockBuf := GetMemory(logBlockHeader.Size);
+        CurLSN := logBlockHeader.BeginLSN;
+        if DataProvider.Read(LogBlockBuf^, LogBlockPosi, logBlockHeader.Size) <> logBlockHeader.Size then
+        begin
+          FLogSource.Loger.Add('LogPicker.Execute:get LogBlock  fail!%s', [LSN2Str(CurLSN)], LOG_ERROR);
+          FreeMem(LogBlockBuf);
+          goto beginPoint;
+        end;
+        FLogReader.RepairLogBlockOverlay(LogBlockBuf);
+        for I := 0 to logBlockHeader.OperationCount - 1 do
+        begin
+          RowOffset := PWORD(UIntPtr(LogBlockBuf) + logBlockHeader.endOfBlock - I * 2 - 2)^;
+          if I = logBlockHeader.OperationCount - 1 then
+          begin
+          //last one
+            RowLength := logBlockHeader.endOfBlock - logBlockHeader.OperationCount * 2 - RowOffset;
+          end
+          else
+          begin
+            RowLength := PWORD(UIntPtr(LogBlockBuf) + logBlockHeader.endOfBlock - I * 2 - 2)^ - RowOffset;
+          end;
+
+          RawData.dataSize := RowLength;
+          RawData.data := GetMemory(RowLength);
+          Move(RawData.data^, Pointer(UIntPtr(LogBlockBuf) + RowOffset)^, RowLength);
+
+          if pkgMgr.addRawLog(CurLSN, RawData, False) = Pkg_Err_NoBegin then
+          begin
+            getRawLogTrans(CurLSN, RawData);
+            FreeMem(RawData.data);
+          end;
+        //如果队列太大，这里暂停读取数据
+          while pkgMgr.FpaddingPrisePkg.Count > paddingPrisePkgMaxSize do
+          begin
+            FLogSource.loger.Add('缓冲区已满！暂停读取日志。将于30s后继续！', log_warning or LOG_IMPORTANT);
+            for J := 0 to 30 - 1 do
+            begin
+              Sleep(100);
+              if not FPicking then
+              begin
+                FreeMem(LogBlockBuf);
+                goto beginPoint;
+              end;
+            end;
+          end;
+
+          if not FPicking then
+          begin
+            FreeMem(LogBlockBuf);
+            goto beginPoint;
+          end;
+          CurLSN.LSN_3 := CurLSN.LSN_3 + 1;
+        end;
+        //下一个块
+        LogBlockPosi := LogBlockPosi + logBlockHeader.Size;
       end;
-      //当前vlf已读取完，查找下一个vlf
+      //下一个VLF
       while True do
       begin
         FLogSource.Fdbc.getDb_VLFs();
@@ -513,19 +540,21 @@ begin
                 Break;
               end;
             end;
+            FLogSource.Loger.Add('读取VLF内容出错！%d', [CurLSN.LSN_1 + 1], LOG_ERROR);
           end;
         end;
         //如果没有找到，就等10s再试  <<<必须每秒响应一次 Terminated>>>
         for I := 0 to 10 - 1 do
         begin
           Sleep(1000);
-          if Terminated then
+          if not FPicking then
           begin
             //响应 Terminated
-            Exit;
+            goto beginPoint;
           end;
         end;
       end;
+      CurLSN.LSN_1 := CurLSN.LSN_1 + 1;
       //找到Vlf中的第一个块
       LogBlockPosi := vlf.VLFOffset + $200;
       while LogBlockPosi < vlf.VLFOffset + vlf.VLFSize do
@@ -533,7 +562,7 @@ begin
         if (DataProvider.Read(logBlockHeader^, LogBlockPosi, SizeOf(TlogBlock)) <> SizeOf(TlogBlock)) then
         begin
           FLogSource.Loger.Add('LogPicker.Execute:logBlock Read fail! no more data !%s', [LSN2Str(CurLSN)], LOG_ERROR);
-          Exit;
+          goto beginPoint;
         end;
         if logBlockRawCheck(logBlockHeader^) and (CurLSN.LSN_1 = logBlockHeader.BeginLSN.LSN_1) then
         begin
@@ -545,10 +574,13 @@ begin
         end;
       end;
     end;
-  finally
-    Dispose(logBlockHeader);
+
+beginPoint:
+  //TODO:ClearBuffer
+    pkgMgr.ClearItems;
   end;
 
+  Dispose(logBlockHeader);
 end;
 
 function TSql2014LogPicker.GetRawLogByLSN(LSN: Tlog_LSN; var OutBuffer: TMemory_data): Boolean;
@@ -556,8 +588,65 @@ begin
   Result := FLogReader.GetRawLogByLSN(lsn, OutBuffer);
 end;
 
+procedure TSql2014LogPicker.getRawLogTrans(LSN: Tlog_LSN; tranCommitData: TMemory_data);
+var
+  COMMIT_XACT:PRawLog_COMMIT_XACT;
+  sql:string;
+  resDataset:TCustomADODataSet;
+  TTsPkg :TTransPkg;
+  tmplsn:Tlog_LSN;
+  tmpRaw:TMemory_data;
+  bb:TBlobField;
+begin
+  COMMIT_XACT:=PRawLog_COMMIT_XACT(tranCommitData.data);
+  if COMMIT_XACT.normalData.OpCode<>LOP_COMMIT_XACT then
+    Exit;
 
+  sql :=Format('select [Current LSN],[Log Record] from fn_dblog(''%s'',''%s'') where [Transaction ID]=''%s'' ',[
+     LSN2Str(COMMIT_XACT.BeginLsn), LSN2Str(lsn), TranId2Str(COMMIT_XACT.normalData.TransID) ]);
+  if FLogSource.Fdbc.ExecSql(sql, resDataset, True) then
+  begin
+    if resDataset.RecordCount > 2 then
+    begin
+      resDataset.First;
+      TTsPkg := TTransPkg.Create(COMMIT_XACT.normalData.TransID);
+      while not resDataset.eof do
+      begin
+        if resDataset.Fields[1].IsBlob then
+        begin
+          bb := TBlobField(resDataset.Fields[1]);
+          tmpRaw.dataSize := bb.Size;
+          tmpRaw.data := getmemory(tmpRaw.dataSize);
+          Move(bb.Value[0], tmpRaw.data^, tmpRaw.dataSize);
+          tmplsn := Str2LSN(resDataset.Fields[0].AsString);
+          TTsPkg.addRawLog(TTransPkgItem.Create(tmplsn, tmpRaw));
+        end;
+        resDataset.Next;
+      end;
+      pkgMgr.FpaddingPrisePkg.Push(TTsPkg);
+    end;
+    resDataset.Free;
+  end;
+end;
 
+{ TSqlConntest }
+
+constructor TSqlConntest.Create(LogSource: TLogSource);
+begin
+  FLogSource := LogSource;
+  inherited Create(False);
+end;
+
+destructor TSqlConntest.Destroy;
+begin
+
+  inherited;
+end;
+
+procedure TSqlConntest.Execute;
+begin
+  FLogSource.Fdbc.reConnect;
+end;
 
 end.
 

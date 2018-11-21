@@ -372,6 +372,7 @@ var
   renameObj:TDDL_Update_RenameObj;
   ddlDck:TDDL_Delete_Constraint_key;
 begin
+  Result := False;
   for I := 0 to DDL.FItems.Count - 1 do
   begin
     ddlitem := TDDLItem(DDL.FItems[I]);

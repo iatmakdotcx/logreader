@@ -361,7 +361,7 @@ begin
   CloseHandle(Fhandle);
     
   lsns := TStringList.Create;
-  lsns.Text := LsnLSTdata;
+  lsns.Text := string(LsnLSTdata);
   for I := lsns.Count-1 downto 0 do
   begin
     if (Length(lsns[i]) = 24) and lsns[i].StartsWith('0x') then

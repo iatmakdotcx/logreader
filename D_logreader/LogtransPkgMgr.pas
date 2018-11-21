@@ -35,6 +35,11 @@ type
     /// <param name="ExtQuery">扩展数据，不需要通知插件</param>
     /// <returns></returns>
     function addRawLog(lsn: Tlog_LSN; Raw: TMemory_data; ExtQuery:Boolean): TaddRawLog_STATUS;
+
+    /// <summary>
+    /// 清除所有未读完的数据
+    /// </summary>
+    procedure ClearItems;
   end;
 
 implementation
@@ -110,6 +115,7 @@ begin
               Result := Pkg_Ignored;
             end else begin
               //本地数据不全，需要单独提取（嵌套事务）
+              //TODO:嵌套事务单独抓取
               Result := Pkg_Err_NoBegin;
             end;
           end;
@@ -129,6 +135,11 @@ begin
   end;
 end;
 
+
+procedure TTransPkgMgr.ClearItems;
+begin
+  Fitems.Clear;
+end;
 
 constructor TTransPkgMgr.Create(FLogSource: TLogSource);
 begin
