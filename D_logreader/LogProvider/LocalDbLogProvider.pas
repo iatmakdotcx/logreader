@@ -109,7 +109,8 @@ begin
       begin
         if GetLastError = ERROR_IO_PENDING then
         begin
-          readRes := GetOverlappedResult(FfileHandle, Flpap^, LongWord(Result), True);
+          GetOverlappedResult(FfileHandle, Flpap^, LongWord(Result), True);
+          readRes := Flpap.Internal = 0;
         end;
       end;
 
@@ -124,6 +125,7 @@ begin
         fBufferSize := Result;
 
         Move(Pointer(UIntPtr(fBuffer) + (posiOfBegin - fBufferStartOffsetOfFile))^, Buffer, Count);
+        Result := Count;
       end;
     end;
   end

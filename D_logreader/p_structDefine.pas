@@ -6,6 +6,9 @@ uses
   Windows;
 
 type
+  LS_STATUE = (tLS_unknown, tLS_NotConfig, tLS_NotConnectDB, tLs_noLogReader, tLS_running, tLS_stopped, tLS_suspension);
+
+type
   QWORD = UInt64;
   PQWORD = ^QWORD;
 

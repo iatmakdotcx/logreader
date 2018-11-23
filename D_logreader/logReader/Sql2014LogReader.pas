@@ -15,7 +15,6 @@ type
      _SqlPid:Cardinal;
      _cback:TSqlProcessTerminatedCallback;
   public
-
     constructor Create(Pid:Cardinal;cback:TSqlProcessTerminatedCallback);
     procedure Execute; override;
   end;
@@ -34,6 +33,7 @@ type
     FLogSource: TLogSource;
     FFFdataProvider: array[0..256] of TLogProvider;   //最多只能有256个物理日志文件
     FAddLogFilecs:TCriticalSection;
+    procedure ClearReader;
   public
     constructor Create(LogSource: TLogSource);
     destructor Destroy; override;
@@ -46,10 +46,11 @@ type
   private
     FLogReader: TSql2014LogReader;
     FLogSource: TLogSource;
-    FPicking: Boolean;
     pkgMgr: TTransPkgMgr;
     FAnalyzer:TSql2014logAnalyzer;
     Fspm:TSqlProcessMonitor;
+    FPicking: Boolean;
+    procedure getRawLogTrans(LSN: Tlog_LSN; tranCommitData: TMemory_data);
   public
     constructor Create(AutoRun:Boolean; LogSource: TLogSource);
     destructor Destroy; override;
@@ -57,14 +58,15 @@ type
     procedure TerminatedSet;override;
     procedure TerminateDelegate;
     function GetRawLogByLSN(LSN: Tlog_LSN; var OutBuffer: TMemory_data): Boolean; override;
-    procedure getRawLogTrans(LSN: Tlog_LSN; tranCommitData: TMemory_data);
+    procedure Start;override;
+    function state:LS_STATUE;
   end;
 
 implementation
 
 uses
   Windows, SysUtils, Memory_Common, loglog, LocalDbLogProvider, OpCode,
-  plugins, hexValUtils, ADOdb, db;
+  plugins, hexValUtils, ADOdb, db, sqlextendedprocHelper;
 
 
 function logBlockRawCheck(Lb: TlogBlock): boolean;
@@ -127,11 +129,7 @@ destructor TSql2014LogReader.Destroy;
 var
   I: Integer;
 begin
-  for I := 0 to Length(FFFdataProvider) - 1 do
-  begin
-    if FFFdataProvider[I] <> nil then
-      FFFdataProvider[I].Free;
-  end;
+  ClearReader;
   FAddLogFilecs.Free;
   inherited;
 end;
@@ -241,7 +239,7 @@ begin
       if LSN.LSN_3 = logBlockHeader.BeginLSN.LSN_3 + logBlockHeader.OperationCount - 1 then
       begin
         //last one
-        OutBuffer.dataSize := PWORD(Uintptr(logBlockBuffer) + logBlockHeader.endOfBlock - logBlockHeader.OperationCount * 2)^ - RowOffset;
+        OutBuffer.dataSize := logBlockHeader.endOfBlock - logBlockHeader.OperationCount * 2 - RowOffset;
       end else begin
         OutBuffer.dataSize := PWORD(Uintptr(logBlockBuffer) + logBlockHeader.endOfBlock - (LSN.LSN_3 - logBlockHeader.BeginLSN.LSN_3 + 2) * 2)^ - RowOffset;
       end;
@@ -281,6 +279,24 @@ end;
 
 { TSql2014LogPicker }
 
+procedure TSql2014LogReader.ClearReader;
+var
+  I: Integer;
+begin
+  FAddLogFilecs.Enter;
+  try
+    for I := 0 to length(FFFdataProvider)-1 do
+    begin
+      if FFFdataProvider[i]<>nil then
+      begin
+        FreeAndNil(FFFdataProvider[i]);
+      end;
+    end;
+  finally
+    FAddLogFilecs.Leave;
+  end;
+end;
+
 constructor TSql2014LogPicker.Create(AutoRun:Boolean; LogSource: TLogSource);
 begin
   FPicking := AutoRun;
@@ -293,8 +309,7 @@ begin
   FAnalyzer := TSql2014logAnalyzer.Create(pkgMgr, LogSource);
   Self.NameThreadForDebugging('TSql2014LogPicker', Self.ThreadID);
   FLogSource.Loger.Add('LogPicker init...');
-
-  Fspm := TSqlProcessMonitor.Create(LogSource.Fdbc.SvrProcessID, TerminateDelegate);
+  Fspm := nil;
 end;
 
 destructor TSql2014LogPicker.Destroy;
@@ -321,10 +336,10 @@ end;
 
 procedure TSql2014LogPicker.TerminateDelegate;
 begin
-  FLogSource.Loger.Add('由于数据库服务已停止LogPicker将退出...', LOG_IMPORTANT or LOG_WARNING);
-  Terminate;
-  FLogSource.FLogPicker := nil;
-  FLogSource.CreateAutoStartTimer;
+  FLogSource.Loger.Add('由于数据库服务已停止LogPicker中断...', LOG_IMPORTANT or LOG_WARNING);
+  TerminatedSet;
+  Fspm.FreeOnTerminate := True;
+  Fspm := nil;
 end;
 
 procedure TSql2014LogPicker.TerminatedSet;
@@ -355,6 +370,9 @@ begin
   begin
     Sleep(100);
     if not FPicking then Continue;
+    if Fspm = nil then
+      Fspm := TSqlProcessMonitor.Create(FLogSource.Fdbc.SvrProcessID, TerminateDelegate);
+
     FLogSource.Loger.Add('LogPicker Search begin Offset...');
     while pkgMgr.FpaddingPrisePkg.Count > 0 do
     begin
@@ -380,6 +398,9 @@ begin
       end;
       sctest.Free;
       FLogSource.Loger.Add('数据库连接成功...');
+
+    setDbOn(FLogSource.Fdbc);
+    setCapLogStart(FLogSource.Fdbc);
 
       Tmpvlf := FLogSource.GetVlf_SeqNo(CurLSN.LSN_1);
       try
@@ -480,12 +501,12 @@ begin
           end
           else
           begin
-            RowLength := PWORD(UIntPtr(LogBlockBuf) + logBlockHeader.endOfBlock - I * 2 - 2)^ - RowOffset;
+            RowLength := PWORD(UIntPtr(LogBlockBuf) + logBlockHeader.endOfBlock - I * 2 - 4)^ - RowOffset;
           end;
 
           RawData.dataSize := RowLength;
           RawData.data := GetMemory(RowLength);
-          Move(RawData.data^, Pointer(UIntPtr(LogBlockBuf) + RowOffset)^, RowLength);
+          Move(Pointer(UIntPtr(LogBlockBuf) + RowOffset)^, RawData.data^, RowLength);
 
           if pkgMgr.addRawLog(CurLSN, RawData, False) = Pkg_Err_NoBegin then
           begin
@@ -514,6 +535,7 @@ begin
           end;
           CurLSN.LSN_3 := CurLSN.LSN_3 + 1;
         end;
+        FreeMem(LogBlockBuf);
         //下一个块
         LogBlockPosi := LogBlockPosi + logBlockHeader.Size;
       end;
@@ -576,7 +598,7 @@ begin
     end;
 
 beginPoint:
-  //TODO:ClearBuffer
+    FLogReader.ClearReader;
     pkgMgr.ClearItems;
   end;
 
@@ -598,7 +620,7 @@ var
   tmpRaw:TMemory_data;
   bb:TBlobField;
 begin
-  COMMIT_XACT:=PRawLog_COMMIT_XACT(tranCommitData.data);
+  COMMIT_XACT := PRawLog_COMMIT_XACT(tranCommitData.data);
   if COMMIT_XACT.normalData.OpCode<>LOP_COMMIT_XACT then
     Exit;
 
@@ -626,6 +648,22 @@ begin
       pkgMgr.FpaddingPrisePkg.Push(TTsPkg);
     end;
     resDataset.Free;
+  end;
+end;
+
+procedure TSql2014LogPicker.Start;
+begin
+  FPicking := True;
+end;
+
+function TSql2014LogPicker.state: LS_STATUE;
+begin
+  if Terminated then
+    Result := tLS_stopped
+  else if not FPicking then
+    Result := tLS_suspension
+  else begin
+    Result := tLS_running;
   end;
 end;
 

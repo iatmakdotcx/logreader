@@ -10,11 +10,10 @@ type
    TLogPicker = class(TThread)
 
    public
+     procedure Start;virtual;abstract;
      function GetRawLogByLSN(LSN: Tlog_LSN; var OutBuffer: TMemory_data): Boolean;virtual;abstract;
+     function state:LS_STATUE;virtual;abstract;
    end;
-
-type
-  LS_STATUE = (tLS_unknown, tLS_NotConfig, tLS_NotConnectDB, tLs_noLogReader, tLS_running, tLS_stopped, tLS_suspension);
 
 type
   TLogSource = class(TLogSourceBase)
@@ -54,11 +53,6 @@ type
     /// <returns></returns>
     function CompareDict:string;
     procedure AddFmsg(aMsg: string; level: Integer);
-
-    /// <summary>
-    /// 监测数据库状态，如果在线则连接，如果不在线，等待上线后连接。
-    /// </summary>
-    procedure CreateAutoStartTimer;
   end;
 
   TLogSourceList = class(TObject)
@@ -154,16 +148,6 @@ begin
     uid := GUIDToString(Guid);
 end;
 
-procedure TLogSource.CreateAutoStartTimer;
-begin
-  //TODO:测试数据库连接状态。启动前，应该先监测数据库状态。
-  if Fdbc<>nil then
-  begin
-
-
-  end;
-end;
-
 function TLogSource.Create_picker(AutoRun:Boolean): Boolean;
 var
   logreaderClass:TClass;
@@ -241,7 +225,7 @@ begin
     Result := tLS_stopped;
   end else
   begin
-    Result := tLS_running;
+    Result := FLogPicker.state;
   end;
 end;
 
