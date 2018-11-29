@@ -7,7 +7,8 @@ extern domyWork_2 : proc
 
 ; 1 – data page，用于表示：堆表或聚集索引的叶子节点
 ; 2 – index page，用于表示：聚集索引的中间节点或者非聚集索引中所有级别的节点
-; 3 – text mix page，4 – text tree page，用于存储类型为文本的大对象数据
+; 3 – text mix page，
+; 4 – text tree page，用于存储类型为文本的大对象数据
 ; 7 – sort page，用于存储排序操作的中间数据结果
 ; 8 – GAM page，用于存储全局分配映射数据GAM(Global Allocation Map），每一个数据文件被分割成4GB的空间块（Chunk），每一个Chunk都对应一个GAM数据页，GAM数据页出现在数据文件特定的位置处，一个bit映射当前Chunk中的一个区。
 ; 9 – SGAM page，用于存储SGAM页(Shared GAM）
@@ -52,6 +53,8 @@ hookfunc PROC
 	cmp al,1
 	jz @doow
 	cmp al,3
+	jz @doow
+	cmp al,4
 	jz @doow
 	jmp @tugi
 	@doow:	

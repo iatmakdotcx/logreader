@@ -47,6 +47,7 @@ type
 
   TMIX_DATA_Item = class(TObject)
     Idx: QWORD;
+    pageid:TPage_Id;
     data: TBytes;
   public
     constructor Create;
@@ -57,6 +58,7 @@ type
     FItems: TObjectList;
   public
     function GetItem(Key: Qword): TMIX_DATA_Item;
+    procedure add(idx:QWORD;pageid:TPage_Id;data:TBytes);
     constructor Create;
     destructor Destroy; override;
   end;
@@ -2615,7 +2617,7 @@ var
   fieldval: PdbFieldValue;
 begin
   InsertRowFlag := BinReader.readWord;
-  if (InsertRowFlag and $6) > 0 then
+  if (InsertRowFlag and $F) > 0 then
   begin
     //重复的压缩日志
     Result := nil;
@@ -2778,6 +2780,8 @@ var
   DataRow: Tsql2014Opt;
   TmpCPnt:UIntPtr;
   TmpSize:Cardinal;
+  RowFlag: Word;
+  MixDataIdx: QWORD;
 begin
   DataRow := nil;
   BinReader := nil;
@@ -2898,9 +2902,17 @@ begin
               BinReader.alignTo4;
             end;
           end;
-          //开始读取R0
+          //读取R0
           BinReader.SetRange(R_Info[0].Offset, R_Info[0].Length);
-          Read_LCX_TEXT_MIX_DATA(tPkg, BinReader);
+          //Read_LCX_TEXT_MIX_DATA(tPkg, BinReader);
+          RowFlag := BinReader.readWord;
+          if RowFlag = $0008 then  //BLOB_FRAGMENT
+          begin
+            BinReader.skip(2);//长度
+            MixDataIdx := BinReader.readQWORD;
+            BinReader.SetRange(R_Info[0].Offset, R_Info[0].Length);
+            MIX_DATAs.add(MixDataIdx, Rldo.pageId, BinReader.readBytes(R_Info[0].Length));
+          end;
         end;
     else
       FLogSource.Loger.Add('PriseRowLog_Insert 遇到尚未处理的 ContextCode :' + contextCodeToStr(Rldo.normalData.ContextCode));
@@ -2921,19 +2933,38 @@ var
 begin
   RowFlag := BinReader.readWord;
   { TODO -oChin -c : 测试用代码 2017-09-16 11:42:40 }
-  if RowFlag <> $0008 then  //GAM page?
+  if RowFlag <> $0008 then  //BLOB_FRAGMENT
   begin
     FLogSource.Loger.AddException('LCX_TEXT_MIX 行首发现未确认值 ' + lsn2str(tPkg.LSN));
   end;
+  MixDataLen := BinReader.readWord;
 
-  BinReader.skip(2);  //R0长度
-  MixDataIdx := BinReader.readQWORD;
   MixDataType := BinReader.readWord;
+  if MixDataType = 2 then
+  begin
+    //page指针列表
+    //UNKNOWN(2){?0x01F5} +pagecount(4)+pageid(6)+slotID(2)
+
+  end
+  else if MixDataType = 3 then
+  begin
+    //后面紧跟的全部是数据
+
+  end
+  else if MixDataType = 5 then
+  begin
+    //data 指针
+    //UNKNOWN(6)+dataversion(4)+dataLen(4)+pageid(6)+slotID(2)
+
+
+  end
+  else
   if MixDataType = 0 then
   begin
-    MixDataLen := BinReader.readDWORD;
-    //这种数据长度是6位的，猜测应该是兼容大于4BG的数据
-    MixDataLen := MixDataLen or (Qword(BinReader.readWORD) shl 32);
+    //小于0x40的值全部在后面,大于0x40小于2x1F00的MixDataType = 5 ,大于1F00的 MixDataType = 2
+    // len(2)+dataversion(4)+data
+    MixDataLen := BinReader.readWORD;
+    BinReader.skip(4);//dataversion
     MixItem := TMIX_DATA_Item.Create;
     MixItem.Idx := MixDataIdx;
     MixItem.data := BinReader.readBytes(MixDataLen);
@@ -3842,6 +3873,17 @@ begin
 end;
 
 { TMIX_DATAs }
+
+procedure TMIX_DATAs.add(idx: QWORD; pageid: TPage_Id; data: TBytes);
+var
+  item :TMIX_DATA_Item;
+begin
+  item := TMIX_DATA_Item.Create;
+  item.Idx := idx;
+  item.pageid := pageid;
+  item.data := data;
+  FItems.Add(item);
+end;
 
 constructor TMIX_DATAs.Create;
 begin
