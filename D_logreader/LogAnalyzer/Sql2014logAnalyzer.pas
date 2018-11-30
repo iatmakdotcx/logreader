@@ -39,6 +39,7 @@ type
     new_data:Tsql2014RowData;
     //特殊变量
     deleteFromUpdate:Boolean;
+    isMixData:Boolean;
   public
     constructor Create;
     destructor Destroy; override;
@@ -57,7 +58,8 @@ type
   TMIX_DATAs = class(TObject)
     FItems: TObjectList;
   public
-    function GetItem(Key: Qword): TMIX_DATA_Item;
+    function GetItem_Idx(Key: Qword): TMIX_DATA_Item;
+    function GetItem_Pageid(pageid:TPage_Id): TMIX_DATA_Item;
     procedure add(idx:QWORD;pageid:TPage_Id;data:TBytes);
     constructor Create;
     destructor Destroy; override;
@@ -91,7 +93,6 @@ type
     FLogSource: TLogSource;
     //每个事务开始要重新初始化以下对象
     FRows: TObjectList;
-    MIX_DATAs: TMIX_DATAs;
     DDL: TDDLMgr;
     AllocUnitMgr: TAllocUnitMgr;
     IDXs:TDDL_Idxs_ColsMgr;
@@ -114,7 +115,6 @@ type
     function DML_BuilderXML_Insert(aRowData: Tsql2014Opt): string;
     function DML_BuilderXML_Update(aRowData: Tsql2014Opt): string;
     function DML_BuilderXML_Delete(aRowData: Tsql2014Opt): string;
-    function Read_LCX_TEXT_MIX_DATA(tPkg: TTransPkgItem; BinReader: TbinDataReader): TBytes;
     procedure PriseDDLPkg(DataRow: Tsql2014Opt);
     procedure PriseDDLPkg_sysrscols(DataRow: Tsql2014Opt);
     procedure PriseDDLPkg_sysschobjs(DataRow: Tsql2014Opt);
@@ -152,6 +152,7 @@ type
     procedure DDLPretreatment;
     procedure PriseDDLPkg_sysidxstats(DataRow: Tsql2014Opt);
     procedure logTranPkg(FTranspkg: TTransPkg);
+    function getDataFrom_TEXT_MIX_DATA(Page: TPage_Id): TBytes;
   public
     /// <summary>
     ///
@@ -201,7 +202,6 @@ begin
   FLogSource := LogSource;
   FRows := TObjectList.Create;
   FRows.OwnsObjects := True;
-  MIX_DATAs := TMIX_DATAs.Create;
   DDL := TDDLMgr.Create;
   AllocUnitMgr := TAllocUnitMgr.Create;
   IDXs:=TDDL_Idxs_ColsMgr.Create;
@@ -217,7 +217,6 @@ begin
   Rscols.Free;
   FRows.Clear;
   FRows.Free;
-  MIX_DATAs.Free;
   DDL.Free;
   AllocUnitMgr.Free;
   IDXs.Free;
@@ -962,7 +961,6 @@ begin
       TTsPkg := TTransPkg(FPkgMgr.FpaddingPrisePkg.Pop);
       try
         FRows.Clear;
-        MIX_DATAs.FItems.Clear;
         DDL.FItems.Clear;
         AllocUnitMgr.FItems.Clear;
         IDXs.FItems.Clear;
@@ -2588,15 +2586,49 @@ var
   MixItem: TMIX_DATA_Item;
 begin
   MIXDATAPkg := @idx[0];
-  MixItem := MIX_DATAs.GetItem(MIXDATAPkg.key);
-  if MixItem = nil then
+  Result := getDataFrom_TEXT_MIX_DATA(MIXDATAPkg.Page);
+end;
+
+function TSql2014logAnalyzer.getDataFrom_TEXT_MIX_DATA(Page: TPage_Id): TBytes;
+var
+  I: Integer;
+  DataRow :Tsql2014Opt;
+  MPD:PMIX_Page_DATA;
+  MPD_0:PMIX_Page_DATA_0;
+  MPD_2:PMIX_Page_DATA_2;
+  MPD_3:PMIX_Page_DATA_3;
+  MPD_5:PMIX_Page_DATA_5;
+begin
+  for I := 0 to FRows.Count - 1 do
   begin
-    raise Exception.CreateFmt('TSql2014logAnalyzer.getDataFrom_TEXT_MIX fail!Idx:%s', [bytestostr_singleHex(idx)]);
-    Result := nil;
-  end
-  else
-  begin
-    Result := MixItem.data;
+    DataRow := Tsql2014Opt(FRows[i]);
+    if DataRow.isMixData and (DataRow.R0 <> nil) and (DataRow.page.FID = Page.FID) and (DataRow.page.PID = Page.PID) and (DataRow.page.solt = Page.solt) then
+    begin
+      MPD:=PMIX_Page_DATA(DataRow.R0);
+      if MPD.flag=0 then
+      begin
+        //小于0x40的值全部在后面,大于0x40小于2x1F00的MixDataType = 5 ,大于1F00的 MixDataType = 2
+        MPD_0 := PMIX_Page_DATA_0(DataRow.R0);
+      end else if MPD.flag=2 then
+      begin
+        //page指针列表
+        //UNKNOWN(2){?0x01F5} +pagecount(4)+pageid(6)+slotID(2)
+        MPD_2 := PMIX_Page_DATA_2(DataRow.R0);
+      end else if MPD.flag=3 then
+      begin
+        //后面紧跟的全部是数据
+        MPD_3 := PMIX_Page_DATA_3(DataRow.R0);
+      end else if MPD.flag=5 then
+      begin
+        //data 指针
+        //UNKNOWN(6)+dataversion(4)+dataLen(4)+pageid(6)+slotID(2)
+        MPD_5 := PMIX_Page_DATA_5(DataRow.R0);
+      end;
+
+
+
+
+    end;
   end;
 end;
 
@@ -2789,7 +2821,8 @@ begin
   try
     case Rldo.normalData.ContextCode of
       LCX_HEAP,      //堆表写入(没有聚合索引的表
-      LCX_CLUSTERED: //聚合写入
+      LCX_CLUSTERED, //聚合写入
+      LCX_TEXT_TREE, LCX_TEXT_MIX://行分块数据 image,text,ntext之类的
         begin
           if (Rldo.normalData.FlagBits and 1)>0 then
           begin
@@ -2875,6 +2908,10 @@ begin
             DataRow.table := DbTable;
             DataRow.R0 := GetMemory($2000);
             Move(Pointer(UIntPtr(Rldo)+R_Info[0].Offset)^, DataRow.R0^, R_Info[0].Length);
+            if Rldo.normalData.ContextCode in [LCX_TEXT_TREE, LCX_TEXT_MIX] then
+            begin
+              DataRow.isMixData := True;
+            end;
             FRows.Add(DataRow);
           end;
         end;
@@ -2882,97 +2919,12 @@ begin
         begin
           //这东西应该可以忽略吧？？？
         end;
-      LCX_TEXT_MIX: //行分块数据 image,text,ntext之类的
-        begin
-          SetLength(R_, Rldo.NumElements);
-          SetLength(R_Info, Rldo.NumElements);
-          BinReader := TbinDataReader.Create(tPkg.Raw);
-          BinReader.seek(SizeOf(TRawLog_DataOpt), soBeginning);
-          for I := 0 to Rldo.NumElements - 1 do
-          begin
-            R_Info[I].Length := BinReader.readWord;
-          end;
-          BinReader.alignTo4;
-          for I := 0 to Rldo.NumElements - 1 do
-          begin
-            if R_Info[I].Length > 0 then
-            begin
-              R_Info[I].Offset := BinReader.Position;
-              R_[I] := BinReader.readBytes(R_Info[I].Length);
-              BinReader.alignTo4;
-            end;
-          end;
-          //读取R0
-          BinReader.SetRange(R_Info[0].Offset, R_Info[0].Length);
-          //Read_LCX_TEXT_MIX_DATA(tPkg, BinReader);
-          RowFlag := BinReader.readWord;
-          if RowFlag = $0008 then  //BLOB_FRAGMENT
-          begin
-            BinReader.skip(2);//长度
-            MixDataIdx := BinReader.readQWORD;
-            BinReader.SetRange(R_Info[0].Offset, R_Info[0].Length);
-            MIX_DATAs.add(MixDataIdx, Rldo.pageId, BinReader.readBytes(R_Info[0].Length));
-          end;
-        end;
     else
       FLogSource.Loger.Add('PriseRowLog_Insert 遇到尚未处理的 ContextCode :' + contextCodeToStr(Rldo.normalData.ContextCode));
     end;
   finally
     if BinReader <> nil then
       BinReader.Free;
-  end;
-end;
-
-function TSql2014logAnalyzer.Read_LCX_TEXT_MIX_DATA(tPkg: TTransPkgItem; BinReader: TbinDataReader): TBytes;
-var
-  RowFlag: Word;
-  MixDataIdx: QWORD;
-  MixDataLen: QWORD;
-  MixItem: TMIX_DATA_Item;
-  MixDataType: Word;
-begin
-  RowFlag := BinReader.readWord;
-  { TODO -oChin -c : 测试用代码 2017-09-16 11:42:40 }
-  if RowFlag <> $0008 then  //BLOB_FRAGMENT
-  begin
-    FLogSource.Loger.AddException('LCX_TEXT_MIX 行首发现未确认值 ' + lsn2str(tPkg.LSN));
-  end;
-  MixDataLen := BinReader.readWord;
-
-  MixDataType := BinReader.readWord;
-  if MixDataType = 2 then
-  begin
-    //page指针列表
-    //UNKNOWN(2){?0x01F5} +pagecount(4)+pageid(6)+slotID(2)
-
-  end
-  else if MixDataType = 3 then
-  begin
-    //后面紧跟的全部是数据
-
-  end
-  else if MixDataType = 5 then
-  begin
-    //data 指针
-    //UNKNOWN(6)+dataversion(4)+dataLen(4)+pageid(6)+slotID(2)
-
-
-  end
-  else
-  if MixDataType = 0 then
-  begin
-    //小于0x40的值全部在后面,大于0x40小于2x1F00的MixDataType = 5 ,大于1F00的 MixDataType = 2
-    // len(2)+dataversion(4)+data
-    MixDataLen := BinReader.readWORD;
-    BinReader.skip(4);//dataversion
-    MixItem := TMIX_DATA_Item.Create;
-    MixItem.Idx := MixDataIdx;
-    MixItem.data := BinReader.readBytes(MixDataLen);
-    MIX_DATAs.FItems.Add(MixItem);
-  end
-  else
-  begin
-    FLogSource.Loger.AddException('LCX_TEXT_MIX 行首发现未确认值 MixDataType ' + lsn2str(tPkg.LSN));
   end;
 end;
 
@@ -3243,7 +3195,8 @@ begin
   try
     case Rldo.normalData.ContextCode of
       LCX_HEAP, //堆表写入
-      LCX_CLUSTERED: //聚合写入
+      LCX_CLUSTERED, //聚合写入
+      LCX_TEXT_TREE, LCX_TEXT_MIX:
         begin
           SetLength(R_, Rldo.NumElements);
           SetLength(R_Info, Rldo.NumElements);
@@ -3478,7 +3431,8 @@ begin
   try
     case Rldo.normalData.ContextCode of
       LCX_HEAP, //堆表写入
-      LCX_CLUSTERED: //聚合写入
+      LCX_CLUSTERED, //聚合写入
+      LCX_TEXT_TREE, LCX_TEXT_MIX:
         begin
           SetLength(R_, Rldo.NumElements);
           SetLength(R_Info, Rldo.NumElements);
@@ -3896,31 +3850,36 @@ begin
   inherited;
 end;
 
-function TMIX_DATAs.GetItem(Key: Qword): TMIX_DATA_Item;
+function TMIX_DATAs.GetItem_Idx(Key: Qword): TMIX_DATA_Item;
 var
-  H, L, M: Integer;
+  I: Integer;
+  item: TMIX_DATA_Item;
 begin
-  //二分查找
-  L := 0;
-  H := FItems.Count - 1;
-  while L <= H do
+  Result := nil;
+  for I := 0 to FItems.Count - 1 do
   begin
-    M := (L + H) div 2;
-    if TMIX_DATA_Item(FItems[M]).idx = Key then
+    item := TMIX_DATA_Item(FItems[I]);
+    if item.Idx = Key then
     begin
-      Result := TMIX_DATA_Item(FItems[M]);
-      Exit;
-    end
-    else if TMIX_DATA_Item(FItems[M]).idx > Key then
-    begin
-      H := M - 1;
-    end
-    else
-    begin
-      L := M + 1;
+      Result := item;
     end;
   end;
+end;
+
+function TMIX_DATAs.GetItem_Pageid(pageid: TPage_Id): TMIX_DATA_Item;
+var
+  I: Integer;
+  item: TMIX_DATA_Item;
+begin
   Result := nil;
+  for I := 0 to FItems.Count - 1 do
+  begin
+    item := TMIX_DATA_Item(FItems[I]);
+    if (item.pageid.PID = pageid.PID) and (item.pageid.FID = pageid.FID) and (item.pageid.solt = pageid.solt) then
+    begin
+      Result := item;
+    end;
+  end;
 end;
 
 { TsqlRawBuf }
@@ -3934,6 +3893,7 @@ begin
   new_data := nil;
 
   deleteFromUpdate := False;
+  isMixData := False;
 end;
 
 destructor Tsql2014Opt.Destroy;

@@ -59,7 +59,7 @@ type
     procedure TerminateDelegate;
     function GetRawLogByLSN(LSN: Tlog_LSN; var OutBuffer: TMemory_data): Boolean; override;
     procedure Start;override;
-    function state:LS_STATUE;
+    function state:LS_STATUE;override;
   end;
 
 implementation
@@ -126,8 +126,6 @@ begin
 end;
 
 destructor TSql2014LogReader.Destroy;
-var
-  I: Integer;
 begin
   ClearReader;
   FAddLogFilecs.Free;

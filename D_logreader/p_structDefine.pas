@@ -147,6 +147,48 @@ type
     Page: TPage_Id;
   end;
 
+  PMIX_Page_DATA =^TMIX_Page_DATA;
+  TMIX_Page_DATA =packed record
+    flag:Word;
+    Recordlen:Word;
+    MixKey: QWORD;
+    MixType:Word;
+  end;
+
+  PMIX_Page_DATA_0 =^TMIX_Page_DATA_0;
+  TMIX_Page_DATA_0 =packed record
+    a:TMIX_Page_DATA;
+    dataLen:Word;
+    dataVersion:DWORD;
+    data:array[0..0] of Byte;
+  end;
+  PMIX_Page_DATA_2 =^TMIX_Page_DATA_2;
+  TMIX_Page_DATA_2 =packed record
+    a:TMIX_Page_DATA;
+    UNKNOWN:Word;
+    pageCount:DWORD;
+    pageDataLength:DWORD;
+    UNKNOWN_2:DWord;
+    Pageid:TPage_Id;
+  end;
+
+  PMIX_Page_DATA_3 =^TMIX_Page_DATA_3;
+  TMIX_Page_DATA_3 =packed record
+    a:TMIX_Page_DATA;
+    data:array[0..0] of Byte;
+  end;
+
+  PMIX_Page_DATA_5 =^TMIX_Page_DATA_5;
+  TMIX_Page_DATA_5 =packed record
+    a:TMIX_Page_DATA;
+    UNKNOWN_1:Word;
+    UNKNOWN_2:Word;
+    UNKNOWN_3:Word;
+    dataVersion:DWORD;
+    datasize:DWORD;
+    Pageid:TPage_Id;
+  end;
+
 function LSN2Str(lsn: Tlog_LSN): string;
 
 function TranId2Str(trans: TTrans_Id): string;
