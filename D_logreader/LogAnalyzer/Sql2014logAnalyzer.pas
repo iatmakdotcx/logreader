@@ -1011,7 +1011,7 @@ begin
   for I := 0 to FRows.Count - 1 do
   begin
     DataRow_buf := Tsql2014Opt(FRows[i]);
-    if DataRow_buf.deleteFlag then
+    if DataRow_buf.deleteFlag or DataRow_buf.isMixData then
     begin
       Continue;
     end;
@@ -1066,6 +1066,7 @@ begin
   PluginsMgr.onTransXml(FLogSource.Fdbc.GetPlgSrc, GenXML);
 //  Loger.Add(GenSql);
 //  Loger.Add(GenXML);
+Exit;
   if ApplySysDDLChange then
   begin
     //如果表结构有变更，重新保存表结构
@@ -2583,51 +2584,73 @@ end;
 function TSql2014logAnalyzer.getDataFrom_TEXT_MIX(idx: TBytes): TBytes;
 var
   MIXDATAPkg: PLogMIXDATAPkg;
-  MixItem: TMIX_DATA_Item;
 begin
   MIXDATAPkg := @idx[0];
-  Result := getDataFrom_TEXT_MIX_DATA(MIXDATAPkg.Page);
+  //TODO:这里解析有问题(长度可能0x10、0x18.最后8位是pageid
+  //0400000001000000 384E00005A1F0000 AC0D000001000000
+  //000051C300000000 B500000001000000
+  Result := getDataFrom_TEXT_MIX_DATA(PPage_Id(@idx[Length(idx) - 8])^);
 end;
 
 function TSql2014logAnalyzer.getDataFrom_TEXT_MIX_DATA(Page: TPage_Id): TBytes;
 var
-  I: Integer;
+  I,J: Integer;
   DataRow :Tsql2014Opt;
   MPD:PMIX_Page_DATA;
   MPD_0:PMIX_Page_DATA_0;
   MPD_2:PMIX_Page_DATA_2;
   MPD_3:PMIX_Page_DATA_3;
   MPD_5:PMIX_Page_DATA_5;
+  nsize:Cardinal;
+  tmpData:TBytes;
 begin
   for I := 0 to FRows.Count - 1 do
   begin
     DataRow := Tsql2014Opt(FRows[i]);
     if DataRow.isMixData and (DataRow.R0 <> nil) and (DataRow.page.FID = Page.FID) and (DataRow.page.PID = Page.PID) and (DataRow.page.solt = Page.solt) then
     begin
-      MPD:=PMIX_Page_DATA(DataRow.R0);
-      if MPD.flag=0 then
+      MPD := PMIX_Page_DATA(DataRow.R0);
+      if MPD.MixType = 0 then
       begin
         //小于0x40的值全部在后面,大于0x40小于2x1F00的MixDataType = 5 ,大于1F00的 MixDataType = 2
         MPD_0 := PMIX_Page_DATA_0(DataRow.R0);
-      end else if MPD.flag=2 then
+        SetLength(Result, MPD_0.dataLen);
+        Move(MPD_0.data[0], Result[0], MPD_0.dataLen);
+      end
+      else if MPD.MixType = 2 then
       begin
         //page指针列表
         //UNKNOWN(2){?0x01F5} +pagecount(4)+pageid(6)+slotID(2)
         MPD_2 := PMIX_Page_DATA_2(DataRow.R0);
-      end else if MPD.flag=3 then
+        nsize := 0;
+        for J := 0 to MPD_2.pageCount - 1 do
+        begin
+          tmpData := getDataFrom_TEXT_MIX_DATA(MPD_2.Idxs[J].Pageid);
+          SetLength(Result, nsize + Length(tmpData));
+          Move(tmpData[0], Result[nsize], Length(tmpData));
+          nsize := nsize + Length(tmpData);
+        end;
+      end
+      else if MPD.MixType = 3 then
       begin
         //后面紧跟的全部是数据
         MPD_3 := PMIX_Page_DATA_3(DataRow.R0);
-      end else if MPD.flag=5 then
+        nsize := MPD_3.a.Recordlen - SizeOf(TMIX_Page_DATA);
+        SetLength(Result, nsize);
+        Move(MPD_3.data[0], Result[0], nsize);
+      end
+      else if MPD.MixType = 5 then
       begin
         //data 指针
         //UNKNOWN(6)+dataversion(4)+dataLen(4)+pageid(6)+slotID(2)
         MPD_5 := PMIX_Page_DATA_5(DataRow.R0);
+        Result := getDataFrom_TEXT_MIX_DATA(MPD_5.Pageid)
+      end
+      else
+      begin
+        FLogSource.Loger.Add('MIX_DATA:'+inttostr(MPD.MixType)+'>' + DumpMemory2Str(DataRow.R0, MPD.Recordlen), LOG_DATA or LOG_WARNING);
       end;
-
-
-
-
+      Break;
     end;
   end;
 end;
@@ -2736,7 +2759,7 @@ begin
               if (VarFieldValEndOffset[Idx] and $8000) > 0 then
               begin
                 //如果最高位是1说明数据在LCX_TEXT_MIX包中
-                fieldval.value := BinReader.readBytes($10);
+                fieldval.value := BinReader.readBytes(val_len);
                 fieldval.value := getDataFrom_TEXT_MIX(fieldval.value);
               end
               else
@@ -2812,8 +2835,6 @@ var
   DataRow: Tsql2014Opt;
   TmpCPnt:UIntPtr;
   TmpSize:Cardinal;
-  RowFlag: Word;
-  MixDataIdx: QWORD;
 begin
   DataRow := nil;
   BinReader := nil;
@@ -3156,23 +3177,34 @@ begin
   begin
     Move(pdata^, Pointer(uintptr(srcData) + offset)^, size_old);
   end
-  else if size_old < size_new then
-  begin
-    //数据后移
-    tmpLen := datarowCnt - offset;
-    tmpdata := AllocMem(tmpLen);
-    Move(Pointer(uintptr(srcData) + offset)^, tmpdata^, tmpLen);
-    Move(tmpdata^, Pointer(uintptr(srcData) + offset + (size_new - size_old))^, tmpLen);
-    Move(pdata^, Pointer(uintptr(srcData) + offset)^, size_new);
-    FreeMem(tmpdata);
-  end else begin
-    //前移
-    tmpLen := datarowCnt - offset;
-    tmpdata := AllocMem(tmpLen);
-    Move(Pointer(uintptr(srcData) + offset)^, tmpdata^, tmpLen);
-    Move(Pointer(uintptr(tmpdata) + (size_old - size_new))^, Pointer(uintptr(srcData) + offset)^, tmpLen - (size_old - size_new));
-    Move(pdata^, Pointer(uintptr(srcData) + offset)^, size_new);
-    FreeMem(tmpdata);
+  else begin
+    if size_old < size_new then
+    begin
+      //数据后移
+      tmpLen := datarowCnt - offset;
+      if tmpLen > 0 then
+      begin
+        tmpdata := AllocMem(tmpLen);
+        Move(Pointer(uintptr(srcData) + offset)^, tmpdata^, tmpLen);
+        Move(tmpdata^, Pointer(uintptr(srcData) + offset + (size_new - size_old))^, tmpLen);
+        FreeMem(tmpdata);
+      end;
+      Move(pdata^, Pointer(uintptr(srcData) + offset)^, size_new);
+    end else begin
+      //前移
+      tmpLen := datarowCnt - offset;
+      tmpdata := AllocMem(tmpLen);
+      Move(Pointer(uintptr(srcData) + offset)^, tmpdata^, tmpLen);
+      Move(Pointer(uintptr(tmpdata) + (size_old - size_new))^, Pointer(uintptr(srcData) + offset)^, tmpLen - (size_old - size_new));
+      Move(pdata^, Pointer(uintptr(srcData) + offset)^, size_new);
+      FreeMem(tmpdata);
+    end;
+    if Pbyte(srcData)^ = $0008 then
+    begin
+      //mix data
+      tmpLen := datarowCnt + size_new - size_old;
+      PWord(uintptr(srcData) + 2)^ := tmpLen;
+    end;
   end;
 end;
 var
@@ -3361,7 +3393,10 @@ begin
                 Move(OriginRowData[0], tmpdata^, Length(OriginRowData));
                 DataRow_buf.R0 := tmpdata;
               end;
-
+              if Rldo.normalData.ContextCode in [LCX_TEXT_TREE, LCX_TEXT_MIX] then
+              begin
+                DataRow_buf.isMixData := True;
+              end;
               FRows.Add(DataRow_buf);
             except
               DataRow_buf.Free;

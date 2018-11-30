@@ -30,6 +30,7 @@ type
     Id2: WORD;
   end;
 
+  PPage_Id =^ TPage_Id;
   TPage_Id = packed record
     PID: DWORD;
     FID: WORD;
@@ -143,50 +144,61 @@ type
   PLogMIXDATAPkg = ^TLogMIXDATAPkg;
 
   TLogMIXDATAPkg = packed record
-    key: QWORD;
+    key: DWORD;
+    pageDatasize:DWord;
     Page: TPage_Id;
   end;
 
-  PMIX_Page_DATA =^TMIX_Page_DATA;
-  TMIX_Page_DATA =packed record
-    flag:Word;
-    Recordlen:Word;
+  PMIX_Page_DATA = ^TMIX_Page_DATA;
+
+  TMIX_Page_DATA = packed record
+    flag: Word;
+    Recordlen: Word;
     MixKey: QWORD;
-    MixType:Word;
+    MixType: Word;
   end;
 
-  PMIX_Page_DATA_0 =^TMIX_Page_DATA_0;
-  TMIX_Page_DATA_0 =packed record
-    a:TMIX_Page_DATA;
-    dataLen:Word;
-    dataVersion:DWORD;
-    data:array[0..0] of Byte;
-  end;
-  PMIX_Page_DATA_2 =^TMIX_Page_DATA_2;
-  TMIX_Page_DATA_2 =packed record
-    a:TMIX_Page_DATA;
-    UNKNOWN:Word;
-    pageCount:DWORD;
-    pageDataLength:DWORD;
-    UNKNOWN_2:DWord;
-    Pageid:TPage_Id;
+  PMIX_Page_DATA_0 = ^TMIX_Page_DATA_0;
+
+  TMIX_Page_DATA_0 = packed record
+    a: TMIX_Page_DATA;
+    dataLen: Word;
+    dataVersion: DWORD;
+    data: array[0..0] of Byte;
   end;
 
-  PMIX_Page_DATA_3 =^TMIX_Page_DATA_3;
-  TMIX_Page_DATA_3 =packed record
-    a:TMIX_Page_DATA;
-    data:array[0..0] of Byte;
+  PMIX_Page_DATA_2Item = ^TMIX_Page_DATA_2Item;
+  TMIX_Page_DATA_2Item = packed record
+    pageDataLength: DWORD;
+    UNKNOWN_2: DWord;
+    Pageid: TPage_Id;
+  end;
+  PMIX_Page_DATA_2 = ^TMIX_Page_DATA_2;
+
+  TMIX_Page_DATA_2 = packed record
+    a: TMIX_Page_DATA;
+    UNKNOWN: Word;
+    pageCount: DWORD;
+    Idxs:array[0..0] of TMIX_Page_DATA_2Item;
   end;
 
-  PMIX_Page_DATA_5 =^TMIX_Page_DATA_5;
-  TMIX_Page_DATA_5 =packed record
-    a:TMIX_Page_DATA;
-    UNKNOWN_1:Word;
-    UNKNOWN_2:Word;
-    UNKNOWN_3:Word;
-    dataVersion:DWORD;
-    datasize:DWORD;
-    Pageid:TPage_Id;
+  PMIX_Page_DATA_3 = ^TMIX_Page_DATA_3;
+
+  TMIX_Page_DATA_3 = packed record
+    a: TMIX_Page_DATA;
+    data: array[0..0] of Byte;
+  end;
+
+  PMIX_Page_DATA_5 = ^TMIX_Page_DATA_5;
+
+  TMIX_Page_DATA_5 = packed record
+    a: TMIX_Page_DATA;
+    UNKNOWN_1: Word;
+    UNKNOWN_2: Word;
+    UNKNOWN_3: Word;
+    dataVersion: DWORD;
+    datasize: DWORD;
+    Pageid: TPage_Id;
   end;
 
 function LSN2Str(lsn: Tlog_LSN): string;
@@ -274,24 +286,27 @@ begin
   try
     RowFlag := PWORD(rawData)^;
     Endoffset := UINT_PTR(rawData) + PWORD(UINT_PTR(rawData) + 2)^;
-    tmpWord := PWORD(Endoffset)^;
-    Endoffset := Endoffset + 2;
-    if (RowFlag and $10) > 0 then
+    if RowFlag and $F0 > 0 then
     begin
-      //null map
-      Endoffset := Endoffset + (tmpWord + 7) shr 3;
-    end;
-    if (RowFlag and $20) > 0 then
-    begin
-      //variants fields
       tmpWord := PWORD(Endoffset)^;
-      Endoffset := Endoffset + tmpWord * 2;
-      Endoffset := UINT_PTR(rawData) + (PWORD(Endoffset)^ and $7FFF);
-    end;
-    if (RowFlag and $40) > 0 then
-    begin
-      //versioning tag  (only 2005?
-      Endoffset := Endoffset + $E;
+      Endoffset := Endoffset + 2;
+      if (RowFlag and $10) > 0 then
+      begin
+        //null map
+        Endoffset := Endoffset + (tmpWord + 7) shr 3;
+      end;
+      if (RowFlag and $20) > 0 then
+      begin
+        //variants fields
+        tmpWord := PWORD(Endoffset)^;
+        Endoffset := Endoffset + tmpWord * 2;
+        Endoffset := UINT_PTR(rawData) + (PWORD(Endoffset)^ and $7FFF);
+      end;
+      if (RowFlag and $40) > 0 then
+      begin
+        //versioning tag  (only 2005?
+        Endoffset := Endoffset + $E;
+      end;
     end;
     Result := Endoffset - UINT_PTR(rawData);
     if Result>$2000 then
