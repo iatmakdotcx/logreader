@@ -62,7 +62,7 @@ var
 
 procedure pageCapture_finit();
 begin
-  Loger.Add('pageCapture_finit...%d',[dllHandle]);
+  DefLoger.Add('pageCapture_finit...%d',[dllHandle]);
   if dllHandle <> 0 then
   begin
     FreeLibrary(dllHandle);
@@ -90,42 +90,42 @@ begin
     _Lc_doHook := GetProcAddress(dllHandle, '_Lc_doHook');
     if not Assigned(_Lc_doHook) then
     begin
-      loger.Add(dbPath + '._Lc_doHook 无效！');
+      Defloger.Add(dbPath + '._Lc_doHook 无效！');
     end;
     _Lc_unHook := GetProcAddress(dllHandle, '_Lc_unHook');
     if not Assigned(_Lc_unHook) then
     begin
-      loger.Add(dbPath + '._Lc_unHook 无效！');
+      Defloger.Add(dbPath + '._Lc_unHook 无效！');
     end;
     _Lc_HasBeenHooked := GetProcAddress(dllHandle, '_Lc_HasBeenHooked');
     if not Assigned(_Lc_HasBeenHooked) then
     begin
-      loger.Add(dbPath + '._Lc_HasBeenHooked 无效！');
+      Defloger.Add(dbPath + '._Lc_HasBeenHooked 无效！');
     end;
     _Lc_Get_PaddingData := GetProcAddress(dllHandle, '_Lc_Get_PaddingData');
     if not Assigned(_Lc_Get_PaddingData) then
     begin
-      loger.Add(dbPath + '._Lc_Get_PaddingData 无效！');
+      Defloger.Add(dbPath + '._Lc_Get_PaddingData 无效！');
     end;
     _Lc_Get_PaddingDataCnt := GetProcAddress(dllHandle, '_Lc_Get_PaddingDataCnt');
     if not Assigned(_Lc_Get_PaddingDataCnt) then
     begin
-      loger.Add(dbPath + '._Lc_Get_PaddingDataCnt 无效！');
+      Defloger.Add(dbPath + '._Lc_Get_PaddingDataCnt 无效！');
     end;
     _Lc_Set_Databases := GetProcAddress(dllHandle, '_Lc_Set_Databases');
     if not Assigned(_Lc_Set_Databases) then
     begin
-      loger.Add(dbPath + '._Lc_Set_Databases 无效！');
+      Defloger.Add(dbPath + '._Lc_Set_Databases 无效！');
     end;
     _Lc_Get_Databases := GetProcAddress(dllHandle, '_Lc_Get_Databases');
     if not Assigned(_Lc_Get_Databases) then
     begin
-      loger.Add(dbPath + '._Lc_Get_Databases 无效！');
+      Defloger.Add(dbPath + '._Lc_Get_Databases 无效！');
     end;
     _Lc_Free_PaddingData := GetProcAddress(dllHandle, '_Lc_Free_PaddingData');
     if not Assigned(_Lc_Free_PaddingData) then
     begin
-      loger.Add(dbPath + '._Lc_Free_PaddingData 无效！');
+      Defloger.Add(dbPath + '._Lc_Free_PaddingData 无效！');
     end;
   end;
 end;

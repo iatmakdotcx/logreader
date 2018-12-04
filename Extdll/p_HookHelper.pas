@@ -39,7 +39,7 @@ begin
     except
       on e: Exception do
       begin
-        Loger.add('preInit Ê§°Ü£¡'+e.Message)
+        DefLoger.add('preInit Ê§°Ü£¡'+e.Message)
       end;
     end;
   end;

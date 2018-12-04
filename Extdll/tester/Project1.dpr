@@ -1,16 +1,6 @@
 program Project1;
 
 uses
-  EMemLeaks,
-  EResLeaks,
-  EDialogWinAPIMSClassic,
-  EDialogWinAPIEurekaLogDetailed,
-  EDialogWinAPIStepsToReproduce,
-  EDebugExports,
-  EFixSafeCallException,
-  EMapWin32,
-  EAppVCL,
-  ExceptionLog7,
   Vcl.Forms,
   Unit1 in 'Unit1.pas' {Form1},
   Winapi.Windows {Form1},

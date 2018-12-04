@@ -16,6 +16,15 @@ library LrExtutils;
 {$ENDIF}
 
 uses
+  EMemLeaks,
+  EResLeaks,
+  EDialogWinAPIMSClassic,
+  EDialogWinAPIEurekaLogDetailed,
+  EDialogWinAPIStepsToReproduce,
+  EDebugExports,
+  EFixSafeCallException,
+  EMapWin32,
+  ExceptionLog7,
   {$IFDEF DEBUG}
   {$ENDIF }
   SysUtils,
@@ -29,7 +38,6 @@ uses
   MakCommonfuncs in 'H:\Delphi\通用的自定义单元\MakCommonfuncs.pas',
   cfg in 'cfg.pas',
   loglog in '..\Common\loglog.pas',
-  Log4D in '..\Common\Log4D.pas',
   HashHelper in '..\Common\HashHelper.pas',
   p_RawMgr_2 in 'p_RawMgr_2.pas',
   p_HookHelper in 'p_HookHelper.pas';
@@ -39,6 +47,19 @@ uses
 const
   ModuleVersion = $00000001;
 
+
+procedure exitAllThread;
+begin
+  DefLoger.Add('exiting....');
+  if loopSaveMgr<>nil then
+  begin
+    loopSaveMgr.Terminate;
+    loopSaveMgr.WaitFor;
+    loopSaveMgr.Free;
+    loopSaveMgr := nil;
+  end;
+  DefLoger.ClearLogEngine;
+end;
 
 /// <summary>
 /// 是否有当前文件夹的写入权限
@@ -164,7 +185,10 @@ begin
   if Assigned(_Lc_doHook) and (SVR_hookPnt_Row > 0) then
   begin
     if loopSaveMgr = nil then
-      loopSaveMgr := TloopSaveMgr.Create;
+    begin
+      SqlSvr_SendMsg(pSrvProc, '无法启动，请重新加载DLL!!!');
+      exit;
+    end;
     hookState := _Lc_doHook(SVR_hookPnt_Row);
     if hookState = 99 then
     begin
@@ -188,12 +212,6 @@ begin
   else
   begin
     _Lc_unHook;
-  end;
-
-  if loopSaveMgr <> nil then
-  begin
-    loopSaveMgr.Free;
-    loopSaveMgr := nil;
   end;
 end;
 
@@ -313,7 +331,7 @@ begin
 
     if loopSaveMgr = nil then
     begin
-      SqlSvr_SendMsg(pSrvProc, 'loopSaveMgr:0');
+      SqlSvr_SendMsg(pSrvProc, 'DLL已被预释放！请执行：dbcc LrExtutils(free)');
     end else begin
       SqlSvr_SendMsg(pSrvProc, 'loopSaveMgr:1');
     end;
@@ -378,6 +396,7 @@ begin
         else if action = 'F' then
         begin
           d_unhook(pSrvProc);
+          exitAllThread;
         end
         else if action = 'G' then
         begin
@@ -484,8 +503,7 @@ begin
       end;
     DLL_PROCESS_DETACH:
       begin
-        if loopSaveMgr <> nil then
-          loopSaveMgr.Free;
+
       end;
   end;
 end;
@@ -497,7 +515,7 @@ begin
   mmO := TMemoryStream.Create;
   try
     PageLog_load(5, 161, $A0, 2, mmO);
-    Loger.Add(DumpMemory2Str(mmO.Memory, mmO.Size));
+    DefLoger.Add(DumpMemory2Str(mmO.Memory, mmO.Size));
   finally
     mmO.Free;
   end;
@@ -507,12 +525,14 @@ exports
   PageLog_save name 'savePageLog2',
   {$IFDEF DEBUG}
   Lr_doo_test,
-  {$ENDIF}
   d_example,
+  {$ENDIF}
   Lr_doo,
+  exitAllThread,
   Lr_roo;
 
 begin
+  DefLoger.Add('aaaaaaaaaaaaaaaaaaaaaaa');
   DLLProc := @DLLMainHandler; //动态库地址告诉系统，结束的时候执行卸载
   DLLMainHandler(DLL_PROCESS_ATTACH);
 

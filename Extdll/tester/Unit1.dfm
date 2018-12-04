@@ -42,7 +42,7 @@ object Form1: TForm1
   end
   object Button4: TButton
     Left = 8
-    Top = 48
+    Top = 88
     Width = 75
     Height = 25
     Caption = #36328#24211#36328'vlf'
@@ -259,5 +259,14 @@ object Form1: TForm1
       TabOrder = 0
       OnClick = Button27Click
     end
+  end
+  object Button28: TButton
+    Left = 8
+    Top = 39
+    Width = 75
+    Height = 25
+    Caption = 'Unload'
+    TabOrder = 27
+    OnClick = Button28Click
   end
 end

@@ -36,6 +36,7 @@ type
     Button26: TButton;
     GroupBox1: TGroupBox;
     Button27: TButton;
+    Button28: TButton;
     procedure Button1Click(Sender: TObject);
     procedure Button2Click(Sender: TObject);
     procedure Button3Click(Sender: TObject);
@@ -59,6 +60,7 @@ type
     procedure Button25Click(Sender: TObject);
     procedure Button26Click(Sender: TObject);
     procedure Button27Click(Sender: TObject);
+    procedure Button28Click(Sender: TObject);
   private
     { Private declarations }
   public
@@ -74,6 +76,7 @@ var
   Read_log_One: function(dbid: Byte; Lsn1: Dword; Lsn2: Dword; Lsn3: word): PAnsiChar; stdcall;
   aaaaaa: function: PansiChar; stdcall;
   Lr_doo_test : procedure;stdcall;
+  exitAllThread:procedure;
 
 implementation
 
@@ -287,6 +290,7 @@ begin
   Read_log_One := getprocaddress(hh, 'Read_log_One');
   aaaaaa := getprocaddress(hh, 'aaaaaa');
   Lr_doo_test := getprocaddress(hh, 'Lr_doo_test');
+  exitAllThread := getprocaddress(hh, 'exitAllThread');
 end;
 
 procedure TForm1.Button20Click(Sender: TObject);
@@ -420,6 +424,12 @@ begin
 //  rspp.val := PAnsiChar('1234567890');
 
   Lr_doo_test;
+end;
+
+procedure TForm1.Button28Click(Sender: TObject);
+begin
+  exitAllThread;
+  FreeLibrary(hh);
 end;
 
 procedure TForm1.Button2Click(Sender: TObject);

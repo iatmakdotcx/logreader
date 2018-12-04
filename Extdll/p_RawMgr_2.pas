@@ -163,9 +163,9 @@ begin
         lri := PlogRecdItem(DataPnt);
         while lri <> nil do
         begin
-          Loger.Add('saveOne:%.8x:%.8x:%.4x,n:%x',[lri^.lsn.lsn_1,lri^.lsn.lsn_2,lri^.lsn.lsn_3,Uint_ptr(lri^.n)], LOG_INFORMATION or LOG_DATA);
+          DefLoger.Add('saveOne:%.8x:%.8x:%.4x,n:%x',[lri^.lsn.lsn_1,lri^.lsn.lsn_2,lri^.lsn.lsn_3,Uint_ptr(lri^.n)], LOG_INFORMATION or LOG_DATA);
           PagelogFileMgr.LogDataSaveToFile(lri^);
-          Loger.Add('saveOne_ok:%.8x:%.8x:%.4x,n:%x',[lri^.lsn.lsn_1,lri^.lsn.lsn_2,lri^.lsn.lsn_3,Uint_ptr(lri^.n)], LOG_INFORMATION or LOG_DATA);
+          DefLoger.Add('saveOne_ok:%.8x:%.8x:%.4x,n:%x',[lri^.lsn.lsn_1,lri^.lsn.lsn_2,lri^.lsn.lsn_3,Uint_ptr(lri^.n)], LOG_INFORMATION or LOG_DATA);
           tmpPtr := lri;
           lri := lri^.n;
           try
@@ -173,7 +173,7 @@ begin
           except
             on exc:Exception do
             begin
-              Loger.Add('调用_Lc_Free_PaddingData失败！' + exc.Message, LOG_ERROR or LOG_IMPORTANT);
+              DefLoger.Add('调用_Lc_Free_PaddingData失败！' + exc.Message, LOG_ERROR or LOG_IMPORTANT);
             end;
           end;
         end;
@@ -181,7 +181,7 @@ begin
       except
         on EEx:Exception do
         begin
-          Loger.Add('savePageLog2 fail ' + EEx.Message, LOG_ERROR or LOG_IMPORTANT);
+          DefLoger.Add('savePageLog2 fail ' + EEx.Message, LOG_ERROR or LOG_IMPORTANT);
           Result := False;
         end;
       end;
@@ -227,7 +227,7 @@ begin
   except
     on e:Exception do
     begin
-      Loger.Add(' LogDataGetData fail! ' + e.Message, LOG_ERROR);
+      DefLoger.Add(' LogDataGetData fail! ' + e.Message, LOG_ERROR);
     end;
   end;
 end;
@@ -237,27 +237,28 @@ var
   dbdiObj:TDBidObj;
   vlf:TVlfMgr;
 begin
-  Loger.Add('...LogDataSaveToFile.......');
+  DefLoger.Add('...LogDataSaveToFile.......');
   Result := False;
   try
     if (Lri.dbId > 0) and (Lri.lsn.lsn_1 > 0) then
     begin
-      Loger.Add('...LogDataSaveToFile...1....');
+      DefLoger.Add('...LogDataSaveToFile...1....');
       dbdiObj := dbids.GetObj(Lri.dbId);
-      Loger.Add('...LogDataSaveToFile...2....');
+      DefLoger.Add('...LogDataSaveToFile...2....');
       vlf := dbdiObj.GetObj(Lri.dbId, Lri.lsn.lsn_1, f_path);
-      Loger.Add('...LogDataSaveToFile...3....');
+      DefLoger.Add('...LogDataSaveToFile...3....');
       Result := vlf.Save(Lri);
-      Loger.Add('...LogDataSaveToFile...4....');
+      DefLoger.Add('...LogDataSaveToFile...4....');
+      // Error here
     end;
-    Loger.Add('...LogDataSaveToFile...5....');
+    DefLoger.Add('...LogDataSaveToFile...5....');
   except
     on e:Exception do
     begin
-      Loger.Add(' LogDataSaveToFile fail! ' + e.Message, LOG_ERROR);
+      DefLoger.Add(' LogDataSaveToFile fail! ' + e.Message, LOG_ERROR);
     end;
   end;
-  Loger.Add('...LogDataSaveToFile...EEE....');
+  DefLoger.Add('...LogDataSaveToFile...EEE....');
 end;
 
 { TDbidCustomList }
@@ -381,16 +382,16 @@ begin
           nil, OPEN_ALWAYS, FILE_ATTRIBUTE_NORMAL or FILE_FLAG_OVERLAPPED, 0);
   if Handle_IdxFile = INVALID_HANDLE_VALUE then
   begin
-    loger.Add('创建文件失败！' + syserrormessage(GetLastError) + ':' + tmpFilePath + '1.idx', LOG_ERROR);
-    loger.Add('之后采集数据将输出到本日志文件！');
+    Defloger.Add('创建文件失败！' + syserrormessage(GetLastError) + ':' + tmpFilePath + '1.idx', LOG_ERROR);
+    Defloger.Add('之后采集数据将输出到本日志文件！');
   end;
 
   Handle_DataFile := CreateFile(PChar(tmpFilePath+'1.data'), GENERIC_READ or GENERIC_WRITE, FILE_SHARE_READ,
           nil, OPEN_ALWAYS, FILE_ATTRIBUTE_NORMAL or FILE_FLAG_OVERLAPPED, 0);
   if Handle_DataFile = INVALID_HANDLE_VALUE then
   begin
-    loger.Add('创建文件失败！' + syserrormessage(GetLastError) + ':' + tmpFilePath + '1.data');
-    loger.Add('之后采集数据将输出到本日志文件！');
+    Defloger.Add('创建文件失败！' + syserrormessage(GetLastError) + ':' + tmpFilePath + '1.data');
+    Defloger.Add('之后采集数据将输出到本日志文件！');
   end;
   idxObj := TLidxMgr.Create(Handle_IdxFile, Self);
 end;
@@ -458,7 +459,7 @@ begin
     TmpDataStr := DumpMemory2Str(Lri.val, Lri.length);
     OutPutStr := OutPutStr + '<data>' + TmpDataStr + '</data></root>';
     //TODO:输出到日志的数据是否需要加密？
-    Loger.Add(OutPutStr, LOG_DATA or LOG_IMPORTANT);
+    DefLoger.Add(OutPutStr, LOG_DATA or LOG_IMPORTANT);
     Result := False;
     Exit;
   end;
@@ -502,7 +503,7 @@ begin
         if Uint_Ptr(IdxBufPosi)+_10MB_ < Uint_Ptr(WbuffPosi) then
         begin
           //最大深度10MB，超过了，的直接丢弃！
-          Loger.Add('Idx 最大深度10MB，跳过了当前内容 !db:%d,RNo:%d', [TVlfMgr(Fvlf).Fdbid, TVlfMgr(Fvlf).ReqNo], LOG_ERROR);
+          DefLoger.Add('Idx 最大深度10MB，跳过了当前内容 !db:%d,RNo:%d', [TVlfMgr(Fvlf).Fdbid, TVlfMgr(Fvlf).ReqNo], LOG_ERROR);
           Exit;
         end;
 
@@ -517,7 +518,7 @@ begin
 
         if not ReadFile_OverLapped(FHandle, IdxBuf^, Rsize, RRsize, IdxBufPosi) then
         begin
-          Loger.Add('Idx 读取失败，跳过了当前内容!db:%d,RNo:%d', [TVlfMgr(Fvlf).Fdbid, TVlfMgr(Fvlf).ReqNo], LOG_ERROR);
+          DefLoger.Add('Idx 读取失败，跳过了当前内容!db:%d,RNo:%d', [TVlfMgr(Fvlf).Fdbid, TVlfMgr(Fvlf).ReqNo], LOG_ERROR);
           Exit;
         end;
         Pli := Pointer(Uint_Ptr(IdxBuf) + Rsize - SizeOf(TLidxItem)); //选中最后一个
@@ -532,7 +533,7 @@ begin
           Break;
         end else begin
           //文件损坏
-          Loger.Add('Idx文件损坏!db:%d,RNo:%d', [TVlfMgr(Fvlf).Fdbid, TVlfMgr(Fvlf).ReqNo], LOG_ERROR);
+          DefLoger.Add('Idx文件损坏!db:%d,RNo:%d', [TVlfMgr(Fvlf).Fdbid, TVlfMgr(Fvlf).ReqNo], LOG_ERROR);
           //TODO:修复！？
           Exit;
         end;
@@ -602,7 +603,7 @@ begin
         Break;
       end else begin
         //文件损坏
-        Loger.Add('Idx文件损坏!db:%d,RNo:%d', [TVlfMgr(Fvlf).Fdbid, TVlfMgr(Fvlf).ReqNo], LOG_ERROR);
+        DefLoger.Add('Idx文件损坏!db:%d,RNo:%d', [TVlfMgr(Fvlf).Fdbid, TVlfMgr(Fvlf).ReqNo], LOG_ERROR);
         //TODO:修复！？
         Exit;
       end;
@@ -728,7 +729,7 @@ begin
   end;
   if not ReadFile_OverLapped(FHandle, Wbuff^, BUFMAXSIZE, RRsize, WbuffPosi) then
   begin
-    Loger.Add('无法读取索引文件！db:%d,RNo:%d', [TVlfMgr(Fvlf).Fdbid, TVlfMgr(Fvlf).ReqNo], LOG_ERROR);
+    DefLoger.Add('无法读取索引文件！db:%d,RNo:%d', [TVlfMgr(Fvlf).Fdbid, TVlfMgr(Fvlf).ReqNo], LOG_ERROR);
   end else begin
     if RRsize = 0 then
     begin
@@ -776,7 +777,7 @@ begin
     except
       on eee:Exception do
       begin
-        Loger.Add('TloopSaveMgr.Execute fail ' + eee.Message, LOG_ERROR or LOG_IMPORTANT);
+        DefLoger.Add('TloopSaveMgr.Execute fail ' + eee.Message, LOG_ERROR or LOG_IMPORTANT);
       end;
     end;
     //2S
@@ -789,12 +790,11 @@ begin
       end;
     end;
   end;
-  loopSaveMgr := nil;
 end;
 
 initialization
   PagelogFileMgr := TPagelogFileMgr.Create;
-  loopSaveMgr := nil;
+  loopSaveMgr := TloopSaveMgr.Create;
   
 finalization
   PagelogFileMgr.Free;

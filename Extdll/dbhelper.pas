@@ -60,7 +60,7 @@ begin
   except
     on EE:Exception do
     begin
-      Loger.Add('TDBH.cfg∂¡»°Dll≈‰÷√ ß∞‹!' + ee.Message);
+      DefLoger.Add('TDBH.cfg∂¡»°Dll≈‰÷√ ß∞‹!' + ee.Message);
     end;
   end;
 end;
@@ -72,7 +72,7 @@ var
 begin
   GetModuleFileName(HInstance, buffPath, MAX_PATH);
   dbPath := ExtractFilePath(string(buffPath)) + 'mapdb.db';
-  Loger.Add('mapdb:'+dbPath);
+  DefLoger.Add('mapdb:'+dbPath);
   DBConnt := TFDConnection.Create(nil);
   DBConnt.Params.Clear;
   DBConnt.Params.Add('Database=' + dbPath);
