@@ -115,7 +115,6 @@ type
   TdbFieldValue = record
     field: TdbFieldItem;
     value: TBytes;
-    StrValue:String;
   end;
 
 implementation

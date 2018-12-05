@@ -20,6 +20,7 @@ type
     AdoQMaster: TADOQuery;
     ADOConnMaster: TADOConnection;
     FPlgSource:Pplg_source;
+
   public
      //手动设置部分
     Host: string;
@@ -56,6 +57,8 @@ type
 
      //数据库字典
     dict: TDbDict;
+    //默认字符集
+    DBCollation:TSQLCollationItem;
     constructor Create(logSource:TLogSourceBase);
     destructor Destroy; override;
     procedure refreshConnection;
@@ -66,8 +69,8 @@ type
     function getDb_dbInfo(checkLoadedInfo:Boolean):Boolean;
     procedure getDb_allLogFiles;
     procedure getDb_VLFs;
-    function GetCodePageFromCollationName(cName: string): string;
-    function GetCollationPropertyFromId(id: Integer): string;
+    function GetCollationPropertyFromName(cName: string): TSQLCollationItem;
+    function GetCollationPropertyFromId(id: Integer): TSQLCollationItem;
     function GetSchemasName(schema_id: Integer): string;
     function GetObjectIdByPartitionid(partition_id: int64): integer;
     function GetLastBackupInfo(var lsn: Tlog_LSN;  var backupTime: TDateTime): Boolean;
@@ -175,6 +178,7 @@ begin
   dict := TDbDict.Create;
 
   FPlgSource := nil;
+  DBCollation := TSQLCollationItem.Create;
 end;
 
 destructor TdatabaseConnection.Destroy;
@@ -192,6 +196,7 @@ begin
   begin
     Dispose(FPlgSource);
   end;
+  DBCollation.Free;
   inherited;
 end;
 
@@ -280,14 +285,19 @@ var
   aSql:string;
 begin
   Result := False;
-  aSql := 'SELECT DB_ID(),recovery_model,@@microsoftversion,SERVERPROPERTY(''ProcessID''),charindex(''64'',cast(SERVERPROPERTY(''Edition'')as varchar(100))) FROM sys.databases WHERE database_id = DB_ID()';
+  aSql := 'SELECT DB_ID(),recovery_model,@@microsoftversion,SERVERPROPERTY(''ProcessID''),charindex(''64'',cast(SERVERPROPERTY(''Edition'')as varchar(100))), '+
+  'collation_name, Convert(varchar(100),COLLATIONPROPERTY(collation_name, ''CodePage'')), Convert(varchar(100),COLLATIONPROPERTY(collation_name, ''collationid'')) '+
+  'FROM sys.databases WHERE database_id = DB_ID()';
   if ExecSql(aSql, rDataset) then
   begin
     try
       recovery_model := rDataset.Fields[1].AsInteger;
       microsoftversion := rDataset.Fields[2].AsInteger;
       SvrProcessID := rDataset.Fields[3].AsInteger;
-      dbIs64bit := rDataset.Fields[4].AsInteger>1;
+      dbIs64bit := rDataset.Fields[4].AsInteger > 1;
+      DBCollation.id := StrToIntDef(rDataset.Fields[7].AsString, -1);
+      DBCollation.name := rDataset.Fields[5].AsString;
+      DBCollation.CodePage := StrToIntDef(rDataset.Fields[6].AsString, -1);
       if checkLoadedInfo then
       begin
         if dbID <> rDataset.Fields[0].AsInteger then
@@ -638,35 +648,55 @@ begin
   end
 end;
 
-function TdatabaseConnection.GetCollationPropertyFromId(id: Integer): string;
+function TdatabaseConnection.GetCollationPropertyFromId(id: Integer): TSQLCollationItem;
 var
-  rDataset:TCustomADODataSet;
-  aSql:string;
+  rDataset: TCustomADODataSet;
+  aSql: string;
 begin
-  aSql := Format('SELECT cast(COLLATIONPROPERTYFROMID(%d,''Name'') as varchar(100))', [id]);
-  if (id >0) and ExecSql(aSql, rDataset) then
+  aSql := Format('SELECT cast(COLLATIONPROPERTYFROMID(%d,''Name'') as varchar(100)), ' +
+      'cast(COLLATIONPROPERTYFROMID(%d,''CodePage'') as varchar(100))', [id, id]);
+  if (id > 0) and ExecSql(aSql, rDataset) then
   begin
-    Result := rDataset.Fields[0].AsString;
+    if (not rDataset.Fields[0].IsNull) and (not rDataset.Fields[1].IsNull) then
+    begin
+      Result := TSQLCollationItem.Create;
+      Result.Name := rDataset.Fields[0].AsString;
+      result.id := id;
+      Result.CodePage := StrToIntDef(rDataset.Fields[1].AsString, -1);
+    end;
     rDataset.Free;
-  end else begin
-    Result := '';
+  end
+  else
+  begin
+    Result := nil;
   end;
 end;
 
-function TdatabaseConnection.GetCodePageFromCollationName(cName: string): string;
+function TdatabaseConnection.GetCollationPropertyFromName(cName: string): TSQLCollationItem;
 var
-  rDataset:TCustomADODataSet;
-  aSql:string;
+  rDataset: TCustomADODataSet;
+  aSql: string;
 begin
-  aSql := Format('SELECT cast(COLLATIONPROPERTY(''%s'',''CodePage'') as varchar(100))', [cName]);
-  if (cName<>'') and ExecSql(aSql, rDataset) then
+  aSql := Format('SELECT cast(COLLATIONPROPERTY(''%s'',''collationid'') as varchar(100)), ' +
+      'cast(COLLATIONPROPERTY(''%s'',''CodePage'') as varchar(100))', [cName, cName]);
+  if (cName <> '') and ExecSql(aSql, rDataset) then
   begin
-    Result := rDataset.Fields[0].AsString;
+    if (not rDataset.Fields[0].IsNull) and (not rDataset.Fields[1].IsNull) then
+    begin
+      Result := TSQLCollationItem.Create;
+      Result.Name := cName;
+      result.id := StrToIntDef(rDataset.Fields[0].AsString, -1);
+      Result.CodePage :=  StrToIntDef(rDataset.Fields[1].AsString, -1);
+    end;
     rDataset.Free;
-  end else begin
-    Result := '';
+  end
+  else
+  begin
+    Result := nil;
   end;
+
 end;
+
 
 function TdatabaseConnection.GetSchemasName(schema_id: Integer): string;
 var

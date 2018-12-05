@@ -45,7 +45,6 @@ uses
   sqlextendedprocHelper in 'sqlextendedprocHelper.pas',
   winshellHelper in 'winshellHelper.pas',
   plgSrcData in '..\Common\plgSrcData.pas',
-  Log4D in '..\Common\Log4D.pas',
   loglog in '..\Common\loglog.pas',
   HashHelper in '..\Common\HashHelper.pas',
   I_LogSource in 'intf\I_LogSource.pas',

@@ -21,6 +21,7 @@ type
     class function Bytes2SingleStr(Value: TBytes): string; static;
     class function Bytes2smallDatetimeStr(Value: TBytes): string; static;
     class function Bytes2TimeStr(Value: TBytes; scale: Integer): string; static;
+    function GetFieldStrValue_SQL_VARIANT(Value: TBytes;out needQuote: Boolean; out dateTypeStr: string): string;
   public
     constructor Create(_LogSource:TLogSourceBase);
     function GetFieldStrValue(Field: TdbFieldItem; Value: TBytes): string; overload;
@@ -276,12 +277,12 @@ begin
   if Length(Value) = 4 then
   begin
     // smallMoney
-    tmplong := getDWORD(Value, 0);
+    tmplong := getint(Value, 0);
   end
   else
   begin
     //Money
-    tmplong := getQWORD(Value, 0);
+    tmplong := getint64(Value, 0);
   end;
   TmPdouble := tmplong / Power(10, scale);
   Result := FloatToStr(TmPdouble);
@@ -317,6 +318,8 @@ begin
 end;
 
 function THexValueHelper.GetFieldStrValue(Field: TdbFieldItem; Value: TBytes; out needQuote: Boolean): string;
+var
+   dateTypeStr: string;
 begin
   needQuote := False;
   if Value = nil then
@@ -363,7 +366,7 @@ begin
         needQuote := True;
       end;
     MsTypes.TINYINT:
-      Result := IntToStr(ShortInt(Value[0]));
+      Result := IntToStr(Value[0]);
     MsTypes.SMALLINT:
       Result := IntToStr(getShort(Value, 0));
     MsTypes.INT:
@@ -419,27 +422,237 @@ begin
 
     MsTypes.GEOGRAPHY:
       begin
-        LogSource.Loger.add('暂不支持的类型:%d GEOGRAPHY 将尝试使用二进制值', [Field.type_id]);
+        LogSource.Loger.add('暂不支持的类型:%d GEOGRAPHY 将尝试使用二进制值', [Field.type_id], LOG_WARNING);
         Result := '0x' + bytestostr_singleHex(Value);
       end;
 
     MsTypes.XML:
       begin
         //TODO:解析 xml
-        LogSource.Loger.add('暂不支持的类型：XML 将使用NULL值');
+        LogSource.Loger.add('暂不支持的类型：XML 将使用NULL值', LOG_WARNING);
         Result := 'NULL';
       end;
     MsTypes.SQL_VARIANT:
       begin
-        //TODO:解析 SQL_VARIANT
-        LogSource.Loger.add('暂不支持的类型：SQL_VARIANT 将使用NULL值');
-        Result := 'NULL';
+        //LogSource.Loger.add('暂不支持的类型：SQL_VARIANT 将使用NULL值');
+        Result := GetFieldStrValue_SQL_VARIANT(value, needQuote, dateTypeStr);
       end;
   else
-    LogSource.Loger.add('暂不支持的类型:%d 将使用二进制值', [Field.type_id]);
+    LogSource.Loger.add('暂不支持的类型:%d 将使用二进制值', [Field.type_id], LOG_WARNING);
     Result := '0x' + bytestostr_singleHex(Value);
   end;
 
+end;
+
+function THexValueHelper.GetFieldStrValue_SQL_VARIANT(Value: TBytes; out needQuote: Boolean; out dateTypeStr: string): string;
+var
+  stsType:Byte;
+  dataCnt:Byte;
+  newValue:TBytes;
+  data_len,data_scale:Cardinal;
+  I: Integer;
+  citem:TSQLCollationItem;
+begin
+  stsType := Value[0];
+  dataCnt := Value[1];
+  case stsType of
+    MsTypes.DATE:
+      begin
+        SetLength(newValue, 3);
+        Move(Value[2], newValue[0], 3);
+        Result := Bytes2DateStr(newValue);
+        needQuote := True;
+        dateTypeStr := 'DATE';
+      end;
+    MsTypes.TIME:
+      begin
+        data_scale := Value[2];
+        SetLength(newValue, 5);
+        Move(Value[3], newValue[0], 5);
+        Result := Bytes2TimeStr(newValue, data_scale);
+        needQuote := True;
+        dateTypeStr := 'TIME';
+      end;
+    MsTypes.DATETIME2:
+      begin
+        data_scale := Value[2];
+        SetLength(newValue, 8);
+        Move(Value[3], newValue[0], 8);
+        Result := Bytes2DateTime2Str(newValue, data_scale);
+        needQuote := True;
+        dateTypeStr := Format('DATETIME2(%d)', [data_scale]);
+      end;
+    MsTypes.TINYINT:
+      begin
+        Result := IntToStr(Value[2]);
+        dateTypeStr := 'TINYINT';
+      end;
+    MsTypes.SMALLINT:
+      begin
+        Result := IntToStr(getShort(Value, 2));
+        dateTypeStr := 'SMALLINT';
+      end;
+    MsTypes.INT:
+      begin
+        Result := IntToStr(getInt(Value, 2));
+        dateTypeStr := 'INT';
+      end;
+    MsTypes.BIGINT:
+      begin
+        Result := IntToStr(getInt64(Value, 2));
+        dateTypeStr := 'BIGINT';
+      end;
+
+    MsTypes.SMALLDATETIME:
+      begin
+        SetLength(newValue, 4);
+        Move(Value[2], newValue[0], 4);
+        Result := Bytes2smallDatetimeStr(newValue);
+        needQuote := True;
+        dateTypeStr := 'SMALLDATETIME';
+      end;
+    MsTypes.REAL:
+      begin
+        SetLength(newValue, 4);
+        Move(Value[2], newValue[0], 4);
+        Result := Bytes2SingleStr(newValue);
+        dateTypeStr := 'REAL';
+      end;
+    MsTypes.FLOAT:
+      begin
+        SetLength(newValue, 8);
+        Move(Value[2], newValue[0], 8);
+        Result := Bytes2DoubleStr(newValue);
+        dateTypeStr := 'FLOAT';
+      end;
+    MsTypes.NUMERIC, MsTypes.DECIMAL:
+      begin
+        data_len := Value[2];
+        data_scale := Value[3];
+        SetLength(newValue, 8);
+        for I := 0 to Min(8, Length(Value)-4)-1 do
+        begin
+          newValue[I] := Value[4 + I];
+        end;
+        Result := Bytes2Float(newValue, data_scale);
+        dateTypeStr := Format('NUMERIC(%d,%d)', [data_len, data_scale]);
+      end;
+    MsTypes.MONEY:
+      begin
+        SetLength(newValue, 8);
+        Move(Value[2], newValue[0], 8);
+        Result := Bytes2Momey(newValue, 4);
+        dateTypeStr := 'MONEY';
+      end;
+    MsTypes.SMALLMONEY:
+      begin
+        SetLength(newValue, 4);
+        Move(Value[2], newValue[0], 4);
+        Result := Bytes2Momey(newValue, 4);
+        dateTypeStr := 'SMALLMONEY';
+      end;
+    MsTypes.DATETIME:
+      begin
+        SetLength(newValue, 8);
+        Move(Value[2], newValue[0], 8);
+        Result := Bytes2DateTimeStr(newValue);
+        needQuote := True;
+        dateTypeStr := 'DATETIME';
+      end;
+    MsTypes.CHAR:
+      begin
+        data_len := getWord(Value, 2);
+        SetLength(newValue, data_len);
+        Move(Value[8], newValue[0], data_len);
+        citem := LogSource.getCollationById(getDWORD(Value, 4));
+        if citem <> nil then
+        begin
+          Result := Bytes2AnsiBytesStr(newValue, citem.CodePage);
+        end
+        else
+        begin
+          Result := Bytes2AnsiBytesStr(newValue, LogSource.getDefCollation.CodePage);
+        end;
+        needQuote := True;
+        dateTypeStr :=  Format('CHAR(%d)', [data_len]);
+      end;
+    MsTypes.VARCHAR:
+      begin
+        //data_len := getWord(Value, 2);   //最大长度，不是实际数据长度
+        data_len := Length(Value) - 8;     //实际长度根据内容确定
+        SetLength(newValue, data_len);
+        Move(Value[8], newValue[0], data_len);
+        citem := LogSource.getCollationById(getDWORD(Value, 4));
+        if citem <> nil then
+        begin
+          Result := Bytes2AnsiBytesStr(newValue, citem.CodePage);
+        end
+        else
+        begin
+          Result := Bytes2AnsiBytesStr(newValue, LogSource.getDefCollation.CodePage);
+        end;
+        needQuote := True;
+        dateTypeStr := Format('VARCHAR(%d)', [data_len]);
+      end;
+    MsTypes.NCHAR:
+      begin
+        data_len := getWord(Value, 2);
+        Result := PWideChar(@Value[8]);
+        Result := Copy(Result, 0, data_len div 2);
+        needQuote := True;
+        dateTypeStr := Format('NCHAR(%d)', [data_len div 2]);
+      end;
+    MsTypes.NVARCHAR:
+      begin
+        data_len := Length(Value) - 8;     //实际长度根据内容确定
+        Result := PWideChar(@Value[8]);
+        Result := Copy(Result, 0, data_len div 2);
+        needQuote := True;
+        dateTypeStr := Format('NVARCHAR(%d)', [data_len div 2]);
+      end;
+    MsTypes.BIT:
+      begin
+        if Value[2] = 1 then
+          Result := '1'
+        else
+          Result := '0';
+
+        dateTypeStr := 'BIT';
+      end;
+    MsTypes.VARBINARY:
+      begin
+        data_len := getWord(Value, 2);
+        Result := '0x' + DumpMemory2Str(@Value[4], Length(Value) - 4);
+        dateTypeStr := Format('VARBINARY(%d)', [data_len]);
+      end;
+    MsTypes.BINARY:
+      begin
+        data_len := getWord(Value, 2);
+        Result := '0x' + DumpMemory2Str(@Value[4], data_len);
+        dateTypeStr := Format('BINARY(%d)', [data_len]);
+      end;
+    MsTypes.UNIQUEIDENTIFIER:
+      begin
+        Result := GUIDToString(PGUID(@Value[2])^);;
+        needQuote := True;
+        dateTypeStr := 'UNIQUEIDENTIFIER';
+      end;
+    MsTypes.DATETIMEOFFSET:
+      begin
+        //官方文档说这个类型不能写进sql_variant，但是实际测试是可以写入的！！
+        data_scale := Value[2];
+        SetLength(newValue, 8);
+        Move(Value[3], newValue[0], 8);
+        Result := Bytes2DateTimeOffsetStr(newValue, data_scale);
+        needQuote := True;
+        dateTypeStr := Format('DATETIMEOFFSET(%d)', [data_scale]);
+      end;
+  else
+    LogSource.Loger.add('暂不支持的类型：SQL_VARIANT.%d',[stsType], LOG_WARNING);
+    Result := 'NULL';
+  end;
+
+  SetLength(newValue, 0);
 end;
 
 function THexValueHelper.GetFieldStrValueWithQuoteIfNeed(Field: TdbFieldItem; Value: TBytes): string;

@@ -201,6 +201,14 @@ type
     Pageid: TPage_Id;
   end;
 
+  TSQLCollationItem = class(Tobject)
+    id: Integer;
+    Name: string;
+    CodePage: Integer;
+    LCID: Integer;
+  end;
+
+
 function LSN2Str(lsn: Tlog_LSN): string;
 
 function TranId2Str(trans: TTrans_Id): string;

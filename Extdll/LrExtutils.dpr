@@ -532,7 +532,6 @@ exports
   Lr_roo;
 
 begin
-  DefLoger.Add('aaaaaaaaaaaaaaaaaaaaaaa');
   DLLProc := @DLLMainHandler; //动态库地址告诉系统，结束的时候执行卸载
   DLLMainHandler(DLL_PROCESS_ATTACH);
 

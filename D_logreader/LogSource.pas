@@ -15,9 +15,11 @@ type
      function state:LS_STATUE;virtual;abstract;
    end;
 
+
 type
   TLogSource = class(TLogSourceBase)
   private
+    FCollations:TObjectList;
     FCfgFilePath:string;
     FRunCs: TCriticalSection;
     FmsgCs:TCriticalSection;
@@ -53,6 +55,11 @@ type
     /// <returns></returns>
     function CompareDict:string;
     procedure AddFmsg(aMsg: string; level: Integer);
+
+    function getCollationById(id: Integer): TSQLCollationItem; override;
+    function getCollationByName(Name: string): TSQLCollationItem; override;
+    function getCollationByCodePage(codepage: Integer): TSQLCollationItem; override;
+    function getDefCollation:TSQLCollationItem; override;
   end;
 
   TLogSourceList = class(TObject)
@@ -127,6 +134,7 @@ constructor TLogSource.Create;
 var
   Guid: TGUID;
 begin
+  FCollations:=TObjectList.Create;
   FmsgCs:=TCriticalSection.Create;
   MainMSGDISPLAY := nil;
   inherited;
@@ -186,7 +194,73 @@ begin
   end;
   FFmsg.Free;
   FmsgCs.Free;
+  FCollations.Free;
   inherited;
+end;
+
+function TLogSource.getCollationByCodePage(codepage: Integer): TSQLCollationItem;
+var
+  I: Integer;
+begin
+  result := nil;
+  for I := 0 to FCollations.Count - 1 do
+  begin
+    if TSQLCollationItem(FCollations[i]).codepage = codepage then
+    begin
+      Result := TSQLCollationItem(FCollations);
+      Break;
+    end;
+  end;
+end;
+function TLogSource.getCollationById(id: Integer): TSQLCollationItem;
+var
+  I: Integer;
+begin
+  result := nil;
+  for I := 0 to FCollations.Count - 1 do
+  begin
+    if TSQLCollationItem(FCollations[i]).id = id then
+    begin
+      Result := TSQLCollationItem(FCollations);
+      Break;
+    end;
+  end;
+  if result = nil then
+  begin
+    result := Fdbc.GetCollationPropertyFromId(id);
+    if result <> nil then
+    begin
+      FCollations.Add(result);
+    end;
+  end;
+end;
+
+function TLogSource.getCollationByName(Name: string): TSQLCollationItem;
+var
+  I: Integer;
+begin
+  result := nil;
+  for I := 0 to FCollations.Count - 1 do
+  begin
+    if TSQLCollationItem(FCollations[i]).Name = Name then
+    begin
+      Result := TSQLCollationItem(FCollations);
+      Break;
+    end;
+  end;
+  if result = nil then
+  begin
+    result := Fdbc.GetCollationPropertyFromName(Name);
+    if result <> nil then
+    begin
+      FCollations.Add(result);
+    end;
+  end;
+end;
+
+function TLogSource.getDefCollation: TSQLCollationItem;
+begin
+  Result := Fdbc.DBCollation;
 end;
 
 function TLogSource.GetVlf_SeqNo(SeqNo:DWORD): PVLF_Info;

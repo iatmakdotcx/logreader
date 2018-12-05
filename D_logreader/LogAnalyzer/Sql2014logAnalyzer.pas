@@ -7,18 +7,19 @@ uses
   Contnrs, BinDataUtils, SqlDDLs, LogtransPkgMgr, hexValUtils;
 
 type
-
+  TSql2014logAnalyzer = class;
   /// <summary>
   /// 一个独立的行数据
   /// </summary>
   Tsql2014RowData = class(TObject)
     Fields: TList;
+    FlogAnalyzer: TSql2014logAnalyzer;
     //Table: TdbTableItem;
   public
     function getFieldStrValue(FieldName: string): string;
     function getField(FieldName: string):PdbFieldValue;overload;
     function getField(col_id: Integer):PdbFieldValue;overload;
-    constructor Create;
+    constructor Create(logAnalyzer:TSql2014logAnalyzer);
     destructor Destroy; override;
   end;
   /// <summary>
@@ -1793,7 +1794,6 @@ var
   table:TdbTableItem;
   //tmpVar
   collation_id: Integer;
-  TmpStr: string;
   ObjId: Integer;
   ddl_col:TDDL_Update_Column;
   I:Integer;
@@ -1801,6 +1801,7 @@ var
   OldCol:TdbFieldItem;
   oldName,newName:string;
   renameObj:TDDL_Update_RenameObj;
+  citem:TSQLCollationItem;
 begin
   if TryStrToInt(DataRow.new_data.getFieldStrValue('id'), ObjId) then
   begin
@@ -1838,18 +1839,11 @@ begin
     FieldItem.scale := StrToInt(DataRow.new_data.getFieldStrValue('scale'));
     FieldItem.is_nullable := (StrToInt(DataRow.new_data.getFieldStrValue('status')) and 1) = 0;
     collation_id := StrToInt(DataRow.new_data.getFieldStrValue('collationid'));
-    FieldItem.collation_name := FLogSource.Fdbc.GetCollationPropertyFromId(collation_id);
-    if FieldItem.collation_name <> '' then
+    citem := FLogSource.getCollationById(collation_id);
+    if citem<>nil then
     begin
-      TmpStr := FLogSource.Fdbc.GetCodePageFromCollationName(FieldItem.collation_name);
-      if TmpStr <> '' then
-      begin
-        FieldItem.CodePage := StrToIntDef(TmpStr, -1);
-      end
-      else
-      begin
-        FieldItem.CodePage := -1;
-      end;
+      FieldItem.collation_name := citem.Name;
+      FieldItem.CodePage := citem.CodePage;
     end;
 
     for I := DataRow.new_data.fields.Count - 1 downto 0 do
@@ -2054,11 +2048,11 @@ var
   table:TdbTableItem;
   //tmpVar
   collation_id: Integer;
-  TmpStr: string;
   ObjId: Integer;
   ddl_col:TDDL_Create_Column;
   I:Integer;
   pdd: PdbFieldValue;
+  citem:TSQLCollationItem;
 begin
   if TryStrToInt(DataRow.new_data.getFieldStrValue('id'), ObjId) then
   begin
@@ -2072,20 +2066,12 @@ begin
     FieldItem.scale := StrToInt(DataRow.new_data.getFieldStrValue('scale'));
     FieldItem.is_nullable := (StrToInt(DataRow.new_data.getFieldStrValue('status')) and 1) = 0;
     collation_id := StrToInt(DataRow.new_data.getFieldStrValue('collationid'));
-    FieldItem.collation_name := FLogSource.Fdbc.GetCollationPropertyFromId(collation_id);
-    if FieldItem.collation_name <> '' then
+    citem := FLogSource.getCollationById(collation_id);
+    if citem <> nil then
     begin
-      TmpStr := FLogSource.Fdbc.GetCodePageFromCollationName(FieldItem.collation_name);
-      if TmpStr <> '' then
-      begin
-        FieldItem.CodePage := StrToIntDef(TmpStr, -1);
-      end
-      else
-      begin
-        FieldItem.CodePage := -1;
-      end;
+      FieldItem.collation_name := citem.Name;
+      FieldItem.CodePage := citem.CodePage;
     end;
-
 
     for I := DataRow.new_data.fields.Count - 1 downto 0 do
     begin
@@ -2686,7 +2672,7 @@ begin
   begin
     raise Exception.Create('实际列数与日志不匹配！这可能是修改表后造成的！放弃解析！');
   end;
-  DataRow := Tsql2014RowData.Create;
+  DataRow := Tsql2014RowData.Create(Self);
   if (InsertRowFlag and $10) > 0 then
   begin
     //nullMap := BinReader.readBytes((DbTable.Fields.Count + 7) shr 3);
@@ -2747,7 +2733,6 @@ begin
             New(fieldval);
             fieldval.field := aField;
             SetLength(fieldval.value,0);
-            fieldval.StrValue := Hvu.GetFieldStrValue(fieldval.field, fieldval.value);
             DataRow.Fields.Add(fieldval);
           end
           else
@@ -2773,7 +2758,6 @@ begin
                 raise exx;
               end;
             end;
-            fieldval.StrValue := Hvu.GetFieldStrValue(fieldval.field, fieldval.value);
             DataRow.Fields.Add(fieldval);
           end;
         end else begin
@@ -2781,7 +2765,6 @@ begin
           New(fieldval);
           fieldval.field := aField;
           SetLength(fieldval.value,0);
-          fieldval.StrValue := Hvu.GetFieldStrValue(fieldval.field, fieldval.value);
           DataRow.Fields.Add(fieldval);
         end;
       end
@@ -2815,7 +2798,6 @@ begin
             raise exx;
           end;
         end;
-        fieldval.StrValue := Hvu.GetFieldStrValue(fieldval.field, fieldval.value);
         DataRow.Fields.Add(fieldval);
       end;
     end;
@@ -3774,9 +3756,10 @@ begin
 end;
 { Tsql2014RowData }
 
-constructor Tsql2014RowData.Create;
+constructor Tsql2014RowData.Create(logAnalyzer:TSql2014logAnalyzer);
 begin
   fields := TList.Create;
+  FlogAnalyzer := logAnalyzer;
 end;
 
 destructor Tsql2014RowData.Destroy;
@@ -3842,7 +3825,7 @@ begin
     pdd := PdbFieldValue(fields[I]);
     if LowerCase(pdd.field.ColName) = FieldName then
     begin
-      Result := pdd.StrValue;
+      Result := FlogAnalyzer.Hvu.GetFieldStrValue(pdd.field, pdd.value);
       Break;
     end;
   end;
