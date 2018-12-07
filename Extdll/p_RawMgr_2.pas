@@ -146,13 +146,13 @@ begin
 end;
 
 function PageLog_save: Boolean;
-const
-  MAX_BUF_SIZE = $2000;
 var
   DataPnt: Pointer;
   lri: PlogRecdItem;
   logs: TList;
   tmpPtr:Pointer;
+  OutPutStr:string;
+
 begin
   if Assigned(_Lc_Get_PaddingDataCnt) and (_Lc_Get_PaddingDataCnt > 0) then
   begin
@@ -163,9 +163,14 @@ begin
         lri := PlogRecdItem(DataPnt);
         while lri <> nil do
         begin
-          DefLoger.Add('saveOne:%.8x:%.8x:%.4x,n:%x',[lri^.lsn.lsn_1,lri^.lsn.lsn_2,lri^.lsn.lsn_3,Uint_ptr(lri^.n)], LOG_INFORMATION or LOG_DATA);
+          DefLoger.Add('saveOne:%.8x:%.8x:%.4x,n:%x,datasize:%d', [lri^.lsn.lsn_1, lri^.lsn.lsn_2, lri^.lsn.lsn_3, Uint_ptr(lri^.n), lri.length], LOG_INFORMATION);
+          begin
+            OutPutStr := Format('<root dbid="%d" lsn="%.8x:%.8x:%.4x">', [lri^.dbid, lri^.lsn.lsn_1, lri^.lsn.lsn_2, lri^.lsn.lsn_3]);
+            OutPutStr := OutPutStr + DumpMemory2Str(lri.val, lri.length) + '</root>';
+            DefLoger.Add(OutPutStr, LOG_DATA);
+          end;
           PagelogFileMgr.LogDataSaveToFile(lri^);
-          DefLoger.Add('saveOne_ok:%.8x:%.8x:%.4x,n:%x',[lri^.lsn.lsn_1,lri^.lsn.lsn_2,lri^.lsn.lsn_3,Uint_ptr(lri^.n)], LOG_INFORMATION or LOG_DATA);
+          DefLoger.Add('saveOne_ok:%.8x:%.8x:%.4x,n:%x',[lri^.lsn.lsn_1,lri^.lsn.lsn_2,lri^.lsn.lsn_3,Uint_ptr(lri^.n)], LOG_INFORMATION);
           tmpPtr := lri;
           lri := lri^.n;
           try
@@ -772,7 +777,6 @@ begin
   while not Terminated do
   begin
     try
-     // Loger.Add('ontimer...', LOG_INFORMATION or LOG_DATA);
       PageLog_save;
     except
       on eee:Exception do

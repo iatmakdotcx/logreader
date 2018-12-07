@@ -653,6 +653,7 @@ var
   rDataset: TCustomADODataSet;
   aSql: string;
 begin
+  Result := nil;
   aSql := Format('SELECT cast(COLLATIONPROPERTYFROMID(%d,''Name'') as varchar(100)), ' +
       'cast(COLLATIONPROPERTYFROMID(%d,''CodePage'') as varchar(100))', [id, id]);
   if (id > 0) and ExecSql(aSql, rDataset) then
@@ -665,10 +666,6 @@ begin
       Result.CodePage := StrToIntDef(rDataset.Fields[1].AsString, -1);
     end;
     rDataset.Free;
-  end
-  else
-  begin
-    Result := nil;
   end;
 end;
 
@@ -677,6 +674,7 @@ var
   rDataset: TCustomADODataSet;
   aSql: string;
 begin
+  Result := nil;
   aSql := Format('SELECT cast(COLLATIONPROPERTY(''%s'',''collationid'') as varchar(100)), ' +
       'cast(COLLATIONPROPERTY(''%s'',''CodePage'') as varchar(100))', [cName, cName]);
   if (cName <> '') and ExecSql(aSql, rDataset) then
@@ -689,12 +687,7 @@ begin
       Result.CodePage :=  StrToIntDef(rDataset.Fields[1].AsString, -1);
     end;
     rDataset.Free;
-  end
-  else
-  begin
-    Result := nil;
   end;
-
 end;
 
 

@@ -119,6 +119,7 @@
         <BT_BuildType>Debug</BT_BuildType>
     </PropertyGroup>
     <PropertyGroup Condition="'$(Cfg_2_Win64)'!=''">
+        <DCC_Define>EUREKALOG;EUREKALOG_VER7;$(DCC_Define)</DCC_Define>
         <DCC_MapFile>3</DCC_MapFile>
         <BRCC_Defines>FullDebugMode;$(BRCC_Defines)</BRCC_Defines>
         <VerInfo_IncludeVerInfo>true</VerInfo_IncludeVerInfo>

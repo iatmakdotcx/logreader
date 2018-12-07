@@ -154,6 +154,8 @@ begin
     uid := FormatDateTime('yyyymmddHHnnsszzz',Now)
   else
     uid := GUIDToString(Guid);
+
+  FVariantWithRealType := True;
 end;
 
 function TLogSource.Create_picker(AutoRun:Boolean): Boolean;

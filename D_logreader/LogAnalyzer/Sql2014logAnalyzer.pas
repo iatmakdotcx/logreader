@@ -681,6 +681,8 @@ var
   field: TdbFieldItem;
   fieldval: PdbFieldValue;
   StrVal: string;
+  needQuote: Boolean;
+  dateTypeStr: string;
 begin
   Result := '<opt type="delete" table="'+aRowData.Table.getFullName+'">';
   Result := Result + '<data>';
@@ -690,17 +692,27 @@ begin
     for I := 0 to aRowData.old_data.Fields.Count - 1 do
     begin
       fieldval := PdbFieldValue(aRowData.old_data.Fields[I]);
-      StrVal := Hvu.GetFieldStrValue(fieldval.field, fieldval.value);
+      StrVal := Hvu.GetFieldStrValue(fieldval.field, fieldval.value, needQuote, dateTypeStr);
       StrVal := DML_BuilderXML_SafeStr(StrVal);
-      Result := Result + Format('<%s>%s</%s>', [fieldval.field.ColName,StrVal,fieldval.field.ColName]);
+      if fieldval.field.type_id=MsTypes.SQL_VARIANT then
+      begin
+        Result := Result + Format('<%s type="%s">%s</%s>', [fieldval.field.ColName,dateTypeStr,StrVal,fieldval.field.ColName]);
+      end else begin
+        Result := Result + Format('<%s>%s</%s>', [fieldval.field.ColName,StrVal,fieldval.field.ColName]);
+      end;
     end;
   end else begin
     for I := 0 to aRowData.new_data.Fields.Count - 1 do
     begin
       fieldval := PdbFieldValue(aRowData.new_data.Fields[I]);
-      StrVal := Hvu.GetFieldStrValue(fieldval.field, fieldval.value);
+      StrVal := Hvu.GetFieldStrValue(fieldval.field, fieldval.value, needQuote, dateTypeStr);
       StrVal := DML_BuilderXML_SafeStr(StrVal);
-      Result := Result + Format('<%s>%s</%s>', [fieldval.field.ColName,StrVal,fieldval.field.ColName]);
+      if fieldval.field.type_id=MsTypes.SQL_VARIANT then
+      begin
+        Result := Result + Format('<%s type="%s">%s</%s>', [fieldval.field.ColName,dateTypeStr,StrVal,fieldval.field.ColName]);
+      end else begin
+        Result := Result + Format('<%s>%s</%s>', [fieldval.field.ColName,StrVal,fieldval.field.ColName]);
+      end;
     end;
   end;
   Result := Result + '</data>';
@@ -715,9 +727,14 @@ begin
         fieldval := PdbFieldValue(aRowData.new_data.Fields[j]);
         if fieldval.field.Col_id=field.Col_id then
         begin
-          StrVal := Hvu.GetFieldStrValue(fieldval.field, fieldval.value);
+          StrVal := Hvu.GetFieldStrValue(fieldval.field, fieldval.value, needQuote, dateTypeStr);
           StrVal := DML_BuilderXML_SafeStr(StrVal);
-          Result := Result + Format('<%s>%s</%s>', [fieldval.field.ColName,StrVal,fieldval.field.ColName]);
+          if fieldval.field.type_id=MsTypes.SQL_VARIANT then
+          begin
+            Result := Result + Format('<%s type="%s">%s</%s>', [fieldval.field.ColName,dateTypeStr,StrVal,fieldval.field.ColName]);
+          end else begin
+            Result := Result + Format('<%s>%s</%s>', [fieldval.field.ColName,StrVal,fieldval.field.ColName]);
+          end;
           Break;
         end;
       end;
@@ -732,14 +749,23 @@ var
   StrVal: string;
   I: Integer;
   fieldval: PdbFieldValue;
+  needQuote: Boolean;
+  dateTypeStr: string;
 begin
   Result := '<opt type="insert" table="'+aRowData.Table.getFullName+'">';
   for I := 0 to aRowData.new_data.Fields.Count - 1 do
   begin
     fieldval := PdbFieldValue(aRowData.new_data.Fields[I]);
-    StrVal := Hvu.GetFieldStrValue(fieldval.field, fieldval.value);
+    StrVal := Hvu.GetFieldStrValue(fieldval.field, fieldval.value, needQuote, dateTypeStr);
     StrVal := DML_BuilderXML_SafeStr(StrVal);
-    Result := Result + Format('<%s>%s</%s>', [fieldval.field.ColName,StrVal,fieldval.field.ColName]);
+    if fieldval.field.type_id = MsTypes.SQL_VARIANT then
+    begin
+      Result := Result + Format('<%s type="%s">%s</%s>', [fieldval.field.ColName, dateTypeStr, StrVal, fieldval.field.ColName]);
+    end
+    else
+    begin
+      Result := Result + Format('<%s>%s</%s>', [fieldval.field.ColName, StrVal, fieldval.field.ColName]);
+    end;
   end;
   Result := Result + '</opt>';
 end;
@@ -753,6 +779,8 @@ var
   xml:IXMLDocument;
   rootNode,fieldNode,TmpNode:IXMLNode;
   nodeName:string;
+  needQuote: Boolean;
+  dateTypeStr: string;
 begin
   xml := TXMLDocument.Create(nil);
   xml.Active := True;
@@ -797,13 +825,17 @@ begin
         begin
           TmpNode.Attributes['null']:= '1';
         end else begin
-          StrVal := Hvu.GetFieldStrValue(raw_old.field, raw_old.value);
+          StrVal := Hvu.GetFieldStrValue(raw_old.field, raw_old.value, needQuote, dateTypeStr);
           if StrVal='NULL' then
           begin
             TmpNode.Attributes['null']:= '1';
           end else begin
             TmpNode.Text := StrVal;
           end;
+          if raw_old.field.type_id = MsTypes.SQL_VARIANT then
+          begin
+            TmpNode.Attributes['type']:= dateTypeStr;
+          end
         end;
 
         TmpNode := fieldNode.AddChild('new');
@@ -811,13 +843,17 @@ begin
         begin
           TmpNode.Attributes['null']:= '1';
         end else begin
-          StrVal := Hvu.GetFieldStrValue(raw_new.field, raw_new.value);
+          StrVal := Hvu.GetFieldStrValue(raw_new.field, raw_new.value, needQuote, dateTypeStr);
           if StrVal='NULL' then
           begin
             TmpNode.Attributes['null']:= '1';
           end else begin
             TmpNode.Text := StrVal;
           end;
+          if raw_new.field.type_id = MsTypes.SQL_VARIANT then
+          begin
+            TmpNode.Attributes['type']:= dateTypeStr;
+          end
         end;
       end;
     end;

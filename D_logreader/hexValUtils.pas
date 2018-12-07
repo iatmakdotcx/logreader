@@ -25,7 +25,7 @@ type
   public
     constructor Create(_LogSource:TLogSourceBase);
     function GetFieldStrValue(Field: TdbFieldItem; Value: TBytes): string; overload;
-    function GetFieldStrValue(Field: TdbFieldItem; Value: TBytes; out needQuote: Boolean): string; overload;
+    function GetFieldStrValue(Field: TdbFieldItem; Value: TBytes; out needQuote: Boolean; out dateTypeStr: string): string; overload;
     function GetFieldStrValueWithQuoteIfNeed(Field: TdbFieldItem; Value: TBytes): string;
     class function Hex2Datetime(msec: Int64): TDateTime;
     class function getWord(Value: TBytes; idx: Integer; len: Integer = 2): Word;
@@ -313,13 +313,12 @@ end;
 function THexValueHelper.GetFieldStrValue(Field: TdbFieldItem; Value: TBytes): string;
 var
   needQuote: Boolean;
+  dateTypeStr: string;
 begin
-  Result := GetFieldStrValue(Field, Value, needQuote);
+  Result := GetFieldStrValue(Field, Value, needQuote, dateTypeStr);
 end;
 
-function THexValueHelper.GetFieldStrValue(Field: TdbFieldItem; Value: TBytes; out needQuote: Boolean): string;
-var
-   dateTypeStr: string;
+function THexValueHelper.GetFieldStrValue(Field: TdbFieldItem; Value: TBytes; out needQuote: Boolean; out dateTypeStr: string): string;
 begin
   needQuote := False;
   if Value = nil then
@@ -658,12 +657,16 @@ end;
 function THexValueHelper.GetFieldStrValueWithQuoteIfNeed(Field: TdbFieldItem; Value: TBytes): string;
 var
   needQuote: Boolean;
+  dateTypeStr: string;
 begin
-  Result := GetFieldStrValue(Field, Value, needQuote);
+  Result := GetFieldStrValue(Field, Value, needQuote,dateTypeStr);
   if needQuote then
   begin
-    Result := Result.Replace('''','''''');
     Result := QuotedStr(Result);
+  end;
+  if (Result <> 'NULL') and (Field.type_id=MsTypes.SQL_VARIANT) and LogSource.VariantWithRealType then
+  begin
+    Result := 'Convert(' + dateTypeStr + ',' + Result + ')';
   end;
 end;
 

@@ -29,7 +29,7 @@ end;
 
 procedure _Lc_Free_PaddingData(Pnt: Pointer); stdcall;
 begin
-  Dispose(Pnt);
+ // Dispose(Pnt);
 end;
 
 exports

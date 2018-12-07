@@ -51,9 +51,9 @@ bool checkRawPtr(UINT_PTR rawData) {
 		return false;
 	}
 	BYTE flag1 = *(BYTE*)rawData;
-	if ((flag1 & 0x0F) != 0)
+	if ((flag1 & 0xF) != 0 && flag1 != 8)
 	{
-		//not primary record.
+		//如果既不是 primary data 也不是 mix data
 		return false;
 	}
 	BYTE flag2 = *(BYTE*)(rawData+1);
@@ -93,29 +93,35 @@ void domyWork_2(UINT_PTR XdesRMReadWrite, UINT_PTR rawData) {
 		{
 			rawData = *(UINT_PTR*)rawData + 8;			
 			rawData = *(UINT_PTR*)rawData;
-			WORD RowFlag = *(WORD*)rawData;
-			UINT_PTR Endoffset = rawData + (*(WORD*)(rawData + 2) & 0x7FFF);
-			WORD colCnt = *(WORD*)(Endoffset);
-			Endoffset += 2;
-			if (RowFlag & 0x10)
+			WORD RowFlag = *(WORD*)rawData;			
+			DWORD RowDatalength = 0;
+			if (RowFlag == 8)
 			{
-				//null map
-				Endoffset += (colCnt + 7) >> 3;
-			}
-			if (RowFlag & 0x20)
-			{
-				//variants fields
-				WORD varColCnt = *(WORD*)(Endoffset);
-				Endoffset += varColCnt * 2;
-				Endoffset = rawData + (*(WORD*)(Endoffset) & 0x7FFF);
-			}
-			if (RowFlag & 0x40)
-			{
-				//versioning tag
-				Endoffset += 0xE;
-			}
+				RowDatalength = *(WORD*)(rawData + 2);
+			} else {
+				UINT_PTR Endoffset = rawData + (*(WORD*)(rawData + 2) & 0x7FFF);
+				WORD colCnt = *(WORD*)(Endoffset);
+				Endoffset += 2;
+				if (RowFlag & 0x10)
+				{
+					//null map
+					Endoffset += (colCnt + 7) >> 3;
+				}
+				if (RowFlag & 0x20)
+				{
+					//variants fields
+					WORD varColCnt = *(WORD*)(Endoffset);
+					Endoffset += varColCnt * 2;
+					Endoffset = rawData + (*(WORD*)(Endoffset) & 0x7FFF);
+				}
+				if (RowFlag & 0x40)
+				{
+					//versioning tag
+					Endoffset += 0xE;
+				}
 
-			DWORD RowDatalength = (DWORD)(Endoffset - rawData);
+				RowDatalength = (DWORD)(Endoffset - rawData);
+			}
 			if (RowDatalength > 0x2000)
 			{
 				return;
