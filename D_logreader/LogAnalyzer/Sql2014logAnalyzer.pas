@@ -1103,6 +1103,7 @@ begin
   PluginsMgr.onTransXml(FLogSource.Fdbc.GetPlgSrc, GenXML);
 //  Loger.Add(GenSql);
 //  Loger.Add(GenXML);
+ApplySysDDLChange;
 Exit;
   if ApplySysDDLChange then
   begin

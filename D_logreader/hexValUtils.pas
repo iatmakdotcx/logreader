@@ -20,7 +20,7 @@ type
     class function Bytes2Momey(Value: TBytes; scale: Integer): string; static;
     class function Bytes2SingleStr(Value: TBytes): string; static;
     class function Bytes2smallDatetimeStr(Value: TBytes): string; static;
-    class function Bytes2TimeStr(Value: TBytes; scale: Integer): string; static;
+    class function Bytes2TimeStr(Value: TBytes; datalen:Integer; scale: Integer): string; static;
     function GetFieldStrValue_SQL_VARIANT(Value: TBytes;out needQuote: Boolean; out dateTypeStr: string): string;
   public
     constructor Create(_LogSource:TLogSourceBase);
@@ -132,14 +132,14 @@ begin
   Result := FormatDateTime('yyyy-MM-dd', TmpDate);
 end;
 
-class function THexValueHelper.Bytes2TimeStr(Value: TBytes; scale: Integer): string;
+class function THexValueHelper.Bytes2TimeStr(Value: TBytes; datalen:Integer; scale: Integer): string;
 var
   MisCnt: Int64;
   seconds, minutes, hours: Integer;
   scaleCardinal: Integer;
   TotalSrcond: Cardinal;
 begin
-  MisCnt := getQWORD(Value, 0, 5);
+  MisCnt := getQWORD(Value, 0, datalen);
   scaleCardinal := Trunc(Power(10, scale));
   TotalSrcond := MisCnt div scaleCardinal;
   seconds := TotalSrcond mod 60;
@@ -351,7 +351,7 @@ begin
       end;
     MsTypes.TIME:
       begin
-        Result := Bytes2TimeStr(Value, Field.scale);
+        Result := Bytes2TimeStr(Value, Field.Max_length, Field.scale);
         needQuote := True;
       end;
     MsTypes.DATETIME2:
@@ -467,8 +467,12 @@ begin
       begin
         data_scale := Value[2];
         SetLength(newValue, 5);
-        Move(Value[3], newValue[0], 5);
-        Result := Bytes2TimeStr(newValue, data_scale);
+        ZeroMemory(@newValue[0], 5);
+        for I := 0 to Min(5, Length(Value)-3)-1 do
+        begin
+          newValue[I] := Value[3 + I];
+        end;
+        Result := Bytes2TimeStr(newValue, 5, data_scale);
         needQuote := True;
         dateTypeStr := 'TIME';
       end;
