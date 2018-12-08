@@ -172,12 +172,12 @@ var
   TmpDate: TDate;
 begin
   //Ìì”µ
-  dayCnt := getDWORD(Value, 5, 3);
+  dayCnt := getDWORD(Value, Length(Value)-3, 3);
   TmpDate := EncodeDateTime(0001, 1, 1, 0, 0, 0, 0);
   TmpDate := TmpDate + dayCnt;
   Result := FormatDateTime('yyyy-MM-dd', TmpDate);
   //Ãë”µ
-  MisCnt := getQWORD(Value, 0, 5);
+  MisCnt := getQWORD(Value, 0, Length(Value)-3);
   scaleCardinal := Trunc(Power(10, scale));
   TotalSrcond := MisCnt div scaleCardinal;
   seconds := TotalSrcond mod 60;
@@ -198,8 +198,9 @@ var
   fixVal: Integer;
   TimeZoneStr: string;
   zoneHours, zonMinutes: integer;
+  TmpDatetime:Tdatetime;
 begin
-  fixVal := getWord(Value, 8);
+  fixVal := getshort(Value, Length(Value)-2);
   zoneHours := abs(fixVal) div 60;
   zonMinutes := abs(fixVal) mod 60;
   if fixVal < 0 then
@@ -211,19 +212,20 @@ begin
     TimeZoneStr := Format('+%.2d:%.2d', [zoneHours, zonMinutes]);
   end;
   //Ìì”µ
-  dayCnt := getDWORD(Value, 5, 3);
+  dayCnt := getDWORD(Value, Length(Value)-5, 3);
   TmpDate := EncodeDateTime(0001, 1, 1, 0, 0, 0, 0);
   TmpDate := TmpDate + dayCnt;
-  Result := FormatDateTime('yyyy-MM-dd', TmpDate);
   //Ãë”µ
   scaleCardinal := Trunc(Power(10, scale));
-  MisCnt := getQWORD(Value, 0, 5) + int64(fixVal) * scaleCardinal * 60;
+  MisCnt := getQWORD(Value, 0, Length(Value)-5);
   TotalSrcond := MisCnt div scaleCardinal;
   seconds := TotalSrcond mod 60;
   minutes := (TotalSrcond div 60) mod 60;
   hours := TotalSrcond div 3600;
   scaleCardinal := MisCnt mod scaleCardinal;
-  Result := Result + ' ' + Format('%d:%d:%d.%d', [hours, minutes, seconds, scaleCardinal]) + ' ' + TimeZoneStr;
+  TmpDatetime := EncodeTime(hours, minutes, seconds,0)+TmpDate;
+  TmpDatetime := IncMinute(TmpDatetime, fixVal);
+  Result := FormatDateTime('yyyy-MM-dd HH:nn:ss.', TmpDatetime) + IntToStr(scaleCardinal) + ' ' + TimeZoneStr;
 end;
 
 class function THexValueHelper.Bytes2smallDatetimeStr(Value: TBytes): string;
