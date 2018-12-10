@@ -239,6 +239,7 @@ var
   I: Integer;
   begt:Cardinal;
 begin
+  if data='' then Exit;
   pluginMREW.BeginRead;
   try
     for I := 0 to Count - 1 do
@@ -270,6 +271,7 @@ var
   I: Integer;
   begt:Cardinal;
 begin
+  if data='' then Exit;
   pluginMREW.BeginRead;
   try
     for I := 0 to Count - 1 do

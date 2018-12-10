@@ -1164,6 +1164,7 @@ var
   I: Integer;
   ResList: TStringList;
   Tmpstr:string;
+  hasOneMoreData:Boolean;
 begin
   ResList := TStringList.Create;
   try
@@ -1173,6 +1174,7 @@ begin
     ResList.Add('<TranBeinTime>' + formatdatetime('yyyy-MM-dd HH:nn:ss.zzz', TransBeginTime)+'</TranBeinTime>');
     ResList.Add('<CommitTranTime>' + formatdatetime('yyyy-MM-dd HH:nn:ss.zzz', TransCommitTime)+'</CommitTranTime>');
     ResList.Add('<details>');
+    hasOneMoreData := false;
     for I := 0 to DDL.FItems.Count - 1 do
     begin
       ddlitem := TDDLItem(DDL.FItems[I]);
@@ -1182,28 +1184,42 @@ begin
         case ddlitem.OpType of
           Opt_Insert:
             begin
-              Tmpstr := '<row id="' + IntToStr(I) + '" type="ddl">' + GenSql_DDL_Insert(TDDLItem_Insert(ddlitem)) + '</row>';
+              Tmpstr := GenSql_DDL_Insert(TDDLItem_Insert(ddlitem));
+              if Tmpstr <> '' then
+                Tmpstr := '<row id="' + IntToStr(I) + '" type="ddl">' + Tmpstr + '</row>';
             end;
           Opt_Update:
             begin
-              Tmpstr := '<row id="' + IntToStr(I) + '" type="ddl">' + GenSql_DDL_Update(TDDLItem_Update(ddlitem)) + '</row>';
+              Tmpstr := GenSql_DDL_Update(TDDLItem_Update(ddlitem));
+              if Tmpstr <> '' then
+                Tmpstr := '<row id="' + IntToStr(I) + '" type="ddl">' + Tmpstr + '</row>';
             end;
           Opt_Delete:
             begin
-              Tmpstr := '<row id="' + IntToStr(I) + '" type="ddl">' + GenSql_DDL_Delete(TDDLItem_Delete(ddlitem)) + '</row>';
+              Tmpstr := GenSql_DDL_Delete(TDDLItem_Delete(ddlitem));
+              if Tmpstr <> '' then
+                Tmpstr := '<row id="' + IntToStr(I) + '" type="ddl">' + Tmpstr + '</row>';
             end;
           Opt_DML:
             begin
-              Tmpstr := '<row id="' + IntToStr(I) + '" type="dml">' + DML_BuilderXML(TDMLItem(DDL.FItems[I]).data) + '</row>';
+              Tmpstr := DML_BuilderXML(TDMLItem(DDL.FItems[I]).data);
+              if Tmpstr <> '' then
+                Tmpstr := '<row id="' + IntToStr(I) + '" type="dml">' + Tmpstr + '</row>';
             end;
         end;
         if Tmpstr <> '' then
+        begin
           ResList.Add(Tmpstr);
+          hasOneMoreData := True;
+        end;
       end;
     end;
     ResList.Add('</details>');
     ResList.Add('</root>');
-    Result := ResList.Text;
+    if hasOneMoreData then
+      Result := ResList.Text
+    else
+      Result := '';
   finally
     ResList.Free;
   end;
