@@ -1103,15 +1103,14 @@ begin
   PluginsMgr.onTransXml(FLogSource.Fdbc.GetPlgSrc, GenXML);
 //  Loger.Add(GenSql);
 //  Loger.Add(GenXML);
-ApplySysDDLChange;
+  ApplySysDDLChange;
+  FLogSource.FProcCurLSN := TransCommitLsn;
 Exit;
   if ApplySysDDLChange then
   begin
     //如果表结构有变更，重新保存表结构
     FLogSource.saveToFile;
   end;
-
-  FLogSource.FProcCurLSN := TransCommitLsn;
   FLogSource.saveToFile_LSN;
 end;
 

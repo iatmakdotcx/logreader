@@ -50,6 +50,7 @@ type
     FAnalyzer:TSql2014logAnalyzer;
     Fspm:TSqlProcessMonitor;
     FPicking: Boolean;
+    FAutoRun: boolean;
     procedure getRawLogTrans(LSN: Tlog_LSN; tranCommitData: TMemory_data);
   public
     constructor Create(AutoRun:Boolean; LogSource: TLogSource);
@@ -335,6 +336,7 @@ end;
 procedure TSql2014LogPicker.TerminateDelegate;
 begin
   FLogSource.Loger.Add('由于数据库服务已停止LogPicker中断...', LOG_IMPORTANT or LOG_WARNING);
+  FAutoRun := true;
   TerminatedSet;
   Fspm.FreeOnTerminate := True;
   Fspm := nil;
@@ -367,9 +369,14 @@ begin
   while not Terminated do
   begin
     Sleep(100);
+    if FAutoRun then
+    begin
+      FPicking := true;
+      FAutoRun := False;
+      FLogSource.loger.Add('重启采集线程...', log_warning);
+    end;
+
     if not FPicking then Continue;
-    if Fspm = nil then
-      Fspm := TSqlProcessMonitor.Create(FLogSource.Fdbc.SvrProcessID, TerminateDelegate);
 
     FLogSource.Loger.Add('LogPicker Search begin Offset...');
     while pkgMgr.FpaddingPrisePkg.Count > 0 do
@@ -392,13 +399,16 @@ begin
       begin
         sctest.FreeOnTerminate := True;
         FLogSource.Loger.Add('连接数据库超时!%s', [LSN2Str(CurLSN)], LOG_ERROR);
-        Break;
+        Continue;
       end;
       sctest.Free;
       FLogSource.Loger.Add('数据库连接成功...');
 
     setDbOn(FLogSource.Fdbc);
     setCapLogStart(FLogSource.Fdbc);
+    FLogSource.Fdbc.getDb_dbInfo(true);
+    if Fspm = nil then
+      Fspm := TSqlProcessMonitor.Create(FLogSource.Fdbc.SvrProcessID, TerminateDelegate);
 
       Tmpvlf := FLogSource.GetVlf_SeqNo(CurLSN.LSN_1);
       try
@@ -560,7 +570,7 @@ begin
                 Break;
               end;
             end;
-            FLogSource.Loger.Add('读取VLF内容出错！%d', [CurLSN.LSN_1 + 1], LOG_ERROR);
+            //FLogSource.Loger.Add('读取VLF内容出错！%d', [CurLSN.LSN_1 + 1], LOG_ERROR);
           end;
         end;
         //如果没有找到，就等10s再试  <<<必须每秒响应一次 Terminated>>>

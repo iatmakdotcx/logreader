@@ -291,13 +291,7 @@ begin
   if ExecSql(aSql, rDataset) then
   begin
     try
-      recovery_model := rDataset.Fields[1].AsInteger;
       microsoftversion := rDataset.Fields[2].AsInteger;
-      SvrProcessID := rDataset.Fields[3].AsInteger;
-      dbIs64bit := rDataset.Fields[4].AsInteger > 1;
-      DBCollation.id := StrToIntDef(rDataset.Fields[7].AsString, -1);
-      DBCollation.name := rDataset.Fields[5].AsString;
-      DBCollation.CodePage := StrToIntDef(rDataset.Fields[6].AsString, -1);
       if checkLoadedInfo then
       begin
         if dbID <> rDataset.Fields[0].AsInteger then
@@ -326,6 +320,12 @@ begin
         dbVer_Minor := (microsoftversion shr 16) and $FF;
         dbVer_BuildNumber := microsoftversion and $FFFF;
       end;
+      recovery_model := rDataset.Fields[1].AsInteger;
+      SvrProcessID := rDataset.Fields[3].AsInteger;
+      dbIs64bit := rDataset.Fields[4].AsInteger > 1;
+      DBCollation.id := StrToIntDef(rDataset.Fields[7].AsString, -1);
+      DBCollation.name := rDataset.Fields[5].AsString;
+      DBCollation.CodePage := StrToIntDef(rDataset.Fields[6].AsString, -1);
       Result := True;
     finally
       rDataset.Free;
