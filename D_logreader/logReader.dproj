@@ -185,6 +185,10 @@
             <Form>frm_tableview</Form>
             <FormType>dfm</FormType>
         </DCCReference>
+        <DCCReference Include="UI\pMakloadingFormB.pas">
+            <Form>MakloadingFormB</Form>
+            <FormType>dfm</FormType>
+        </DCCReference>
         <BuildConfiguration Include="Debug">
             <Key>Cfg_2</Key>
             <CfgParent>Base</CfgParent>

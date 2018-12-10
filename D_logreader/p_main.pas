@@ -76,6 +76,7 @@ type
     procedure PluginMenuItemClick(Sender: TObject);
     procedure ListViewRefresh;
     procedure XmlDebug(aXmlText: string);
+    procedure ReloadCfgList;
     { Private declarations }
   public
     { Public declarations }
@@ -91,7 +92,7 @@ implementation
 uses
   dbConnectionCfg, databaseConnection, p_structDefine, Memory_Common,
   MakCommonfuncs, loglog, sqlextendedprocHelper, XMLDoc, LogtransPkg, dbDict, 
-  LogtransPkgMgr, Sql2014logAnalyzer, p_tableview;
+  LogtransPkgMgr, Sql2014logAnalyzer, p_tableview, pMakloadingFormB, Winapi.ActiveX;
 
 {$R *.dfm}
 
@@ -581,6 +582,12 @@ begin
 end;
 
 procedure TForm1.btn_ReloadListClick(Sender: TObject);
+begin
+  waitJobComplate(ReloadCfgList);
+  ListViewRefresh;
+end;
+
+procedure TForm1.ReloadCfgList;
 var
   savePath:string;
   lst:TStringList;
@@ -588,6 +595,7 @@ var
   Tmplogsource : TLogSource;
   ItemIdx:Integer;
 begin
+  CoInitialize(nil);
   savePath := ExtractFilePath(GetModuleName(0)) + 'cfg\*.lrd';
   lst := searchAllFileAdv(savePath);
   for I := 0 to lst.Count - 1 do
@@ -615,7 +623,7 @@ begin
     end;
   end;
   lst.Free;
-  ListViewRefresh;
+  CoUninitialize;
 end;
 
 procedure TForm1.ListView1Change(Sender: TObject; Item: TListItem; Change: TItemChange);

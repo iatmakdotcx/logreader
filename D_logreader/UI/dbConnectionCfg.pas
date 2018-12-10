@@ -71,7 +71,7 @@ implementation
 
 uses
   dbHelper, ResHelper, sqlextendedprocHelper, MakCommonfuncs, winshellHelper,
-  loglog;
+  loglog, pMakloadingFormB;
 
 {$R *.dfm}
 
@@ -252,11 +252,12 @@ begin
   //SetImgData(Image5,'img_load','IMG');
   Application.ProcessMessages;
 
-  logsource.Fdbc.refreshDict;
+  waitJobComplate(logsource.Fdbc.refreshDict);
   logsource.FisLocal := True;
 
   Button2.Enabled := True;
 end;
+
 
 procedure Tfrm_dbConnectionCfg.CheckPointSet;
 var

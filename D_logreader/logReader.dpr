@@ -48,7 +48,8 @@ uses
   loglog in '..\Common\loglog.pas',
   HashHelper in '..\Common\HashHelper.pas',
   I_LogSource in 'intf\I_LogSource.pas',
-  p_tableview in 'UI\p_tableview.pas' {frm_tableview};
+  p_tableview in 'UI\p_tableview.pas' {frm_tableview},
+  pMakloadingFormB in 'UI\pMakloadingFormB.pas' {MakloadingFormB};
 
 {$R *.res}
 
