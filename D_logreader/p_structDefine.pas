@@ -169,7 +169,7 @@ type
 
   PMIX_Page_DATA_2Item = ^TMIX_Page_DATA_2Item;
   TMIX_Page_DATA_2Item = packed record
-    pageDataLength: DWORD;
+    pageDataPosition: DWORD;
     UNKNOWN_2: DWord;
     Pageid: TPage_Id;
   end;

@@ -1101,11 +1101,13 @@ begin
   DDLPretreatment;
   PluginsMgr.onTranSql(FLogSource.Fdbc.GetPlgSrc, GenSql);
   PluginsMgr.onTransXml(FLogSource.Fdbc.GetPlgSrc, GenXML);
+  FLogSource.FProcCurLSN := TransCommitLsn;
 //  Loger.Add(GenSql);
 //  Loger.Add(GenXML);
-  ApplySysDDLChange;
-  FLogSource.FProcCurLSN := TransCommitLsn;
+{$IFDEF DEBUG}
+ApplySysDDLChange;
 Exit;
+{$ENDIF}
   if ApplySysDDLChange then
   begin
     //如果表结构有变更，重新保存表结构
@@ -2941,20 +2943,21 @@ begin
             //一般是 3 块数据 (可以有N个块
             //1至n-2. 真实写入的数据
             //n-1. 0 聚合索引信息（对于Insert日志，此值保持null
-            //n. 表信息
-            if R_Info[Rldo.NumElements - 1].Length = 0 then
+            //n. 表信息 (LCX_TEXT_TREE可能不包含此信息
+            if R_Info[Rldo.NumElements - 1].Length <> 0 then
             begin
-              //整块移动数据，这个里直接忽略
-              Exit;
-            end;
-            BinReader.SetRange(R_Info[Rldo.NumElements - 1].Offset, R_Info[Rldo.NumElements - 1].Length);
-            BinReader.skip(6);
-            TableId := BinReader.readInt;
-            DbTable := FLogSource.Fdbc.dict.tables.GetItemById(TableId);
-            if DbTable = nil then
-            begin
-              //忽略的表
-              Exit;
+              BinReader.SetRange(R_Info[Rldo.NumElements - 1].Offset, R_Info[Rldo.NumElements - 1].Length);
+              BinReader.skip(6);
+              TableId := BinReader.readInt;
+              DbTable := FLogSource.Fdbc.dict.tables.GetItemById(TableId);
+              if DbTable = nil then
+              begin
+                //忽略的表
+                Exit;
+              end;
+            end else begin
+              //LCX_TEXT_TREE
+              DbTable := nil;
             end;
 
             DataRow := Tsql2014Opt.Create;
