@@ -91,7 +91,7 @@ implementation
 
 uses
   dbConnectionCfg, databaseConnection, p_structDefine, Memory_Common,
-  MakCommonfuncs, loglog, sqlextendedprocHelper, XMLDoc, LogtransPkg, dbDict, 
+  MakCommonfuncs, loglog, sqlextendedprocHelper, XMLDoc, LogtransPkg, dbDict,
   LogtransPkgMgr, Sql2014logAnalyzer, p_tableview, pMakloadingFormB, Winapi.ActiveX;
 
 {$R *.dfm}
@@ -111,28 +111,24 @@ end;
 
 procedure TForm1.Button14Click(Sender: TObject);
 var
-  ItemIdx:Integer;
   tlsObj:TLogSource;
 begin
   if ListView1.Selected <> nil then
   begin
-    ItemIdx := StrToInt(ListView1.Selected.Caption) - 1;
-    tlsObj := LogSourceList.Get(ItemIdx);
+    tlsObj := ListView1.Selected.Data;
     MMO_LOG.Lines.Add(tlsObj.CompareDict);
   end;
 end;
 
 procedure TForm1.Button15Click(Sender: TObject);
 var
-  ItemIdx:Integer;
   tlsObj:TLogSource;
   tmpStr:string;
   I: Integer;
 begin
   if ListView1.Selected <> nil then
   begin
-    ItemIdx := StrToInt(ListView1.Selected.Caption) - 1;
-    tlsObj := LogSourceList.Get(ItemIdx);
+    tlsObj := ListView1.Selected.Data;
     tmpStr := '';
     for I := 0 to tlsObj.Fdbc.dict.tables.Count-1 do
     begin
@@ -190,7 +186,6 @@ begin
   if ListView1.Selected <> nil then
   begin
     tlsObj := ListView1.Selected.Data;
-
     tlsObj.Loger.Add('aaaaaaaaaa',LOG_ERROR);
   end;
 end;

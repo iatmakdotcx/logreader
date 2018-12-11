@@ -2978,7 +2978,7 @@ begin
           //这东西应该可以忽略吧？？？
         end;
     else
-      FLogSource.Loger.Add('PriseRowLog_Insert 遇到尚未处理的 ContextCode :' + contextCodeToStr(Rldo.normalData.ContextCode));
+     // FLogSource.Loger.Add('PriseRowLog_Insert 遇到尚未处理的 ContextCode :' + contextCodeToStr(Rldo.normalData.ContextCode));
     end;
   finally
     if BinReader <> nil then
@@ -3442,7 +3442,7 @@ begin
           end;
         end;
     else
-      FLogSource.Loger.Add('PriseRowLog_MODIFY_ROW 遇到尚未处理的 ContextCode :' + contextCodeToStr(Rldo.normalData.ContextCode));
+      //FLogSource.Loger.Add('PriseRowLog_MODIFY_ROW 遇到尚未处理的 ContextCode :' + contextCodeToStr(Rldo.normalData.ContextCode));
     end;
   finally
     if BinReader <> nil then
@@ -3715,7 +3715,7 @@ begin
           end;
         end;
     else
-      FLogSource.Loger.Add('PriseRowLog_MODIFY_COLUMNS 遇到尚未处理的 ContextCode :' + contextCodeToStr(Rldo.normalData.ContextCode));
+      //FLogSource.Loger.Add('PriseRowLog_MODIFY_COLUMNS 遇到尚未处理的 ContextCode :' + contextCodeToStr(Rldo.normalData.ContextCode));
     end;
   finally
     if BinReader <> nil then
