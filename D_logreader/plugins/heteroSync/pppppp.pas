@@ -223,10 +223,10 @@ begin
               items.Add(tod);
             end;
           end else begin
-            Loger.Add('ÅäÖÃÎÄ¼ş¶ÁÈ¡Ê§°Ü(HeadCheckFail2):'+afile);
+            DefLoger.Add('ÅäÖÃÎÄ¼ş¶ÁÈ¡Ê§°Ü(HeadCheckFail2):'+afile);
           end;
         end else begin
-          Loger.Add('ÅäÖÃÎÄ¼ş¶ÁÈ¡Ê§°Ü(HeadCheckFail):'+afile);
+          DefLoger.Add('ÅäÖÃÎÄ¼ş¶ÁÈ¡Ê§°Ü(HeadCheckFail):'+afile);
         end;
       finally
         Rter.Free;
@@ -234,7 +234,7 @@ begin
     except
       on EE:Exception do
       begin
-        Loger.Add('ÅäÖÃÎÄ¼ş¶ÁÈ¡Ê§°Ü:'+afile);
+        DefLoger.Add('ÅäÖÃÎÄ¼ş¶ÁÈ¡Ê§°Ü:'+afile);
       end;
     end;
   finally
@@ -429,7 +429,7 @@ begin
           dtype := 'Ö´ĞĞSqlÊ§°Ü£¡£¡' + Eee.Message+#$D#$A+'================================================';
           dtype := dtype +'XML:'+ OptNode.XML+#$D#$A+'------------------';
           dtype := dtype +'SQL:'+ SqlTemplate_Bak;
-          Loger.Add(dtype, LOG_ERROR or LOG_IMPORTANT);
+          DefLoger.Add(dtype, LOG_ERROR or LOG_IMPORTANT);
         end;
       end;
     finally
@@ -582,7 +582,7 @@ begin
         except
           on EEE:Exception do
           begin
-            Loger.Add('Òì¹¹²å¼şÅäÖÃÎÄ¼ş¶ÁÈ¡Ê§°Ü£¡' + inttostr(I) +' >> '+ EEE.Message);
+            DefLoger.Add('Òì¹¹²å¼şÅäÖÃÎÄ¼ş¶ÁÈ¡Ê§°Ü£¡' + inttostr(I) +' >> '+ EEE.Message);
           end;
         end;
       end;

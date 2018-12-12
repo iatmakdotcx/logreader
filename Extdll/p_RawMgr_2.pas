@@ -456,13 +456,8 @@ begin
   if (Handle_IdxFile = INVALID_HANDLE_VALUE) or (Handle_DataFile = INVALID_HANDLE_VALUE) then
   begin
     //如果日志输出文件打开失败，将数据直接输出到日志，
-    OutPutStr := '<Root>';
-    OutPutStr := OutPutStr + Format('<dbid>%d</dbid>', [fdbid]);
-    OutPutStr := OutPutStr + Format('<lsn1>%d</lsn1>', [ReqNo]);
-    OutPutStr := OutPutStr + Format('<lsn2>%d</lsn2>', [Lri.lsn.lsn_2]);
-    OutPutStr := OutPutStr + Format('<lsn3>%d</lsn3>', [Lri.lsn.lsn_3]);
-    TmpDataStr := DumpMemory2Str(Lri.val, Lri.length);
-    OutPutStr := OutPutStr + '<data>' + TmpDataStr + '</data></root>';
+    OutPutStr := Format('<root dbid="%d" lsn="%.8x:%.8x:%.4x">', [lri.dbid, lri.lsn.lsn_1, lri.lsn.lsn_2, lri.lsn.lsn_3]);
+    OutPutStr := OutPutStr + DumpMemory2Str(lri.val, lri.length) + '</root>';
     //TODO:输出到日志的数据是否需要加密？
     DefLoger.Add(OutPutStr, LOG_DATA or LOG_IMPORTANT);
     Result := False;

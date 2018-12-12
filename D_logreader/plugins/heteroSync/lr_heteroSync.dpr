@@ -17,7 +17,6 @@ uses
   Vcl.Forms,
   System.Contnrs,
   p_mainCfg in 'p_mainCfg.pas' {frm_mainCfg},
-  Log4D in '..\..\..\Common\Log4D.pas',
   loglog in '..\..\..\Common\loglog.pas',
   p_impl in 'p_impl.pas' {frm_impl},
   Des in 'H:\Delphi\Ëã·¨\Des.pas',
@@ -128,7 +127,7 @@ function _Lr_PluginRegXML(source:Pplg_source; Xml: PChar): integer; stdcall;
 var
   ImplsManger:TImplsManger;
 begin
-  loger.add(xml);
+  Defloger.add(xml);
   ImplsManger := LrSvrJob.Get(source);
   dd(ImplsManger, Xml);
   Result := STATUS_SUCCESS;

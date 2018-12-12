@@ -17,12 +17,15 @@ object Form1: TForm1
   PixelsPerInch = 96
   TextHeight = 13
   object GroupBox1: TGroupBox
-    Left = 8
-    Top = 240
-    Width = 506
-    Height = 93
+    Left = 0
+    Top = 234
+    Width = 770
+    Height = 95
+    Align = alTop
     Caption = 'DEBUG'
     TabOrder = 0
+    ExplicitTop = 238
+    ExplicitWidth = 521
     object Button7: TButton
       Left = 3
       Top = 16
@@ -68,7 +71,7 @@ object Form1: TForm1
       OnClick = Button1Click
     end
     object Button2: TButton
-      Left = 432
+      Left = 368
       Top = 3
       Width = 75
       Height = 25
@@ -116,8 +119,6 @@ object Form1: TForm1
       SmallImages = ImageList1
       TabOrder = 0
       ViewStyle = vsReport
-      OnChange = ListView1Change
-      OnChanging = ListView1Changing
       OnClick = ListView1Click
     end
     object Panel1: TPanel
@@ -170,25 +171,27 @@ object Form1: TForm1
         Width = 153
         Height = 21
         TabOrder = 4
-        Text = '00000045:00000020:000c'
+        Text = '00000052:00000488:00d0'
       end
     end
   end
   object MMO_LOG: TMemo
     Left = 0
-    Top = 339
+    Top = 329
     Width = 770
-    Height = 230
-    Align = alBottom
+    Height = 240
+    Align = alClient
     Lines.Strings = (
       'Memo1')
     TabOrder = 2
+    ExplicitTop = 339
+    ExplicitHeight = 230
   end
   object ImageList1: TImageList
-    Left = 400
-    Top = 224
+    Left = 192
+    Top = 200
     Bitmap = {
-      494C01010B001800EC0010001000FFFFFFFFFF10FFFFFFFFFFFFFFFF424D3600
+      494C01010B001800FC0010001000FFFFFFFFFF10FFFFFFFFFFFFFFFF424D3600
       0000000000003600000028000000400000003000000001002000000000000030
       000000000000000000000000000000000000FFFFFF00FFFFFF00F6821000F580
       0C00F4851600F67B0000F37B0500FFFFFF00FFFFFF00F47C0500F57A0000F284

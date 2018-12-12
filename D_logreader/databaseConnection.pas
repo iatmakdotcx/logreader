@@ -1032,9 +1032,8 @@ var
 begin
   //刷新表信息
   //aSql := 'select s.name,a.object_id, a.name from sys.objects a, sys.schemas s where (a.type = ''U'' or a.type = ''S'') and a.schema_id = s.schema_id';
-   aSql := 'select s.name,a.object_id, a.name,partition_id '+
+   aSql := 'select s.name,a.object_id, a.name '+
            'from sys.objects a join sys.schemas s on a.schema_id = s.schema_id '+
-           'left join (select partition_id,object_id from sys.partitions where partitions.index_id <= 1) p on a.object_id=p.object_id '+
            'where (a.type = ''U'' or a.type = ''S'') ';
   if ExecSql(aSql, rDataset) then
   begin
@@ -1057,6 +1056,19 @@ begin
   if ExecSql(aSql, rDataset) then
   begin
     dict.RefreshTablesUniqueKey(rDataset);
+    rDataset.Free;
+  end;
+  //
+  aSql := 'select partition_id, object_id from sys.partitions';
+  if ExecSql(aSql, rDataset) then
+  begin
+    dict.RefreshParti(rDataset);
+    rDataset.Free;
+  end;
+  aSql := 'select a.allocation_unit_id,b.object_id from sys.allocation_units a join sys.partitions b on a.container_id=b.partition_id';
+  if ExecSql(aSql, rDataset) then
+  begin
+    dict.RefreshAlloc(rDataset);
     rDataset.Free;
   end;
 end;

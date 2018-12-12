@@ -4,7 +4,8 @@ interface
 
 uses
   Classes, I_logAnalyzer, LogtransPkg, p_structDefine, LogSource, dbDict, System.SysUtils,
-  Contnrs, BinDataUtils, SqlDDLs, LogtransPkgMgr, hexValUtils;
+  Contnrs, BinDataUtils, SqlDDLs, LogtransPkgMgr, hexValUtils,
+  System.Generics.Collections;
 
 type
   TSql2014logAnalyzer = class;
@@ -95,7 +96,9 @@ type
     //每个事务开始要重新初始化以下对象
     FRows: TObjectList;
     DDL: TDDLMgr;
-    AllocUnitMgr: TAllocUnitMgr;
+    //AllocUnitMgr: TAllocUnitMgr;
+    tmp_Alloc: TDictionary<UInt64, Integer>;
+    tmp_Parti: TDictionary<UInt64, Integer>;
     IDXs:TDDL_Idxs_ColsMgr;
     IDXstats:TObjectList;
     Rscols:TObjectList;
@@ -154,6 +157,7 @@ type
     procedure PriseDDLPkg_sysidxstats(DataRow: Tsql2014Opt);
     procedure logTranPkg(FTranspkg: TTransPkg);
     function getDataFrom_TEXT_MIX_DATA(Page: TPage_Id): TBytes;
+    procedure PriseRowLOP_FORMAT_PAGE(tPkg: TTransPkgItem);
   public
     /// <summary>
     ///
@@ -204,7 +208,9 @@ begin
   FRows := TObjectList.Create;
   FRows.OwnsObjects := True;
   DDL := TDDLMgr.Create;
-  AllocUnitMgr := TAllocUnitMgr.Create;
+  //AllocUnitMgr := TAllocUnitMgr.Create;
+  tmp_Alloc:=TDictionary<UInt64, Integer>.Create();
+  tmp_Parti:=TDictionary<UInt64, Integer>.Create();
   IDXs:=TDDL_Idxs_ColsMgr.Create;
   IDXstats:=TObjectList.create;
   Rscols := TObjectList.create;
@@ -219,7 +225,9 @@ begin
   FRows.Clear;
   FRows.Free;
   DDL.Free;
-  AllocUnitMgr.Free;
+  //AllocUnitMgr.Free;
+  tmp_Alloc.Free;
+  tmp_Parti.Free;
   IDXs.Free;
   IDXstats.free;
   Hvu.Free;
@@ -373,6 +381,8 @@ var
   FieldObj:TdbFieldItem;
   renameObj:TDDL_Update_RenameObj;
   ddlDck:TDDL_Delete_Constraint_key;
+
+  aar:TArray<TPair<UInt64, Integer>>;
 begin
   Result := False;
   for I := 0 to DDL.FItems.Count - 1 do
@@ -484,6 +494,17 @@ begin
         end;
       end;
     end;
+  end;
+  aar := tmp_Parti.ToArray();
+  for I := 0 to Length(aar)-1 do
+  begin
+    FLogSource.Fdbc.dict.tables.addParti(aar[i].Key, aar[i].Value);
+  end;
+
+  aar := tmp_Alloc.ToArray();
+  for I := 0 to Length(aar)-1 do
+  begin
+    FLogSource.Fdbc.dict.tables.addAlloc(aar[i].Key, aar[i].Value);
   end;
 end;
 
@@ -999,7 +1020,9 @@ begin
       try
         FRows.Clear;
         DDL.FItems.Clear;
-        AllocUnitMgr.FItems.Clear;
+        //AllocUnitMgr.FItems.Clear;
+        tmp_Alloc.Clear;
+        tmp_Parti.Clear;
         IDXs.FItems.Clear;
         IDXstats.Clear;
         Rscols.Clear;
@@ -1999,8 +2022,7 @@ begin
       Nullbit := Hvu.getShort(pdd.value, 0, 2);
     end;
   end;
-  ObjId := AllocUnitMgr.GetObjId(rowsetid);
-  if ObjId <> 0 then
+  if tmp_Parti.TryGetValue(rowsetid, ObjId) then
   begin
     ddlitem := DDL.GetItem(ObjId);
     if (ddlitem <> nil) and (ddlitem.xType = 'u') then
@@ -2040,8 +2062,7 @@ var
   rowsetid: int64;
   ObjId: Integer;
   idminor:Integer;
-  I:Integer;
-  cTable :TDDL_Create_Table;
+  auid:Uint64;
 begin
   if DataRow.Table.TableNmae = 'sysschobjs' then
   begin
@@ -2059,21 +2080,19 @@ begin
     begin
       rowsetid := StrToInt64(DataRow.new_data.getFieldStrValue('rowsetid'));
       ObjId := StrToInt(DataRow.new_data.getFieldStrValue('idmajor'));
-      AllocUnitMgr.Add(rowsetid, ObjId);
 
-      for I := 0 to DDL.FItems.Count -1 do
-      begin
-        if DDL.FItems[i] is TDDL_Create_Table then
-        begin
-          cTable := TDDL_Create_Table(DDL.FItems[I]);
-          if cTable.TableObj.TableId=ObjId then
-          begin
-            cTable.TableObj.partition_id := rowsetid;
-            Break;
-          end;
-        end;
-      end;
+      tmp_Parti.Add(rowsetid, ObjId);
     end;
+  end
+  else if DataRow.Table.TableNmae = 'sysallocunits' then
+  begin
+    auid := StrToInt64(DataRow.new_data.getFieldStrValue('auid'));
+    rowsetid := StrToInt64(DataRow.new_data.getFieldStrValue('ownerid'));
+    if tmp_Parti.TryGetValue(rowsetid, ObjId) then
+    begin
+      tmp_Alloc.Add(auid, ObjId);
+    end else if FLogSource.Fdbc.dict.tables.Parti2ObjId.TryGetValue(rowsetid, ObjId) then
+      tmp_Alloc.Add(auid, ObjId);
   end
   else if DataRow.Table.TableNmae = 'sysrscols' then
   begin
@@ -2585,8 +2604,7 @@ begin
       Nullbit := Hvu.getShort(pdd.value, 0, 2);
     end;
   end;
-  ObjId := AllocUnitMgr.GetObjId(rowsetid);
-  if ObjId <> 0 then
+  if tmp_Parti.TryGetValue(rowsetid, ObjId) then
   begin
     ddlitem := DDL.GetItem(ObjId);
     if (ddlitem <> nil) and (ddlitem.xType = 'u') then
@@ -2957,7 +2975,14 @@ begin
               end;
             end else begin
               //LCX_TEXT_TREE
-              DbTable := nil;
+              if (Rldo.normalData.ContextCode = LCX_TEXT_TREE) or
+                 (Rldo.normalData.ContextCode = LCX_TEXT_MIX) then
+              begin
+                DbTable := nil;
+              end else begin
+                //Move Page
+                exit
+              end;
             end;
 
             DataRow := Tsql2014Opt.Create;
@@ -3450,6 +3475,104 @@ begin
   end;
 end;
 
+procedure TSql2014logAnalyzer.PriseRowLOP_FORMAT_PAGE(tPkg: TTransPkgItem);
+var
+  rlfp:PRawLOP_FORMAT_PAGE;
+  BinReader: TbinDataReader;
+  R_: array of TBytes;
+  R_Info: array of TRawElement;
+  I:Integer;
+  PHr:PPage_Header;
+  RawDataOffset:Word;
+  DataStartOffset:Pointer;
+  tmpData:UIntPtr;
+  dataLen:Cardinal;
+  DataRow_buf: Tsql2014Opt;
+  DbTable: TdbTableItem;
+  ObjId:Integer;
+  AllocUnitId:UInt64;
+begin
+  rlfp := tPkg.Raw.data;
+  if (rlfp.PageOption=0) and (rlfp.NumElements > 0) then
+  begin
+    //copy include data
+    if (rlfp.PageType = 1) or (rlfp.PageType = 3) or (rlfp.PageType = 4)  then
+    begin
+      //data page
+      SetLength(R_, rlfp.NumElements);
+      SetLength(R_Info, rlfp.NumElements);
+      BinReader := TbinDataReader.Create(tPkg.Raw);
+      BinReader.seek(SizeOf(TRawLOP_FORMAT_PAGE), soBeginning);
+      for I := 0 to rlfp.NumElements - 1 do
+      begin
+        R_Info[I].Length := BinReader.readWord;
+      end;
+      BinReader.alignTo4;
+      for I := 0 to rlfp.NumElements - 1 do
+      begin
+        if R_Info[I].Length > 0 then
+        begin
+          R_Info[I].Offset := BinReader.Position;
+          R_[I] := BinReader.readBytes(R_Info[I].Length);
+          BinReader.alignTo4;
+        end;
+      end;
+      BinReader.Free;
+      if R_Info[0].Length > SizeOf(TPage_Header) then
+      begin
+        PHr := @R_[0][0];
+        if PHr.m_slotCnt>0 then
+        begin
+          AllocUnitId := (UInt64(rlfp.AllocUnitId_fid) shl 48) or (UInt64(rlfp.AllocUnitId) shl 16);
+          if not FLogSource.Fdbc.dict.tables.Alloc2ObjId.TryGetValue(AllocUnitId, ObjId) then
+          begin
+            Exit;
+          end;
+          DbTable := FLogSource.Fdbc.dict.tables.GetItemById(ObjId);
+          if DbTable = nil then
+          begin
+            //忽略的表
+            Exit;
+          end;
+
+          if (rlfp.NumElements = 1) or (R_Info[1].Length = 0) then
+          begin
+            tmpData := Uintptr(PHr) + R_Info[0].Length;
+          end
+          else
+          begin
+            tmpData := Uintptr(@R_[1][0]) + R_Info[1].Length;
+          end;
+          for I := 0 to PHr.m_slotCnt - 1 do
+          begin
+            RawDataOffset := PWORD(tmpData - i * 2 - 2)^;
+            dataLen := PageRowCalcLength(@R_[0][RawDataOffset]);
+
+            DataRow_buf := Tsql2014Opt.Create;
+            DataRow_buf.OperaType := Opt_Insert;
+            DataRow_buf.page := rlfp.pageId;
+            DataRow_buf.table := DbTable;
+            DataRow_buf.R0 := GetMemory($2000);
+            Move(R_[0][RawDataOffset], DataRow_buf.R0^, dataLen);
+            if rlfp.PageType in [LCX_TEXT_TREE, LCX_TEXT_MIX] then
+            begin
+              DataRow_buf.isMixData := True;
+            end;
+            FRows.Add(DataRow_buf);
+          end;
+        end;
+      end;
+    end
+    else if (rlfp.PageType = 3) or (rlfp.PageType = 4) then
+    begin
+      //text mix page, text tree page
+
+
+
+    end;
+  end;
+end;
+
 procedure TSql2014logAnalyzer.PriseRowLog_MODIFY_COLUMNS(tPkg: TTransPkgItem);
 
 procedure applyChange(srcData, pdata: Pointer; offset, size_old, size_new, datarowCnt: Integer);
@@ -3746,6 +3869,9 @@ begin
     else if Rl.OpCode = LOP_MODIFY_COLUMNS then  //修改多个块
     begin
       PriseRowLog_MODIFY_COLUMNS(tPkg);
+    end else if Rl.OpCode = LOP_FORMAT_PAGE then  //页初始化，select into是直接整页写入
+    begin
+      PriseRowLOP_FORMAT_PAGE(tPkg);
     end
     else if Rl.OpCode = LOP_BEGIN_XACT then
     begin

@@ -3,7 +3,8 @@ unit dbDict;
 interface
 
 uses
-  Contnrs, Classes, ADODB, IniFiles, System.SysUtils, Xml.XMLIntf;
+  Contnrs, Classes, ADODB, IniFiles, System.SysUtils, Xml.XMLIntf,
+  System.Generics.Collections;
 
 type
   TdbFieldItem = class(TObject)
@@ -51,7 +52,6 @@ type
   end;
 
   TdbTableItem = class(TObject)
-    partition_id:int64;
     TableId: Integer;
     TableNmae: string;
     Owner: string;
@@ -84,6 +84,8 @@ type
     function GetItemsCount: Integer;
     procedure Sort;
   public
+    Alloc2ObjId: TDictionary<UInt64, Integer>;
+    Parti2ObjId: TDictionary<UInt64, Integer>;
     constructor Create;
     destructor Destroy; override;
     procedure addTable(item: TdbTableItem);
@@ -93,6 +95,8 @@ type
     function GetItemById(TableId: Integer): TdbTableItem;
     function GetItemByName(TableName: string): TdbTableItem;
     function GetItemByPartitionId(PartitionId: Int64): TdbTableItem;
+    procedure addAlloc(k:UInt64; v:Integer);
+    procedure addParti(k:UInt64; v:Integer);
   end;
 
   TDbDict = class(TObject)
@@ -101,6 +105,8 @@ type
     procedure RefreshTables(Qry: TCustomADODataSet);
     procedure RefreshTablesFields(Qry: TCustomADODataSet);
     procedure RefreshTablesUniqueKey(Qry: TCustomADODataSet);
+    procedure RefreshAlloc(Qry: TCustomADODataSet);
+    procedure RefreshParti(Qry: TCustomADODataSet);
     constructor Create;
     destructor Destroy; override;
 
@@ -134,6 +140,34 @@ begin
   tables.Free;
 end;
 
+procedure TDbDict.RefreshAlloc(Qry: TCustomADODataSet);
+var
+  k:UInt64;
+  v:Integer;
+begin
+  while not Qry.Eof do
+  begin
+    k := Qry.Fields[0].AsLargeInt;
+    v := Qry.Fields[1].AsInteger;
+    tables.addAlloc(k, v);
+    Qry.Next;
+  end;
+end;
+
+procedure TDbDict.RefreshParti(Qry: TCustomADODataSet);
+var
+  k:UInt64;
+  v:Integer;
+begin
+  while not Qry.Eof do
+  begin
+    k := Qry.Fields[0].AsLargeInt;
+    v := Qry.Fields[1].AsInteger;
+    tables.addParti(k, v);
+    Qry.Next;
+  end;
+end;
+
 procedure TDbDict.RefreshTables(Qry: TCustomADODataSet);
 var
   tti: TdbTableItem;
@@ -147,7 +181,6 @@ begin
     tti.Owner := Qry.Fields[0].AsString;
     tti.TableId := Qry.Fields[1].AsInteger;
     tti.TableNmae := LowerCase(Qry.Fields[2].AsString);
-    tti.partition_id := Qry.Fields[3].AsLargeInt;
     tables.addTable(tti);
     Qry.Next;
   end;
@@ -259,11 +292,30 @@ procedure TDbDict.toXml(node: IXMLNode);
 var
   I: Integer;
   aTable:TdbTableItem;
+  TmpNode,tn2:IXMLNode;
+  aa:TArray<TPair<UInt64, Integer>>;
 begin
+  TmpNode := node.AddChild('tables');
   for I := 0 to tables.Count-1 do
   begin
     aTable := tables.Items[i];
-    aTable.AsXml(node);
+    aTable.AsXml(TmpNode);
+  end;
+  TmpNode := node.AddChild('alloc');
+  aa := tables.Alloc2ObjId.ToArray();
+  for I := 0 to Length(aa) - 1 do
+  begin
+    tn2 := TmpNode.AddChild('a');
+    tn2.Attributes['k'] := aa[I].Key;
+    tn2.Attributes['v'] := aa[I].Value;
+  end;
+  TmpNode := node.AddChild('parti');
+  aa := tables.Parti2ObjId.ToArray();
+  for I := 0 to Length(aa) - 1 do
+  begin
+    tn2 := TmpNode.AddChild('a');
+    tn2.Attributes['k'] := aa[I].Key;
+    tn2.Attributes['v'] := aa[I].Value;
   end;
 end;
 
@@ -271,14 +323,40 @@ procedure TDbDict.fromXml(node: IXMLNode);
 var
   table:TdbTableItem;
   I: Integer;
+  TmpNode,tn2:IXMLNode;
+  k:UInt64;
+  v:Integer;
 begin
-  for I := 0 to node.ChildNodes.Count - 1 do
+  TmpNode := node.ChildNodes['tables'];
+  for I := 0 to TmpNode.ChildNodes.Count - 1 do
   begin
-    if node.ChildNodes[I].NodeName = 'table' then
+    if TmpNode.ChildNodes[I].NodeName = 'table' then
     begin
       table := TdbTableItem.Create;
-      table.loadXml(node.ChildNodes[I]);
+      table.loadXml(TmpNode.ChildNodes[I]);
       tables.addTable(table);
+    end;
+  end;
+  TmpNode := node.ChildNodes['alloc'];
+  for I := 0 to TmpNode.ChildNodes.Count - 1 do
+  begin
+    tn2 := TmpNode.ChildNodes[I];
+    if (tn2.NodeName = 'a') and (tn2.HasAttribute('k')) and (tn2.HasAttribute('v')) then
+    begin
+      k := tn2.Attributes['k'];
+      v := tn2.Attributes['v'];
+      tables.Alloc2ObjId.Add(k, v);
+    end;
+  end;
+  TmpNode := node.ChildNodes['parti'];
+  for I := 0 to TmpNode.ChildNodes.Count - 1 do
+  begin
+    tn2 := TmpNode.ChildNodes[I];
+    if (tn2.NodeName = 'a') and (tn2.HasAttribute('k')) and (tn2.HasAttribute('v')) then
+    begin
+      k := tn2.Attributes['k'];
+      v := tn2.Attributes['v'];
+      tables.Parti2ObjId.Add(k, v);
     end;
   end;
 end;
@@ -444,6 +522,28 @@ end;
 
 { TdbTables }
 
+procedure TdbTables.addAlloc(k: UInt64; v: Integer);
+begin
+  if Alloc2ObjId.ContainsKey(k) then
+  begin
+    Alloc2ObjId.Items[k] := v;
+  end else begin
+    Alloc2ObjId.Add(k, v);
+  end;
+end;
+
+procedure TdbTables.addParti(k: UInt64; v: Integer);
+begin
+  if Parti2ObjId.ContainsKey(k) then
+  begin
+    Parti2ObjId.Items[k] := v;
+  end
+  else
+  begin
+    Parti2ObjId.Add(k, v);
+  end;
+end;
+
 procedure TdbTables.addTable(item: TdbTableItem);
 
   function isIgnoreTable(Owner, TableName: string): Boolean;
@@ -496,12 +596,17 @@ begin
   fSorted := False;
   FItems := TObjectList.Create;
   FItems_s_Name := TStringHash.Create;
+
+  Alloc2ObjId:= TDictionary<UInt64, Integer>.create();
+  Parti2ObjId:= TDictionary<UInt64, Integer>.create();
 end;
 
 destructor TdbTables.Destroy;
 begin
   FItems.Free;
   FItems_s_Name.Free;
+  Alloc2ObjId.Free;
+  Parti2ObjId.Free;
   inherited;
 end;
 
@@ -556,19 +661,14 @@ end;
 
 function TdbTables.GetItemByPartitionId(PartitionId: Int64): TdbTableItem;
 var
-  I: Integer;
-  tmpItm: TdbTableItem;
+  objId: Integer;
 begin
-  for I := 0 to count - 1 do
+  if Parti2ObjId.TryGetValue(PartitionId, objId) then
   begin
-    tmpItm := TdbTableItem(FItems[i]);
-    if tmpItm.partition_id = PartitionId then
-    begin
-      Result := tmpItm;
-      Exit;
-    end;
+    result := GetItemById(objId);
+  end else begin
+    result := nil;
   end;
-  Result := nil;
 end;
 
 function TdbTables.GetItemsCount: Integer;
@@ -620,7 +720,7 @@ var
   rootNode,fieldsNode,tmpNode:IXMLNode;
 begin
   rootNode := Node.AddChild('table');
-  rootNode.Attributes['partition_id'] := partition_id;
+  //rootNode.Attributes['partition_id'] := partition_id;
   rootNode.Attributes['TableId'] := TableId;
   rootNode.Attributes['Owner'] := Owner;
   rootNode.Attributes['TableNmae'] := TableNmae;
@@ -660,8 +760,7 @@ var
   TmpColId:Integer;
 begin
   Result := False;
-  if (not tableNode.HasAttribute('partition_id')) or
-     (not tableNode.HasAttribute('TableId')) or
+  if (not tableNode.HasAttribute('TableId')) or
      (not tableNode.HasAttribute('Owner')) or
      (not tableNode.HasAttribute('TableNmae')) or
      (not tableNode.HasAttribute('hasIdentity')) then
@@ -669,7 +768,7 @@ begin
     raise Exception.Create('table Ù–‘∂¡»° ß∞‹£°£°£°');
   end;
 
-  partition_id := tableNode.Attributes['partition_id'];
+  //partition_id := tableNode.Attributes['partition_id'];
   TableId := tableNode.Attributes['TableId'];
   Owner := tableNode.Attributes['Owner'];
   TableNmae := tableNode.Attributes['TableNmae'];
@@ -687,17 +786,17 @@ begin
       end;
       field := TdbFieldItem.Create;
       field.Col_id := tmpNode.Attributes['Col_id'];
-      field.ColName := tmpNode.Attributes['ColName'] ;
-      field.type_id:=tmpNode.Attributes['type_id'] ;
-      field.nullMap :=tmpNode.Attributes['nullMap'] ;
-      field.Max_length := tmpNode.Attributes['Max_length'] ;
-      field.procision:=tmpNode.Attributes['procision'] ;
-      field.scale := tmpNode.Attributes['scale'] ;
-      field.is_nullable:= tmpNode.Attributes['is_nullable'];
-      field.leaf_pos :=tmpNode.Attributes['leaf_pos'] ;
-      field.collation_name:=tmpNode.Attributes['collation_name'];
+      field.ColName := tmpNode.Attributes['ColName'];
+      field.type_id := tmpNode.Attributes['type_id'];
+      field.nullMap := tmpNode.Attributes['nullMap'];
+      field.Max_length := tmpNode.Attributes['Max_length'];
+      field.procision := tmpNode.Attributes['procision'];
+      field.scale := tmpNode.Attributes['scale'];
+      field.is_nullable := tmpNode.Attributes['is_nullable'];
+      field.leaf_pos := tmpNode.Attributes['leaf_pos'];
+      field.collation_name := tmpNode.Attributes['collation_name'];
       field.CodePage := tmpNode.Attributes['CodePage'];
-      field.isLogSkipCol:= tmpNode.Attributes['isLogSkipCol'] ;
+      field.isLogSkipCol := tmpNode.Attributes['isLogSkipCol'];
       Fields.addField(field);
     end;
   end;
@@ -754,7 +853,7 @@ var
 begin
   Result := TMemoryStream.Create;
   wter := TWriter.Create(Result, 1);
-  wter.WriteInteger(partition_id);
+ // wter.WriteInteger(partition_id);
   wter.WriteInteger(TableId);
   wter.WriteString(TableNmae);
   wter.WriteString(Owner);
@@ -795,7 +894,7 @@ var
 begin
   Rter := TReader.Create(data, 1);
   try
-    partition_id := Rter.ReadInt64;
+    //partition_id := Rter.ReadInt64;
     TableId := Rter.ReadInteger;
     TableNmae := Rter.ReadString;
     Owner := Rter.ReadString;

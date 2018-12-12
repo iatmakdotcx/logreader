@@ -15,9 +15,10 @@ type
      function state:LS_STATUE;virtual;abstract;
    end;
 
-
 type
   TLogSource = class(TLogSourceBase)
+  private type
+    TLogMsgRCallMain = procedure(Ls:TLogSource; aMsg: string; level: Integer)of object;
   private
     FCollations:TObjectList;
     FCfgFilePath:string;
@@ -35,7 +36,7 @@ type
     FisLocal:Boolean;
     FFFFIsDebug:Boolean;
     pageDatalist:TObjectList;
-    MainMSGDISPLAY:TMsgCallBack;
+    MainMSGDISPLAY:TLogMsgRCallMain;
     constructor Create;
     destructor Destroy; override;
     function GetVlf_SeqNo(SeqNo:DWORD): PVLF_Info;
@@ -115,7 +116,7 @@ begin
     FmsgCs.Leave
   end;
   if Assigned(MainMSGDISPLAY) then
-    MainMSGDISPLAY(aMsg, level);
+    MainMSGDISPLAY(self, aMsg, level);
 end;
 
 procedure TLogSource.ClrLogSource;
@@ -209,7 +210,7 @@ begin
   begin
     if TSQLCollationItem(FCollations[i]).codepage = codepage then
     begin
-      Result := TSQLCollationItem(FCollations);
+      Result := TSQLCollationItem(FCollations[i]);
       Break;
     end;
   end;
@@ -223,7 +224,7 @@ begin
   begin
     if TSQLCollationItem(FCollations[i]).id = id then
     begin
-      Result := TSQLCollationItem(FCollations);
+      Result := TSQLCollationItem(FCollations[i]);
       Break;
     end;
   end;
@@ -246,7 +247,7 @@ begin
   begin
     if TSQLCollationItem(FCollations[i]).Name = Name then
     begin
-      Result := TSQLCollationItem(FCollations);
+      Result := TSQLCollationItem(FCollations[i]);
       Break;
     end;
   end;
@@ -380,8 +381,8 @@ begin
       Fdbc.dbVer_Major := StrToInt(ReadXmlAttr(xmlNode, 'dbV1'));
       Fdbc.dbVer_Minor := StrToInt(ReadXmlAttr(xmlNode, 'dbV2'));
       Fdbc.dbVer_BuildNumber := StrToInt(ReadXmlAttr(xmlNode, 'dbV3'));
-      xmlNode := RootNode.ChildNodes['tables'];
-      Fdbc.dict.fromXml(xmlNode);
+      //xmlNode := RootNode.ChildNodes['tables'];
+      Fdbc.dict.fromXml(RootNode);
 
       Result := True;
       ReSetLoger;
@@ -469,8 +470,8 @@ begin
     xmlNode.Attributes['dbV1'] := Fdbc.dbVer_Major;
     xmlNode.Attributes['dbV2'] := Fdbc.dbVer_Minor;
     xmlNode.Attributes['dbV3'] := Fdbc.dbVer_BuildNumber;
-    xmlNode := RootNode.AddChild('tables');
-    Fdbc.dict.toXml(xmlNode);
+    //xmlNode := RootNode.AddChild('tables');
+    Fdbc.dict.toXml(RootNode);
     pathName := ExtractFilePath(aPath);
     if not DirectoryExists(pathName) then
     begin

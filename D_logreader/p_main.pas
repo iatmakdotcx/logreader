@@ -62,14 +62,13 @@ type
     procedure Button1Click(Sender: TObject);
     procedure Button2Click(Sender: TObject);
     procedure CompareDictFromdb1Click(Sender: TObject);
-    procedure ListView1Change(Sender: TObject; Item: TListItem;
-      Change: TItemChange);
     procedure ListView1Click(Sender: TObject);
-    procedure ListView1Changing(Sender: TObject; Item: TListItem;
-      Change: TItemChange; var AllowChange: Boolean);
     procedure Button5Click(Sender: TObject);
     procedure ViewAllTable1Click(Sender: TObject);
   private
+    MMO_LOGCS:TCriticalSection;
+    MMO_LOGCSMSG:string;
+    SelectedLs:TLogSource;
     menuActions:TobjectList;
     procedure InitPluginsMenus;
     procedure CreatePluginsMenus(items: TMenuItem; node: IXMLNode;PluginItem:TPluginItem);
@@ -80,8 +79,8 @@ type
     { Private declarations }
   public
     { Public declarations }
-    MMO_LOGCS:TCriticalSection;
-    procedure ShwLogMsg(aMsg: string; level: Integer);
+    procedure ShwLogMsg(Ls:TLogSource; aMsg: string; level: Integer);
+    procedure ShwLogMsg_Val;
   end;
 
 var
@@ -130,11 +129,11 @@ begin
   begin
     tlsObj := ListView1.Selected.Data;
     tmpStr := '';
-    for I := 0 to tlsObj.Fdbc.dict.tables.Count-1 do
+    for I := 0 to tlsObj.Fdbc.dict.tables.Count - 1 do
     begin
-      if tlsObj.Fdbc.dict.tables[i].Owner<>'sys' then
+      if tlsObj.Fdbc.dict.tables[I].Owner <> 'sys' then
         tmpStr := tmpStr + ',[' + inttostr(tlsObj.Fdbc.dict.tables[I].TableId) + ']' +
-        tlsObj.Fdbc.dict.tables[I].TableNmae+','+  BoolToStr(tlsObj.Fdbc.dict.tables[I].hasIdentity,true) + win_Eol;
+        tlsObj.Fdbc.dict.tables[I].TableNmae + ',' + BoolToStr(tlsObj.Fdbc.dict.tables[I].hasIdentity, true) + win_Eol;
     end;
     MMO_LOG.Lines.Add(tmpStr);
   end;
@@ -264,7 +263,8 @@ begin
   end;
   if TTsPkg.Items.Count>0 then
   begin
-    logsource := Tlogsource.Create; 
+    logsource := Tlogsource.Create;
+    logsource.MainMSGDISPLAY := ShwLogMsg;
     LogSource.FFFFIsDebug := True;
     logsource.Fdbc := TdatabaseConnection.Create(LogSource);
     LogSource.pageDatalist := pageDatalist;
@@ -306,6 +306,7 @@ begin
     if frm_dbConnectionCfg.ShowModal = mrOk then
     begin
       logsource := frm_dbConnectionCfg.logsource;
+      logsource.MainMSGDISPLAY := ShwLogMsg;
       savePath := ExtractFilePath(GetModuleName(0)) + Format('cfg\%s.lrd',[logsource.Uid]);
       if logsource.saveToFile(savePath) then
       begin
@@ -363,6 +364,8 @@ begin
     setLsn(tlsObj);
 {$ENDIF}
     tlsObj.Create_picker(True);
+
+    ListViewRefresh;
   end;
 end;
 
@@ -547,19 +550,25 @@ begin
   end;
 end;
 
-procedure TForm1.ShwLogMsg(aMsg: string; level: Integer);
+procedure TForm1.ShwLogMsg_Val;
 begin
-  if MMO_LOG<>nil then
+  MMO_LOG.lines.Add(MMO_LOGCSMSG);
+  MMO_LOG.Perform(WM_VSCROLL, SB_BOTTOM, 0);
+  if MMO_LOG.Lines.Count >= 1000 then
+  begin
+    MMO_LOG.Lines.Delete(0);
+  end;
+end;
+
+procedure TForm1.ShwLogMsg(Ls:TLogSource; aMsg: string; level: Integer);
+begin
+  if SelectedLs = Ls then
   begin
     try
       MMO_LOGCS.Enter;
       try
-        MMO_LOG.lines.Add(FormatDateTime('yyyy-MM-dd HH:nn:ss.zzz', Now) + IntToStr(level) + ' >> ' + aMsg);
-        MMO_LOG.Perform(WM_VSCROLL, SB_BOTTOM, 0);
-        if MMO_LOG.Lines.Count >= 1000 then
-        begin
-          MMO_LOG.Lines.Delete(0);
-        end;
+        MMO_LOGCSMSG := FormatDateTime('yyyy-MM-dd HH:nn:ss.zzz', Now) + IntToStr(level) + ' >> ' + aMsg;
+        TThread.Synchronize(nil, ShwLogMsg_Val);
       finally
         MMO_LOGCS.Leave;
       end;
@@ -597,6 +606,7 @@ begin
   begin
     MMO_LOG.Lines.Add(lst[I]);
     Tmplogsource := TLogSource.Create;
+    Tmplogsource.MainMSGDISPLAY := ShwLogMsg;
     if Tmplogsource.loadFromFile(lst[I]) then
     begin
       ItemIdx := LogSourceList.Add(Tmplogsource);
@@ -621,23 +631,6 @@ begin
   CoUninitialize;
 end;
 
-procedure TForm1.ListView1Change(Sender: TObject; Item: TListItem; Change: TItemChange);
-begin
-  ListView1Click(Sender);
-end;
-
-procedure TForm1.ListView1Changing(Sender: TObject; Item: TListItem;
-  Change: TItemChange; var AllowChange: Boolean);
-var
-  tlsObj: TLogSource;
-begin
-  if (Item <> nil) and (Item.Data<>nil) then
-  begin
-    tlsObj := TLogSource(Item.Data);
-    tlsObj.MainMSGDISPLAY := nil;
-  end;
-end;
-
 procedure TForm1.ListView1Click(Sender: TObject);
 var
   tlsObj: TLogSource;
@@ -646,7 +639,7 @@ begin
   begin
     tlsObj := TLogSource(ListView1.Selected.Data);
     MMO_LOG.text := tlsObj.FFmsg.Text;
-    tlsObj.MainMSGDISPLAY := ShwLogMsg;
+    SelectedLs := tlsObj;
   end;
 end;
 

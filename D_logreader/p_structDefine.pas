@@ -37,6 +37,34 @@ type
     solt: WORD;
   end;
 
+  PPage_Header =^ TPage_Header;
+  TPage_Header = packed record
+    m_headerVersion:Byte;
+    m_type:Byte;
+    m_typeFlagBits:Byte;
+    m_level:Byte;
+    m_flagBits:Word;
+    m_indexId:Word;
+    m_prevPage_PID:DWord;
+    m_prevPage_FID:Word;
+    pminlen:Word;
+    m_nextPage_PID:DWord;
+    m_nextPage_FID:Word;
+    m_slotCnt:Word;
+    m_objId:DWord;
+    m_freeCnt:Word;
+    m_freeData:Word;
+    PageId_PID:DWord;
+    PageId_FID:Word;
+    m_reservedCnt:Word;
+    m_lsn:Tlog_LSN;
+    m_xactReserved:Word;
+    m_xdesId_1:DWord;
+    m_xdesId_2:Word;
+    m_ghostRecCnt:Word;
+    m_tornBits:DWord;
+  end;
+
   PVLFHeader = ^TVLFHeader;
 
   TVLFHeader = packed record
@@ -133,12 +161,36 @@ type
     pageId: TPage_Id;
     AllocUnitId: DWORD;
     previousPageLsn: Tlog_LSN;
-    UN_1: Word;
+    AllocUnitId_fid: Word;  //????
     PartitionId: QWORD;
     OffsetInRow: Word;
     ModifySize: Word;
     RowFlag: Word;
     NumElements: Word;
+  end;
+
+  PRawLOP_FORMAT_PAGE = ^TRawLOP_FORMAT_PAGE;
+
+  TRawLOP_FORMAT_PAGE = packed record
+    normalData: TRawLog;
+    pageId: TPage_Id;
+    AllocUnitId: DWORD;
+    previousPageLsn: Tlog_LSN;
+    AllocUnitId_fid: Word;  //????
+    PageType:Byte;
+    Un_1:Byte;
+    PageLevel:Byte;
+    PageOption:Byte;
+    Un_3:DWORD;
+    Un_4:DWORD;
+    Un_5:DWORD;
+    Un_6:WORD;
+    PageStat:Byte;
+    Un_7:Byte;
+    Un_8:DWORD;
+    Un_9:DWORD;
+    Un_10:DWORD;
+    NumElements:Word;
   end;
 
   PLogMIXDATAPkg = ^TLogMIXDATAPkg;
