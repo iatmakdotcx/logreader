@@ -5,7 +5,7 @@ interface
 uses
   Classes, I_logAnalyzer, LogtransPkg, p_structDefine, LogSource, dbDict, System.SysUtils,
   Contnrs, BinDataUtils, SqlDDLs, LogtransPkgMgr, hexValUtils,
-  System.Generics.Collections;
+  System.Generics.Collections, Xml.XMLIntf;
 
 type
   TSql2014logAnalyzer = class;
@@ -115,7 +115,7 @@ type
     function DML_BuilderSql_Where(aRowData: Tsql2014Opt): string;
     function GenXML: string;
     function DML_BuilderXML(aRowData: Tsql2014Opt): string;
-    function DML_BuilderXML_SafeStr(aVal:string): string;
+    procedure DML_BuilderXML_Field(pdd: PdbFieldValue; ownNode: IXMLNode; nodeName: string = 'a'; IncludeColName:Boolean = True);
     function DML_BuilderXML_Insert(aRowData: Tsql2014Opt): string;
     function DML_BuilderXML_Update(aRowData: Tsql2014Opt): string;
     function DML_BuilderXML_Delete(aRowData: Tsql2014Opt): string;
@@ -177,7 +177,7 @@ implementation
 
 uses
   loglog, plugins, OpCode, contextCode, dbFieldTypes,comm_func,
-  Memory_Common, sqlextendedprocHelper, Windows, Xml.XMLIntf,Xml.XMLDoc;
+  Memory_Common, sqlextendedprocHelper, Windows,Xml.XMLDoc;
 
 type
   TRawElement = packed record
@@ -545,7 +545,7 @@ begin
       for I := 0 to aRowData.old_data.Fields.Count - 1 do
       begin
         fieldval := PdbFieldValue(aRowData.old_data.Fields[I]);
-        whereStr := whereStr + Format('and %s=%s ', [fieldval.field.getSafeColName, Hvu.GetFieldStrValueWithQuoteIfNeed(fieldval.field, fieldval.value)]);
+        whereStr := whereStr + Format('and %s=%s ', [fieldval.field.getSafeColName, Hvu.GetFieldStrValueWithQuoteIfNeed(fieldval)]);
       end;
       if whereStr.Length > 0 then
       begin
@@ -586,7 +586,7 @@ begin
             //var Öµ ¡ª¡ª¡ª¡ª>  null
             updateStr := updateStr + Format(', %s=NULL',[raw_old.field.getSafeColName]);
           end else if (raw_old = nil) or (not binEquals(raw_new.value, raw_old.value)) then begin
-            updateStr := updateStr + Format(', %s=%s',[raw_new.field.getSafeColName, Hvu.GetFieldStrValueWithQuoteIfNeed(raw_new.field, raw_new.value)]);
+            updateStr := updateStr + Format(', %s=%s',[raw_new.field.getSafeColName, Hvu.GetFieldStrValueWithQuoteIfNeed(raw_new)]);
           end
         end;
       end;
@@ -622,7 +622,7 @@ begin
             //var Öµ ¡ª¡ª¡ª¡ª>  null
             updateStr := updateStr + Format(', %s=NULL',[raw_new.field.getSafeColName]);
           end else begin
-            updateStr := updateStr + Format(', %s=%s',[raw_new.field.getSafeColName, Hvu.GetFieldStrValueWithQuoteIfNeed(raw_new.field, raw_new.value)]);
+            updateStr := updateStr + Format(', %s=%s',[raw_new.field.getSafeColName, Hvu.GetFieldStrValueWithQuoteIfNeed(raw_new)]);
           end;
         end;
       end;
@@ -652,13 +652,13 @@ begin
       for I := 0 to aRowData.old_data.Fields.Count - 1 do
       begin
         fieldval := PdbFieldValue(aRowData.old_data.Fields[I]);
-        whereStr := whereStr + Format('and %s=%s ', [fieldval.field.getSafeColName, Hvu.GetFieldStrValueWithQuoteIfNeed(fieldval.field, fieldval.value)]);
+        whereStr := whereStr + Format('and %s=%s ', [fieldval.field.getSafeColName, Hvu.GetFieldStrValueWithQuoteIfNeed(fieldval)]);
       end;
     end else begin
       for I := 0 to aRowData.new_data.Fields.Count - 1 do
       begin
         fieldval := PdbFieldValue(aRowData.new_data.Fields[I]);
-        whereStr := whereStr + Format('and %s=%s ', [fieldval.field.getSafeColName, Hvu.GetFieldStrValueWithQuoteIfNeed(fieldval.field, fieldval.value)]);
+        whereStr := whereStr + Format('and %s=%s ', [fieldval.field.getSafeColName, Hvu.GetFieldStrValueWithQuoteIfNeed(fieldval)]);
       end;
     end;
     if whereStr.Length > 0 then
@@ -686,122 +686,103 @@ begin
   end;
 end;
 
-function TSql2014logAnalyzer.DML_BuilderXML_SafeStr(aVal: string): string;
-begin
-  if aVal <> '' then
-  begin
-    result := aVal.Replace('&','&amp;').Replace('<','&lt;').Replace('>','&gt;').Replace('''','&apos;').Replace('"','&quot;');
-  end else begin
-    Result := ''
-  end;
-end;
-
 function TSql2014logAnalyzer.DML_BuilderXML_Delete(aRowData: Tsql2014Opt): string;
 var
-  I,j: Integer;
-  field: TdbFieldItem;
+  I: Integer;
   fieldval: PdbFieldValue;
-  StrVal: string;
-  needQuote: Boolean;
-  dateTypeStr: string;
+
+  xml:IXMLDocument;
+  rootNode,tmpNode:IXMLNode;
+  field : TdbFieldItem;
 begin
-  Result := '<opt type="delete" table="'+aRowData.Table.getFullName+'">';
-  Result := Result + '<data>';
+  xml := TXMLDocument.Create(nil);
+  xml.Active := True;
+  rootNode := xml.AddChild('opt');
+  rootNode.Attributes['type'] := 'delete';
+  rootNode.Attributes['table'] := aRowData.Table.getFullName;
+  tmpNode := rootNode.AddChild('data');
   if aRowData.R1<>nil then
   begin
     //UpdateÔÙdelete
     for I := 0 to aRowData.old_data.Fields.Count - 1 do
     begin
       fieldval := PdbFieldValue(aRowData.old_data.Fields[I]);
-      StrVal := Hvu.GetFieldStrValue(fieldval.field, fieldval.value, needQuote, dateTypeStr);
-      StrVal := DML_BuilderXML_SafeStr(StrVal);
-      if fieldval.field.type_id=MsTypes.SQL_VARIANT then
-      begin
-        Result := Result + Format('<%s type="%s">%s</%s>', [fieldval.field.ColName,dateTypeStr,StrVal,fieldval.field.ColName]);
-      end else begin
-        Result := Result + Format('<%s>%s</%s>', [fieldval.field.ColName,StrVal,fieldval.field.ColName]);
-      end;
+      DML_BuilderXML_Field(fieldval, tmpNode);
     end;
   end else begin
     for I := 0 to aRowData.new_data.Fields.Count - 1 do
     begin
       fieldval := PdbFieldValue(aRowData.new_data.Fields[I]);
-      StrVal := Hvu.GetFieldStrValue(fieldval.field, fieldval.value, needQuote, dateTypeStr);
-      StrVal := DML_BuilderXML_SafeStr(StrVal);
-      if fieldval.field.type_id=MsTypes.SQL_VARIANT then
-      begin
-        Result := Result + Format('<%s type="%s">%s</%s>', [fieldval.field.ColName,dateTypeStr,StrVal,fieldval.field.ColName]);
-      end else begin
-        Result := Result + Format('<%s>%s</%s>', [fieldval.field.ColName,StrVal,fieldval.field.ColName]);
-      end;
+      DML_BuilderXML_Field(fieldval, tmpNode);
     end;
   end;
-  Result := Result + '</data>';
-  Result := Result + '<key>';
+  tmpNode := rootNode.AddChild('key');
   if aRowData.table.UniqueClusteredKeys.Count>0 then
   begin
     for I := 0 to aRowData.table.UniqueClusteredKeys.Count-1 do
     begin
       field := TdbFieldItem(aRowData.table.UniqueClusteredKeys[i]);
-      for J := 0 to aRowData.new_data.Fields.Count -1 do
+      fieldval := aRowData.new_data.getField(field.Col_id);
+      if fieldval <> nil then
       begin
-        fieldval := PdbFieldValue(aRowData.new_data.Fields[j]);
-        if fieldval.field.Col_id=field.Col_id then
-        begin
-          StrVal := Hvu.GetFieldStrValue(fieldval.field, fieldval.value, needQuote, dateTypeStr);
-          StrVal := DML_BuilderXML_SafeStr(StrVal);
-          if fieldval.field.type_id=MsTypes.SQL_VARIANT then
-          begin
-            Result := Result + Format('<%s type="%s">%s</%s>', [fieldval.field.ColName,dateTypeStr,StrVal,fieldval.field.ColName]);
-          end else begin
-            Result := Result + Format('<%s>%s</%s>', [fieldval.field.ColName,StrVal,fieldval.field.ColName]);
-          end;
-          Break;
-        end;
+        DML_BuilderXML_Field(fieldval, tmpNode);
       end;
     end;
   end;
-  Result := Result + '</key>';
-  Result := Result + '</opt>';
+  Result := xml.XML.Text;
+end;
+
+procedure TSql2014logAnalyzer.DML_BuilderXML_Field(pdd: PdbFieldValue; ownNode: IXMLNode; nodeName: string = 'a'; IncludeColName:Boolean = True);
+var
+  TmpNode: IXMLNode;
+  needQuote: Boolean;
+  dateTypeStr: string;
+begin
+  TmpNode := ownNode.AddChild(nodeName);
+  if IncludeColName then
+    TmpNode.Attributes['name'] := pdd.field.ColName;
+  if pdd.isNull then
+  begin
+    TmpNode.Attributes['null'] := 1;
+  end
+  else
+  begin
+    TmpNode.Text := Hvu.GetFieldStrValue(pdd, needQuote, dateTypeStr);
+    if pdd.field.type_id = MsTypes.SQL_VARIANT then
+    begin
+      TmpNode.Attributes['type'] := dateTypeStr;
+    end;
+  end;
 end;
 
 function TSql2014logAnalyzer.DML_BuilderXML_Insert(aRowData: Tsql2014Opt): string;
 var
-  StrVal: string;
   I: Integer;
   fieldval: PdbFieldValue;
-  needQuote: Boolean;
-  dateTypeStr: string;
+
+  xml:IXMLDocument;
+  rootNode:IXMLNode;
 begin
-  Result := '<opt type="insert" table="'+aRowData.Table.getFullName+'">';
+  xml := TXMLDocument.Create(nil);
+  xml.Active := True;
+  rootNode := xml.AddChild('opt');
+  rootNode.Attributes['type'] := 'insert';
+  rootNode.Attributes['table'] := aRowData.Table.getFullName;
   for I := 0 to aRowData.new_data.Fields.Count - 1 do
   begin
     fieldval := PdbFieldValue(aRowData.new_data.Fields[I]);
-    StrVal := Hvu.GetFieldStrValue(fieldval.field, fieldval.value, needQuote, dateTypeStr);
-    StrVal := DML_BuilderXML_SafeStr(StrVal);
-    if fieldval.field.type_id = MsTypes.SQL_VARIANT then
-    begin
-      Result := Result + Format('<%s type="%s">%s</%s>', [fieldval.field.ColName, dateTypeStr, StrVal, fieldval.field.ColName]);
-    end
-    else
-    begin
-      Result := Result + Format('<%s>%s</%s>', [fieldval.field.ColName, StrVal, fieldval.field.ColName]);
-    end;
+    DML_BuilderXML_Field(fieldval, rootNode);
   end;
-  Result := Result + '</opt>';
+  Result := xml.XML.Text;
 end;
 
 function TSql2014logAnalyzer.DML_BuilderXML_Update(aRowData: Tsql2014Opt): string;
 var
-  StrVal: string;
-  I,J,L: Integer;
+  I,J: Integer;
   raw_old,raw_new: PdbFieldValue;
 
   xml:IXMLDocument;
-  rootNode,fieldNode,TmpNode:IXMLNode;
-  nodeName:string;
-  needQuote: Boolean;
-  dateTypeStr: string;
+  rootNode,fieldNode:IXMLNode;
 begin
   xml := TXMLDocument.Create(nil);
   xml.Active := True;
@@ -817,21 +798,8 @@ begin
         raw_old := aRowData.old_data.getField(aRowData.Table.Fields[i].Col_id);
         raw_new := aRowData.new_data.getField(aRowData.Table.Fields[i].Col_id);
 
-        nodeName := XML_SafeNodeName(aRowData.Table.Fields[i].ColName);
-        if nodeName = '' then
-          nodeName := '_';
-        if checkXmlNodeExists(rootNode, nodeName) then
-        begin
-          for L := 0 to 10000 do
-          begin
-            if not checkXmlNodeExists(rootNode, nodeName + '_' + inttostr(L)) then
-            begin
-              nodeName := nodeName + '_' + inttostr(L);
-              Break;
-            end;
-          end;
-        end;
-        fieldNode := rootNode.AddChild(nodeName);
+        fieldNode := rootNode.AddChild('field');
+        fieldNode.Attributes['name'] := aRowData.Table.Fields[i].ColName;
         fieldNode.Attributes['dtype'] := getSingleDataTypeStr(aRowData.Table.Fields[i].type_id);
         for J := 0 to aRowData.Table.UniqueClusteredKeys.Count-1 do
         begin
@@ -841,41 +809,8 @@ begin
             Break;
           end;
         end;
-        TmpNode := fieldNode.AddChild('old');
-        if raw_old = nil then
-        begin
-          TmpNode.Attributes['null']:= '1';
-        end else begin
-          StrVal := Hvu.GetFieldStrValue(raw_old.field, raw_old.value, needQuote, dateTypeStr);
-          if StrVal='NULL' then
-          begin
-            TmpNode.Attributes['null']:= '1';
-          end else begin
-            TmpNode.Text := StrVal;
-          end;
-          if raw_old.field.type_id = MsTypes.SQL_VARIANT then
-          begin
-            TmpNode.Attributes['type']:= dateTypeStr;
-          end
-        end;
-
-        TmpNode := fieldNode.AddChild('new');
-        if raw_new = nil then
-        begin
-          TmpNode.Attributes['null']:= '1';
-        end else begin
-          StrVal := Hvu.GetFieldStrValue(raw_new.field, raw_new.value, needQuote, dateTypeStr);
-          if StrVal='NULL' then
-          begin
-            TmpNode.Attributes['null']:= '1';
-          end else begin
-            TmpNode.Text := StrVal;
-          end;
-          if raw_new.field.type_id = MsTypes.SQL_VARIANT then
-          begin
-            TmpNode.Attributes['type']:= dateTypeStr;
-          end
-        end;
+        DML_BuilderXML_Field(raw_old, fieldNode, 'old', false);
+        DML_BuilderXML_Field(raw_new, fieldNode, 'new', false);
       end;
     end;
   except
@@ -900,7 +835,7 @@ begin
   begin
     fieldval := PdbFieldValue(aRowData.new_data.Fields[I]);
     fields := fields + ',' + fieldval.field.getSafeColName;
-    StrVal := StrVal + ',' + Hvu.GetFieldStrValueWithQuoteIfNeed(fieldval.field, fieldval.value);
+    StrVal := StrVal + ',' + Hvu.GetFieldStrValueWithQuoteIfNeed(fieldval);
   end;
   if aRowData.new_data.Fields.Count > 0 then
   begin
@@ -933,7 +868,7 @@ begin
         fieldval := PdbFieldValue(aRowData.new_data.Fields[j]);
         if fieldval.field.Col_id=field.Col_id then
         begin
-          whereStr := whereStr + Format('and %s=%s ', [field.getSafeColName, Hvu.GetFieldStrValueWithQuoteIfNeed(field, fieldval.value)]);
+          whereStr := whereStr + Format('and %s=%s ', [field.getSafeColName, Hvu.GetFieldStrValueWithQuoteIfNeed(fieldval)]);
           Break;
         end;
       end;
@@ -1798,11 +1733,11 @@ begin
     pdd_field_ColName := LowerCase(pdd.field.ColName);
     if pdd_field_ColName = 'id' then
     begin
-      TableId := StrToInt(Hvu.GetFieldStrValue(pdd.field, pdd.value));
+      TableId := StrToInt(Hvu.GetFieldStrValue(pdd));
     end
     else if pdd_field_ColName = 'name' then
     begin
-      ColName := Hvu.GetFieldStrValue(pdd.field, pdd.value);
+      ColName := Hvu.GetFieldStrValue(pdd);
     end;
   end;
 
@@ -2003,15 +1938,15 @@ begin
     pdd_field_ColName := LowerCase(pdd.field.ColName);
     if pdd_field_ColName = 'rsid' then
     begin
-      rowsetid := StrToInt64(Hvu.GetFieldStrValue(pdd.field, pdd.value));
+      rowsetid := StrToInt64(Hvu.GetFieldStrValue(pdd));
     end
     else if pdd_field_ColName = 'rscolid' then
     begin
-      ColId := StrToInt(Hvu.GetFieldStrValue(pdd.field, pdd.value));
+      ColId := StrToInt(Hvu.GetFieldStrValue(pdd));
     end
     else if pdd_field_ColName = 'status' then
     begin
-      statusCode := StrToInt(Hvu.GetFieldStrValue(pdd.field, pdd.value));
+      statusCode := StrToInt(Hvu.GetFieldStrValue(pdd));
     end
     else if pdd_field_ColName = 'offset' then
     begin
@@ -2149,7 +2084,7 @@ begin
     for I := DataRow.new_data.fields.Count - 1 downto 0 do
     begin
       pdd := PdbFieldValue(DataRow.new_data.fields[I]);
-      if LowerCase(pdd.field.ColName) = 'idtval' then
+      if (LowerCase(pdd.field.ColName) = 'idtval') and (length(pdd.value) > 7) then
       begin
         FieldItem.Idt_seed := PDWORD(@pdd.value[0])^;
         FieldItem.Idt_increment := PDWORD(@pdd.value[4])^;
@@ -2203,16 +2138,16 @@ begin
     pdd_field_ColName := LowerCase(pdd.field.ColName);
     if pdd_field_ColName = 'id' then
     begin
-      objId := StrToInt(Hvu.GetFieldStrValue(pdd.field, pdd.value));
+      objId := StrToInt(Hvu.GetFieldStrValue(pdd));
     end else if pdd_field_ColName = 'name' then
     begin
-      idxName := Hvu.GetFieldStrValue(pdd.field, pdd.value);
+      idxName := Hvu.GetFieldStrValue(pdd);
     end else if pdd_field_ColName = 'status' then
     begin
-      status := StrToInt(Hvu.GetFieldStrValue(pdd.field, pdd.value));
+      status := StrToInt(Hvu.GetFieldStrValue(pdd));
     end else if pdd_field_ColName = 'type' then
     begin
-      idxtype := StrToInt(Hvu.GetFieldStrValue(pdd.field, pdd.value));
+      idxtype := StrToInt(Hvu.GetFieldStrValue(pdd));
     end;
   end;
 
@@ -2246,16 +2181,16 @@ begin
     pdd_field_ColName := LowerCase(pdd.field.ColName);
     if pdd_field_ColName = 'idmajor' then
     begin
-      objId := StrToInt(Hvu.GetFieldStrValue(pdd.field, pdd.value));
+      objId := StrToInt(Hvu.GetFieldStrValue(pdd));
     end else if pdd_field_ColName = 'idminor' then
     begin
-      indexId := StrToInt(Hvu.GetFieldStrValue(pdd.field, pdd.value));
+      indexId := StrToInt(Hvu.GetFieldStrValue(pdd));
     end else if pdd_field_ColName = 'status' then
     begin
-      status := StrToInt(Hvu.GetFieldStrValue(pdd.field, pdd.value));
+      status := StrToInt(Hvu.GetFieldStrValue(pdd));
     end else if pdd_field_ColName = 'intprop' then
     begin
-      fieldId := StrToInt(Hvu.GetFieldStrValue(pdd.field, pdd.value));
+      fieldId := StrToInt(Hvu.GetFieldStrValue(pdd));
     end;
   end;
   IDXs.Add(objId, indexId, fieldId, (status and 4) > 0);
@@ -2286,11 +2221,11 @@ begin
     end else
     if pdd_field_ColName = 'objid' then
     begin
-      objId := StrToInt(Hvu.GetFieldStrValue(pdd.field, pdd.value));
+      objId := StrToInt(Hvu.GetFieldStrValue(pdd));
     end
     else if pdd_field_ColName = 'imageval' then
     begin
-      value := Hvu.GetFieldStrValue(pdd.field, pdd.value);
+      value := Hvu.GetFieldStrValue(pdd);
     end;
   end;
 
@@ -2348,23 +2283,23 @@ begin
     pdd_field_ColName := LowerCase(pdd.field.ColName);
     if pdd_field_ColName = 'id' then
     begin
-      ObjId := StrToInt(Hvu.GetFieldStrValue(pdd.field, pdd.value));
+      ObjId := StrToInt(Hvu.GetFieldStrValue(pdd));
     end
     else if pdd_field_ColName = 'name' then
     begin
-      ObjName := Hvu.GetFieldStrValue(pdd.field, pdd.value);
+      ObjName := Hvu.GetFieldStrValue(pdd);
     end
     else if pdd_field_ColName = 'nsid' then
     begin
-      nsid := StrToInt(Hvu.GetFieldStrValue(pdd.field, pdd.value));
+      nsid := StrToInt(Hvu.GetFieldStrValue(pdd));
     end
     else if pdd_field_ColName = 'type' then
     begin
-      ObjType := Hvu.GetFieldStrValue(pdd.field, pdd.value);
+      ObjType := Hvu.GetFieldStrValue(pdd);
     end
     else if pdd_field_ColName = 'pid' then
     begin
-      pid := StrToInt(Hvu.GetFieldStrValue(pdd.field, pdd.value));
+      pid := StrToInt(Hvu.GetFieldStrValue(pdd));
     end
     else if pdd_field_ColName = 'intprop' then
     begin
@@ -2457,27 +2392,27 @@ begin
     pdd_field_ColName := LowerCase(pdd.field.ColName);
     if pdd_field_ColName = 'id' then
     begin
-      ObjId := StrToInt(Hvu.GetFieldStrValue(pdd.field, pdd.value));
+      ObjId := StrToInt(Hvu.GetFieldStrValue(pdd));
     end
     else if pdd_field_ColName = 'name' then
     begin
-      ObjName := Hvu.GetFieldStrValue(pdd.field, pdd.value);
+      ObjName := Hvu.GetFieldStrValue(pdd);
     end
     else if pdd_field_ColName = 'nsid' then
     begin
-      nsid := StrToInt(Hvu.GetFieldStrValue(pdd.field, pdd.value));
+      nsid := StrToInt(Hvu.GetFieldStrValue(pdd));
     end
     else if pdd_field_ColName = 'type' then
     begin
-      ObjType := Hvu.GetFieldStrValue(pdd.field, pdd.value);
+      ObjType := Hvu.GetFieldStrValue(pdd);
     end
     else if pdd_field_ColName = 'pid' then
     begin
-      pid := StrToInt(Hvu.GetFieldStrValue(pdd.field, pdd.value));
+      pid := StrToInt(Hvu.GetFieldStrValue(pdd));
     end
     else if pdd_field_ColName = 'intprop' then
     begin
-      initprop := StrToInt(Hvu.GetFieldStrValue(pdd.field, pdd.value));
+      initprop := StrToInt(Hvu.GetFieldStrValue(pdd));
     end;
   end;
   ObjType := Trim(LowerCase(ObjType));
@@ -2585,15 +2520,15 @@ begin
     pdd_field_ColName := LowerCase(pdd.field.ColName);
     if pdd_field_ColName = 'rsid' then
     begin
-      rowsetid := StrToInt64(Hvu.GetFieldStrValue(pdd.field, pdd.value));
+      rowsetid := StrToInt64(Hvu.GetFieldStrValue(pdd));
     end
     else if pdd_field_ColName = 'rscolid' then
     begin
-      ColId := StrToInt(Hvu.GetFieldStrValue(pdd.field, pdd.value));
+      ColId := StrToInt(Hvu.GetFieldStrValue(pdd));
     end
     else if pdd_field_ColName = 'status' then
     begin
-      statusCode := StrToInt(Hvu.GetFieldStrValue(pdd.field, pdd.value));
+      statusCode := StrToInt(Hvu.GetFieldStrValue(pdd));
     end
     else if pdd_field_ColName = 'offset' then
     begin
@@ -2776,14 +2711,23 @@ begin
     aField := DbTable.Fields[I];
     if not aField.isLogSkipCol then
     begin
+      New(fieldval);
+      fieldval.field := aField;
+
       if aField.is_nullable then
       begin
         Idx := aField.nullMap shr 3;
         b := aField.nullMap and 7;
         if (nullMap[Idx] and (1 shl b)) > 0 then  //ÖµÎªnull
+        begin
+          fieldval.value := nil;
+          fieldval.isNull := True;
+          DataRow.Fields.Add(fieldval);
           Continue;
+        end;
       end;
 
+      fieldval.isNull := False;
       if aField.leaf_pos < 0 then
       begin
         // var Field
@@ -2802,16 +2746,11 @@ begin
           if val_len = 0 then
           begin
             //¿Õ×Ö·û´®
-            New(fieldval);
-            fieldval.field := aField;
             SetLength(fieldval.value,0);
-            DataRow.Fields.Add(fieldval);
           end
           else
           begin
-            New(fieldval);
             try
-              fieldval.field := aField;
               BinReader.seek(val_begin, soBeginning);
               if (VarFieldValEndOffset[Idx] and $8000) > 0 then
               begin
@@ -2830,24 +2769,17 @@ begin
                 raise exx;
               end;
             end;
-            DataRow.Fields.Add(fieldval);
           end;
         end else begin
           //¿Õ×Ö·û´®
-          New(fieldval);
-          fieldval.field := aField;
           SetLength(fieldval.value,0);
-          DataRow.Fields.Add(fieldval);
         end;
       end
       else
       begin
         //fixed Field
         BinReader.seek(aField.leaf_pos, soBeginning);
-
-        New(fieldval);
         try
-          fieldval.field := aField;
           fieldval.value := BinReader.readBytes(aField.Max_length);
           if aField.type_id = MsTypes.BIT then
           begin
@@ -2870,8 +2802,9 @@ begin
             raise exx;
           end;
         end;
-        DataRow.Fields.Add(fieldval);
+
       end;
+      DataRow.Fields.Add(fieldval);
     end;
   end;
   Result := DataRow;
@@ -3213,7 +3146,7 @@ begin
     begin
       fieldval := values[I];
       Result := Result + Format('and %s=%s ', [fieldval.field.getSafeColName,
-        Hvu.GetFieldStrValueWithQuoteIfNeed(fieldval.field, fieldval.value)]);
+        Hvu.GetFieldStrValueWithQuoteIfNeed(fieldval)]);
     end;
     if values.Count>0 then
     begin
@@ -3484,7 +3417,6 @@ var
   I:Integer;
   PHr:PPage_Header;
   RawDataOffset:Word;
-  DataStartOffset:Pointer;
   tmpData:UIntPtr;
   dataLen:Cardinal;
   DataRow_buf: Tsql2014Opt;
@@ -4006,7 +3938,7 @@ begin
     pdd := PdbFieldValue(fields[I]);
     if LowerCase(pdd.field.ColName) = FieldName then
     begin
-      Result := FlogAnalyzer.Hvu.GetFieldStrValue(pdd.field, pdd.value);
+      Result := FlogAnalyzer.Hvu.GetFieldStrValue(pdd);
       Break;
     end;
   end;

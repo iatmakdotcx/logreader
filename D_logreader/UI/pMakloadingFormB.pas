@@ -166,7 +166,7 @@ begin
   while not _mb.Activated do
   begin
     Sleep(10);
-    if hideWaitCnt >= hideWaitCnt then
+    if I >= hideWaitCnt then
       Break;
     I := I + 1;
   end;

@@ -108,7 +108,7 @@ begin
 
         for J := 0 to ImplsManger.items.Count-1 do
         begin
-          impi := TImplsItem(ImplsManger.items[i]);
+          impi := TImplsItem(ImplsManger.items[J]);
           if not impi.Paused then
             impi.RunSql(tableName, optType, OPT);
         end;

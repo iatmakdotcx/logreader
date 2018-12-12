@@ -22,11 +22,12 @@ type
     class function Bytes2smallDatetimeStr(Value: TBytes): string; static;
     class function Bytes2TimeStr(Value: TBytes; datalen:Integer; scale: Integer): string; static;
     function GetFieldStrValue_SQL_VARIANT(Value: TBytes;out needQuote: Boolean; out dateTypeStr: string): string;
+    function GetFieldStrValue(Field: TdbFieldItem; Value: TBytes; out needQuote: Boolean; out dateTypeStr: string): string; overload;
   public
     constructor Create(_LogSource:TLogSourceBase);
-    function GetFieldStrValue(Field: TdbFieldItem; Value: TBytes): string; overload;
-    function GetFieldStrValue(Field: TdbFieldItem; Value: TBytes; out needQuote: Boolean; out dateTypeStr: string): string; overload;
-    function GetFieldStrValueWithQuoteIfNeed(Field: TdbFieldItem; Value: TBytes): string;
+    function GetFieldStrValue(pdd: PdbFieldValue): string;overload;
+    function GetFieldStrValue(pdd: PdbFieldValue; out needQuote: Boolean; out dateTypeStr: string): string; overload;
+    function GetFieldStrValueWithQuoteIfNeed(pdd: PdbFieldValue): string;
     class function Hex2Datetime(msec: Int64): TDateTime;
     class function getWord(Value: TBytes; idx: Integer; len: Integer = 2): Word;
     class function getDWORD(Value: TBytes; idx: Integer; len: Integer = 4): DWORD;
@@ -312,12 +313,24 @@ begin
   Result := GUIDToString(pp^);
 end;
 
-function THexValueHelper.GetFieldStrValue(Field: TdbFieldItem; Value: TBytes): string;
+function THexValueHelper.GetFieldStrValue(pdd: PdbFieldValue): string;
 var
   needQuote: Boolean;
   dateTypeStr: string;
 begin
-  Result := GetFieldStrValue(Field, Value, needQuote, dateTypeStr);
+  Result := GetFieldStrValue(pdd, needQuote, dateTypeStr);
+end;
+
+function THexValueHelper.GetFieldStrValue(pdd: PdbFieldValue; out needQuote: Boolean; out dateTypeStr: string): string;
+begin
+  if pdd.isNull then
+  begin
+    needQuote := False;
+    dateTypeStr := 'null';
+    Result := 'NULL';
+  end else begin
+    Result := GetFieldStrValue(pdd.field, pdd.value, needQuote, dateTypeStr);
+  end;
 end;
 
 function THexValueHelper.GetFieldStrValue(Field: TdbFieldItem; Value: TBytes; out needQuote: Boolean; out dateTypeStr: string): string;
@@ -660,17 +673,18 @@ begin
   SetLength(newValue, 0);
 end;
 
-function THexValueHelper.GetFieldStrValueWithQuoteIfNeed(Field: TdbFieldItem; Value: TBytes): string;
+
+function THexValueHelper.GetFieldStrValueWithQuoteIfNeed(pdd: PdbFieldValue): string;
 var
   needQuote: Boolean;
   dateTypeStr: string;
 begin
-  Result := GetFieldStrValue(Field, Value, needQuote,dateTypeStr);
+  Result := GetFieldStrValue(pdd, needQuote, dateTypeStr);
   if needQuote then
   begin
     Result := QuotedStr(Result);
   end;
-  if (Result <> 'NULL') and (Field.type_id=MsTypes.SQL_VARIANT) and LogSource.VariantWithRealType then
+  if (Result <> 'NULL') and (pdd.Field.type_id=MsTypes.SQL_VARIANT) and LogSource.VariantWithRealType then
   begin
     Result := 'Convert(' + dateTypeStr + ',' + Result + ')';
   end;

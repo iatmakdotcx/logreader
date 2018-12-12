@@ -121,6 +121,7 @@ type
   TdbFieldValue = record
     field: TdbFieldItem;
     value: TBytes;
+    isNull:Boolean;
   end;
 
 implementation
@@ -759,7 +760,6 @@ var
   field: TdbFieldItem;
   TmpColId:Integer;
 begin
-  Result := False;
   if (not tableNode.HasAttribute('TableId')) or
      (not tableNode.HasAttribute('Owner')) or
      (not tableNode.HasAttribute('TableNmae')) or

@@ -44,7 +44,7 @@ var
 implementation
 
 uses
-  LoggerPro.FileAppender;
+  LoggerPro.FileAppender, LoggerPro.OutputDebugStringAppender;
 
 procedure TeventRecorder.Add(aMsg: string; level: Integer = LOG_INFORMATION);
 var
@@ -151,7 +151,7 @@ begin
   tmpLogPath := ExtractFilePath(ModuleName) + 'logs\' + StringReplace(ExtractFileName(ModuleName), '.', '_', []);
   if logName <> '' then
     tmpLogPath := tmpLogPath + '\' + logName;
-  lo4dLoger := BuildLogWriter([TLoggerProFileAppender.Create(10, Integer.MaxValue, tmpLogPath, [TFileAppenderOption.DateAsFileName, TFileAppenderOption.NoRotate])]);
+  lo4dLoger := BuildLogWriter([TLoggerProOutputDebugStringAppender.Create, TLoggerProFileAppender.Create(10, Integer.MaxValue, tmpLogPath, [TFileAppenderOption.DateAsFileName, TFileAppenderOption.NoRotate])]);
 
   Add('eventRecorder init...');
 end;
