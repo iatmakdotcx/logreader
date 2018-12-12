@@ -19,7 +19,6 @@ type
     cxGrid1TableView1Column2: TcxGridColumn;
     cxGrid1TableView1Column3: TcxGridColumn;
     cxGrid1TableView1Column4: TcxGridColumn;
-    cxGrid1TableView1Column5: TcxGridColumn;
     cxGrid1TableView1Column6: TcxGridColumn;
     cxGrid1TableView1Column7: TcxGridColumn;
     PopupMenu1: TPopupMenu;
@@ -145,7 +144,6 @@ begin
     cxGrid1TableView1.DataController.Values[i,1] := IntToStr(tableItem.TableId);
     cxGrid1TableView1.DataController.Values[i,2] := tableItem.Owner;
     cxGrid1TableView1.DataController.Values[i,3] := tableItem.TableNmae;
-    cxGrid1TableView1.DataController.Values[i,4] := IntToStr(tableItem.partition_id);
     cxGrid1TableView1.DataController.Values[i,5] := tableItem.hasIdentity;
     uk := '';
     for J := 0 to tableItem.UniqueClusteredKeys.Count - 1 do

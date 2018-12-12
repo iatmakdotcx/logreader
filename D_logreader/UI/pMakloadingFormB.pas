@@ -12,9 +12,11 @@ type
     Label1: TLabel;
     procedure FormCreate(Sender: TObject);
     procedure FormPaint(Sender: TObject);
+    procedure FormActivate(Sender: TObject);
   private
     { Private declarations }
   public
+    Activated:Boolean;
     { Public declarations }
   end;
 
@@ -154,9 +156,26 @@ begin
 end;
 
 procedure TWJobThread.Execute;
+const
+  hideWaitCnt = 100;
+var
+  I: Integer;
 begin
   _Func;
+  I := 0;
+  while not _mb.Activated do
+  begin
+    Sleep(10);
+    if hideWaitCnt >= hideWaitCnt then
+      Break;
+    I := I + 1;
+  end;
   _mb.ModalResult := mrOk;
+end;
+
+procedure TMakloadingFormB.FormActivate(Sender: TObject);
+begin
+  Activated := True;
 end;
 
 procedure TMakloadingFormB.FormCreate(Sender: TObject);
@@ -173,6 +192,7 @@ begin
   Image1.Picture.Assign(aGIFImage);
   aGIFImage.Free;
   mmo.Free;
+  Activated := False;
 end;
 
 procedure TMakloadingFormB.FormPaint(Sender: TObject);

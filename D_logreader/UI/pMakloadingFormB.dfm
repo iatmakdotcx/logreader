@@ -13,6 +13,7 @@ object MakloadingFormB: TMakloadingFormB
   Font.Style = []
   OldCreateOrder = False
   Position = poOwnerFormCenter
+  OnActivate = FormActivate
   OnCreate = FormCreate
   OnPaint = FormPaint
   PixelsPerInch = 96

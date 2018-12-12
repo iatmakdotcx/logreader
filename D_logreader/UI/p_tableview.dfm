@@ -22,10 +22,6 @@ object frm_tableview: Tfrm_tableview
     Height = 388
     Align = alClient
     TabOrder = 0
-    ExplicitLeft = 24
-    ExplicitTop = 8
-    ExplicitWidth = 561
-    ExplicitHeight = 284
     object cxGrid1TableView1: TcxGridTableView
       PopupMenu = PopupMenu1
       Navigator.Buttons.CustomButtons = <>
@@ -48,10 +44,6 @@ object frm_tableview: Tfrm_tableview
       object cxGrid1TableView1Column4: TcxGridColumn
         Caption = 'Name'
         Width = 165
-      end
-      object cxGrid1TableView1Column5: TcxGridColumn
-        Caption = 'PartiId'
-        Width = 117
       end
       object cxGrid1TableView1Column6: TcxGridColumn
         Caption = 'hasIdentity'
