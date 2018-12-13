@@ -6,7 +6,7 @@ uses
   dbDict, System.Classes, System.Contnrs;
 
 type
-  TOperationType = (Opt_Insert, Opt_Update, Opt_Delete, Opt_DML);
+  TOperationType = (Opt_Insert, Opt_Update, Opt_Delete, Opt_DML, Opt_TruncateTable);
   //把DML作为DDL的分支，便于统一顺序
 
 type
@@ -162,9 +162,19 @@ type
   end;
 
 
-
-
 {$ENDREGION 'Update'}
+
+
+{$REGION 'Other'}
+  TDDL_Truncate_table = class(TDDLItem)
+    Table: TdbTableItem;
+    constructor Create;
+    function getObjId: Integer; override;
+  end;
+
+{$ENDREGION 'Other'}
+
+
   //这个数据在索引之前创建，所以只能先记录，再关联了
 
   TDDL_Idxs_ColsItem = class(TObject)
@@ -568,6 +578,19 @@ end;
 function TDDL_Update_RenameObj.getObjId: Integer;
 begin
   Result := ObjId;
+end;
+
+{ TDDL_Truncate_table }
+
+constructor TDDL_Truncate_table.Create;
+begin
+  OpType := Opt_TruncateTable;
+end;
+
+
+function TDDL_Truncate_table.getObjId: Integer;
+begin
+  Result := 0;
 end;
 
 end.

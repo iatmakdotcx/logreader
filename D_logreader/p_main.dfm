@@ -171,7 +171,7 @@ object Form1: TForm1
         Width = 153
         Height = 21
         TabOrder = 4
-        Text = '00000052:00000550:0008'
+        Text = '00000052:00000668:0001'
       end
     end
   end

@@ -158,6 +158,8 @@ type
     procedure logTranPkg(FTranspkg: TTransPkg);
     function getDataFrom_TEXT_MIX_DATA(Page: TPage_Id): TBytes;
     procedure PriseRowLOP_FORMAT_PAGE(tPkg: TTransPkgItem);
+    procedure PriseDDLPkg_U_sysrowsets(DataRow: Tsql2014Opt);
+    function DML_BuilderXML_Truncate(ddlitem: TDDL_truncate_table): string;
   public
     /// <summary>
     ///
@@ -669,6 +671,19 @@ begin
   end;
 end;
 
+function TSql2014logAnalyzer.DML_BuilderXML_Truncate(ddlitem:TDDL_truncate_table): string;
+var
+  xml:IXMLDocument;
+  rootNode:IXMLNode;
+begin
+  xml := TXMLDocument.Create(nil);
+  xml.Active := True;
+  rootNode := xml.AddChild('opt');
+  rootNode.Attributes['type'] := 'truncate';
+  rootNode.Attributes['table'] := ddlitem.Table.getFullName;
+  Result := xml.XML.Text;
+end;
+
 function TSql2014logAnalyzer.DML_BuilderXML(aRowData: Tsql2014Opt): string;
 begin
   if not aRowData.deleteFlag then
@@ -1101,6 +1116,8 @@ begin
             Tmpstr := GenSql_DDL_Update(TDDLItem_Update(ddlitem));
           Opt_Delete:
             Tmpstr := GenSql_DDL_Delete(TDDLItem_Delete(ddlitem));
+          Opt_TruncateTable:
+            Tmpstr := 'TRUNCATE TABLE '+ TDDL_Truncate_table(ddlitem).Table.getFullName;
           Opt_DML:
             begin
               Tmpstr := DML_BuilderSql(TDMLItem(DDL.FItems[I]).data)
@@ -1158,6 +1175,11 @@ begin
               Tmpstr := GenSql_DDL_Delete(TDDLItem_Delete(ddlitem));
               if Tmpstr <> '' then
                 Tmpstr := '<row id="' + IntToStr(I) + '" type="ddl">' + Tmpstr + '</row>';
+            end;
+          Opt_TruncateTable:
+            begin
+              Tmpstr := DML_BuilderXML_Truncate(TDDL_Truncate_table(ddlitem));
+              Tmpstr := '<row id="' + IntToStr(I) + '" type="dml">' + Tmpstr + '</row>';
             end;
           Opt_DML:
             begin
@@ -1761,7 +1783,30 @@ begin
   begin
     //ÐÞ¸ÄÁÐ
     PriseDDLPkg_U_sysrscols(DataRow);
+  end else if DataRow.Table.TableNmae = 'sysrowsets' then
+  begin
+    PriseDDLPkg_U_sysrowsets(DataRow)
   end
+end;
+
+procedure TSql2014logAnalyzer.PriseDDLPkg_U_sysrowsets(DataRow: Tsql2014Opt);
+var
+  rowsetid: Uint64;
+  rcrows: Uint64;
+  tableId:Integer;
+  ttt:TDDL_Truncate_table;
+begin
+  if TryStrToUInt64(DataRow.new_data.getFieldStrValue('rowsetid'), rowsetid) and
+     TryStrToUInt64(DataRow.new_data.getFieldStrValue('rcrows'), rcrows) and
+    (rcrows = 0)
+  then begin
+    if FLogSource.Fdbc.dict.tables.Parti2ObjId.TryGetValue(rowsetid, tableId) then
+    begin
+      ttt := TDDL_Truncate_table.Create;
+      ttt.Table := FLogSource.Fdbc.dict.tables.GetItemById(tableId);
+      DDL.Add(ttt);
+    end;
+  end;
 end;
 
 procedure TSql2014logAnalyzer.PriseDDLPkg_U_sysschobjs(DataRow: Tsql2014Opt);
