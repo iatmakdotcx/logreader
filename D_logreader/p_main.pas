@@ -67,7 +67,7 @@ type
     procedure ViewAllTable1Click(Sender: TObject);
   private
     MMO_LOGCS:TCriticalSection;
-    MMO_LOGCSMSG:string;
+    MMO_LOGCSMSG:TStringList;
     SelectedLs:TLogSource;
     menuActions:TobjectList;
     procedure InitPluginsMenus;
@@ -466,6 +466,7 @@ end;
 
 procedure TForm1.FormCreate(Sender: TObject);
 begin
+  MMO_LOGCSMSG:=TStringList.Create;
 {$IFNDEF DEBUG}
   Panel1.Visible := False;
   GroupBox1.Visible := False;
@@ -480,6 +481,7 @@ procedure TForm1.FormDestroy(Sender: TObject);
 begin
   menuActions.Free;
   MMO_LOGCS.Free;
+  MMO_LOGCSMSG.Free;
 end;
 
 procedure TForm1.N2Click(Sender: TObject);
@@ -552,11 +554,17 @@ end;
 
 procedure TForm1.ShwLogMsg_Val;
 begin
-  MMO_LOG.lines.Add(MMO_LOGCSMSG);
-  MMO_LOG.Perform(WM_VSCROLL, SB_BOTTOM, 0);
-  if MMO_LOG.Lines.Count >= 1000 then
-  begin
-    MMO_LOG.Lines.Delete(0);
+  MMO_LOGCS.Enter;
+  try
+    MMO_LOG.lines.Add(Trim(MMO_LOGCSMSG.Text));
+    MMO_LOG.Perform(WM_VSCROLL, SB_BOTTOM, 0);
+    while MMO_LOG.Lines.Count >= 1000 do
+    begin
+      MMO_LOG.Lines.Delete(0);
+    end;
+    MMO_LOGCSMSG.Clear();
+  finally
+    MMO_LOGCS.Leave;
   end;
 end;
 
@@ -567,11 +575,11 @@ begin
     try
       MMO_LOGCS.Enter;
       try
-        MMO_LOGCSMSG := FormatDateTime('yyyy-MM-dd HH:nn:ss.zzz', Now) + IntToStr(level) + ' >> ' + aMsg;
-        TThread.Synchronize(nil, ShwLogMsg_Val);
+        MMO_LOGCSMSG.Add(FormatDateTime('yyyy-MM-dd HH:nn:ss.zzz', Now) + IntToStr(level) + ' >> ' + aMsg);
       finally
         MMO_LOGCS.Leave;
       end;
+      TThread.Synchronize(nil, ShwLogMsg_Val);
     Except
     end;
   end;

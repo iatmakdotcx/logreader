@@ -3102,6 +3102,7 @@ begin
       if (field.leaf_pos > 0) then
       begin
         New(fieldval);
+        fieldval.isNull := False;
         fieldval.field := field;
         fieldval.value := BinReader.readBytes(field.Max_length);
         values.Add(fieldval);
@@ -3136,6 +3137,7 @@ begin
           end;
         end;
         New(fieldval);
+        fieldval.isNull := False;
         fieldval.field := field;
         fieldval.value := BinReader.readBytes(varFxIdx[varFCnt]);
         values.Add(fieldval);
