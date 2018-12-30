@@ -24,8 +24,6 @@ object Form1: TForm1
     Align = alTop
     Caption = 'DEBUG'
     TabOrder = 0
-    ExplicitTop = 238
-    ExplicitWidth = 521
     object Button7: TButton
       Left = 3
       Top = 16
@@ -78,6 +76,15 @@ object Form1: TForm1
       Caption = 'XmlDebug'
       TabOrder = 5
       OnClick = Button2Click
+    end
+    object Button3: TButton
+      Left = 463
+      Top = 6
+      Width = 75
+      Height = 25
+      Caption = 'CacheTest'
+      TabOrder = 6
+      OnClick = Button3Click
     end
   end
   object GroupBox2: TGroupBox
@@ -184,14 +191,12 @@ object Form1: TForm1
     Lines.Strings = (
       'Memo1')
     TabOrder = 2
-    ExplicitTop = 339
-    ExplicitHeight = 230
   end
   object ImageList1: TImageList
     Left = 192
     Top = 200
     Bitmap = {
-      494C01010B001800FC0010001000FFFFFFFFFF10FFFFFFFFFFFFFFFF424D3600
+      494C01010B001800080110001000FFFFFFFFFF10FFFFFFFFFFFFFFFF424D3600
       0000000000003600000028000000400000003000000001002000000000000030
       000000000000000000000000000000000000FFFFFF00FFFFFF00F6821000F580
       0C00F4851600F67B0000F37B0500FFFFFF00FFFFFF00F47C0500F57A0000F284

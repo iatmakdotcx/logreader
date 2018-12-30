@@ -9,7 +9,6 @@ function bytestostr(var rd:array of Byte;OffsetBegin:DWORD = $FFFFFFFF;withAscii
 function bytestostr(P:Pointer;zlen:Integer;OffsetBegin:DWORD = $FFFFFFFF;withAscii:Boolean = True;withLineBreak:Boolean = True):string;overload;
 function AlignToDword(TmpDWORD: DWORD): Pointer;overload;
 function AlignToDword(Ptr: Pointer): Pointer;overload;
-function Hex2HexStr(const data, Dest: Pointer;Len:integer):DWORD; stdcall;
 function bytestostr_singleHex(var rd:array of Byte):string;
 function hexToAnsiiData(aStr:string):string;
 function DumpMemory2Str(data:Pointer; dataSize:Integer): string;
@@ -141,60 +140,6 @@ begin
   Result := DumpMemory2Str(@rd[0],Length(rd));
 end;
 
-function Hex2HexStr(const data, Dest: Pointer;Len:integer):DWORD; stdcall;
-asm
-{$if SizeOf(Pointer) = 4}
-  pushad
-  mov esi,data
-  mov edi,dest
-  xor ecx,ecx
-  Xor edx,edx
-
-  @loop:
-  cmp ecx,len
-  jae @Exit
-    mov al,byte ptr[esi+ecx]
-    shr al,4
-    add al,$90
-    DAA
-    ADC AL,$40
-    DAA
-    
-    mov byte ptr[edi+edx],al
-    inc edx
-    
-    mov al,byte ptr[esi+ecx]
-    and al,$F
-    add al,$90
-    DAA
-    ADC AL,$40
-    DAA
-
-    mov byte ptr[edi+edx],al
-    inc edx
-
-    mov al,' '
-    mov byte ptr[edi+edx],al
-    inc edx
-
-    inc ecx
-
-    TEST ecx,$F
-    jnz @InsertEol
-      mov ax,$0A0D
-      mov Word ptr[edi+edx],ax
-      add edx,2
-    @InsertEol:
-
-
-  jmp @loop
-  @Exit:
-  mov len,edx
-  popad
-  mov eax,len
-{$IFEND}
-end;
-
 function bytestostr(P:Pointer;zlen:Integer;OffsetBegin:DWORD = $FFFFFFFF;withAscii:Boolean = True;withLineBreak:Boolean = True):string;
 var
   arr:array of Byte;
@@ -225,7 +170,7 @@ var
   TmpAnsiString:AnsiString;
 begin
   tmpByteLen := 0;
-  SetLength(tmpByte, 1024); //Max 1024
+  SetLength(tmpByte, Length(aStr) div 2);
   i := 0;
   Tmpstr := '';
   TmpAnsiString := AnsiString(aStr);
@@ -233,7 +178,7 @@ begin
   begin
     i := i + 1;
     ichar := TmpAnsiString[i];
-    if not (ichar in ['0'..'9', 'a'..'z', 'A'..'Z']) then
+    if not (ichar in ['0'..'9', 'a'..'f', 'A'..'F']) then
       Continue;
 
     Tmpstr := Tmpstr + string(ichar);
@@ -245,10 +190,7 @@ begin
     end;
   end;
   SetLength(Result, tmpByteLen);
-  for I := 0 to tmpByteLen - 1 do
-  begin
-    Result[i] := tmpByte[i];
-  end;
+  Move(tmpByte[0], Result[0], tmpByteLen);
   SetLength(tmpByte, 0);
 end;
 

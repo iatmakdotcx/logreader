@@ -45,6 +45,7 @@ type
     Debug1: TMenuItem;
     CompareDictFromdb1: TMenuItem;
     ViewAllTable1: TMenuItem;
+    Button3: TButton;
     procedure FormCreate(Sender: TObject);
     procedure btn_newCfgClick(Sender: TObject);
     procedure FormDestroy(Sender: TObject);
@@ -65,6 +66,7 @@ type
     procedure ListView1Click(Sender: TObject);
     procedure Button5Click(Sender: TObject);
     procedure ViewAllTable1Click(Sender: TObject);
+    procedure Button3Click(Sender: TObject);
   private
     MMO_LOGCS:TCriticalSection;
     MMO_LOGCSMSG:TStringList;
@@ -91,7 +93,8 @@ implementation
 uses
   dbConnectionCfg, databaseConnection, p_structDefine, Memory_Common,
   MakCommonfuncs, loglog, sqlextendedprocHelper, XMLDoc, LogtransPkg, dbDict,
-  LogtransPkgMgr, Sql2014logAnalyzer, p_tableview, pMakloadingFormB, Winapi.ActiveX;
+  LogtransPkgMgr, Sql2014logAnalyzer, p_tableview, pMakloadingFormB, Winapi.ActiveX,
+  pagecache;
 
 {$R *.dfm}
 
@@ -175,6 +178,21 @@ begin
     end;
   finally
     opendia.Free;
+  end;
+end;
+
+procedure TForm1.Button3Click(Sender: TObject);
+var
+  tlsObj : TLogSource;
+  pageid:TPage_Id;
+begin
+  if ListView1.Selected <> nil then
+  begin
+    tlsObj := ListView1.Selected.Data;
+    pageid.FID := 1;
+    pageid.PID :=  1264;
+    pageid.solt :=  10;
+    pc__PageCache.getUpdateSoltData(tlsObj.Fdbc,Str2LSN('00000052:00000750:0002'),pageid);
   end;
 end;
 

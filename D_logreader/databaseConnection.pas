@@ -12,7 +12,6 @@ type
 type
   TdatabaseConnection = class(TObject)
   private
-    FlogSource:TLogSourceBase;
     AdoQCs: TCriticalSection;
     AdoQ: TADOQuery;
     ADOConn: TADOConnection;
@@ -20,8 +19,8 @@ type
     AdoQMaster: TADOQuery;
     ADOConnMaster: TADOConnection;
     FPlgSource:Pplg_source;
-
   public
+    FlogSource:TLogSourceBase;
      //手动设置部分
     Host: string;
     user: string;

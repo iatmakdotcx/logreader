@@ -16,17 +16,8 @@ library LrExtutils;
 {$ENDIF}
 
 uses
-  EMemLeaks,
-  EResLeaks,
-  EDialogWinAPIMSClassic,
-  EDialogWinAPIEurekaLogDetailed,
-  EDialogWinAPIStepsToReproduce,
-  EDebugExports,
-  EFixSafeCallException,
-  EMapWin32,
-  ExceptionLog7,
-  {$IFDEF DEBUG}
-  {$ENDIF }
+  FastMM4 in 'H:\Delphi\FastMMnew\FastMM4.pas',
+  FastMM4Messages in 'H:\Delphi\FastMMnew\FastMM4Messages.pas' ,
   SysUtils,
   Classes,
   Winapi.Windows,
@@ -46,6 +37,8 @@ uses
 
 const
   ModuleVersion = $00000001;
+var
+  LMMSkzbase: PLogMemoryManagerState = nil;
 
 
 procedure exitAllThread;
@@ -339,6 +332,48 @@ begin
   SqlSvr_SendMsg(pSrvProc, 'check end.....');
 end;
 
+procedure LMMSScompare(kz1, kz2: PLogMemoryManagerState);
+var
+  I,J: Integer;
+  AllocatedtotalSize:UInt64;
+begin
+  for I := 0 to kz2.ObjCnt - 1 do
+  begin
+    for J := 0 to kz1.ObjCnt - 1 do
+    begin
+      if kz2.Detail[I].InstanceName = kz1.Detail[J].InstanceName then
+      begin
+        kz2.Detail[I].InstanceCount := kz2.Detail[I].InstanceCount - kz1.Detail[J].InstanceCount;
+        kz2.Detail[I].totalSize := kz2.Detail[I].totalSize - kz1.Detail[J].totalSize;
+        Break;
+      end;
+    end;
+  end;
+  AllocatedtotalSize := 0;
+  for I := 0 to kz2.ObjCnt - 1 do
+  begin
+    AllocatedtotalSize := AllocatedtotalSize + kz2.Detail[I].totalSize;
+  end;
+  kz2.Allocated := AllocatedtotalSize div 1024;
+end;
+
+function LMMSS2Str(kz: PLogMemoryManagerState): TStringList;
+var
+  I: Integer;
+begin
+  Result := TStringList.Create;
+  Result.Capacity := kz.ObjCnt + 10;
+  Result.Add(Format('Allocated:%dK', [kz.Allocated]));
+  Result.Add(Format('Overhead:%dK', [kz.Overhead]));
+  Result.Add(Format('Efficiency:%dK', [kz.Efficiency]));
+  Result.Add(Format('ObjCnt:%d'#$D#$A#$D#$A, [kz.ObjCnt]));
+  for I := 0 to kz.ObjCnt - 1 do
+  begin
+    if kz.Detail[I].InstanceCount > 0 then
+      Result.Add(Format('%d bytes: %s x %d ', [kz.Detail[I].totalSize, kz.Detail[I].InstanceName, kz.Detail[I].InstanceCount]));
+  end;
+end;
+
 /// <summary>
 /// ¿ØÖÆÖ÷º¯Êý
 /// </summary>
@@ -354,6 +389,8 @@ var
   action: string;
 
   tmpint:Integer;
+  kz222: PLogMemoryManagerState;
+  LMMSScompareoutData:TStringList;
 begin
   Result := SUCCEED;
   try
@@ -416,9 +453,30 @@ begin
           tmpint := ModuleVersion;
           srv_setcoldata(pSrvProc, 1, @tmpint);
           srv_sendrow(pSrvProc);
-        end else if action = 'TEST' then
+        end else if action = 'Tbase' then
         begin
-
+          if LMMSkzbase <> nil then
+            VirtualFree(LMMSkzbase, 0, MEM_RELEASE);
+          LMMSkzbase := LogMemoryManagerStateToStruct;
+          SqlSvr_SendMsg(pSrvProc, 'ok');
+        end
+        else if action = 'Tcb' then
+        begin
+          if LMMSkzbase = nil then
+            LMMSkzbase := LogMemoryManagerStateToStruct;
+          kz222 := LogMemoryManagerStateToStruct;
+          LMMSScompare(LMMSkzbase, kz222);
+          LMMSScompareoutData := LMMSS2Str(kz222);
+          SqlSvr_SendMsg(pSrvProc, LMMSScompareoutData.Text);
+          VirtualFree(kz222, 0, MEM_RELEASE);
+          LMMSScompareoutData.Free;
+        end else if action = 'Tpc' then
+        begin
+          kz222 := LogMemoryManagerStateToStruct;
+          LMMSScompareoutData := LMMSS2Str(kz222);
+          VirtualFree(kz222, 0, MEM_RELEASE);
+          SqlSvr_SendMsg(pSrvProc, LMMSScompareoutData.Text);
+          LMMSScompareoutData.Free;
         end
         else
         begin

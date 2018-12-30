@@ -149,49 +149,42 @@ function PageLog_save: Boolean;
 var
   DataPnt: Pointer;
   lri: PlogRecdItem;
-  logs: TList;
   tmpPtr:Pointer;
   OutPutStr:string;
-
 begin
   if Assigned(_Lc_Get_PaddingDataCnt) and (_Lc_Get_PaddingDataCnt > 0) then
   begin
-    logs := TList.create;
     try
-      try
-        DataPnt := _Lc_Get_PaddingData;
-        lri := PlogRecdItem(DataPnt);
-        while lri <> nil do
+      DataPnt := _Lc_Get_PaddingData;
+      lri := PlogRecdItem(DataPnt);
+      while lri <> nil do
+      begin
+        DefLoger.Add('saveOne:%.8x:%.8x:%.4x,n:%x,datasize:%d', [lri^.lsn.lsn_1, lri^.lsn.lsn_2, lri^.lsn.lsn_3, Uint_ptr(lri^.n), lri.length], LOG_INFORMATION);
         begin
-          DefLoger.Add('saveOne:%.8x:%.8x:%.4x,n:%x,datasize:%d', [lri^.lsn.lsn_1, lri^.lsn.lsn_2, lri^.lsn.lsn_3, Uint_ptr(lri^.n), lri.length], LOG_INFORMATION);
-          begin
-            OutPutStr := Format('<root dbid="%d" lsn="%.8x:%.8x:%.4x">', [lri^.dbid, lri^.lsn.lsn_1, lri^.lsn.lsn_2, lri^.lsn.lsn_3]);
-            OutPutStr := OutPutStr + DumpMemory2Str(lri.val, lri.length) + '</root>';
-            DefLoger.Add(OutPutStr, LOG_DATA);
-          end;
-          PagelogFileMgr.LogDataSaveToFile(lri^);
-          DefLoger.Add('saveOne_ok:%.8x:%.8x:%.4x,n:%x',[lri^.lsn.lsn_1,lri^.lsn.lsn_2,lri^.lsn.lsn_3,Uint_ptr(lri^.n)], LOG_INFORMATION);
-          tmpPtr := lri;
-          lri := lri^.n;
-          try
-            _Lc_Free_PaddingData(tmpPtr);
-          except
-            on exc:Exception do
-            begin
-              DefLoger.Add('调用_Lc_Free_PaddingData失败！' + exc.Message, LOG_ERROR or LOG_IMPORTANT);
-            end;
-          end;
+          OutPutStr := Format('<root dbid="%d" lsn="%.8x:%.8x:%.4x">', [lri^.dbid, lri^.lsn.lsn_1, lri^.lsn.lsn_2, lri^.lsn.lsn_3]);
+          OutPutStr := OutPutStr + DumpMemory2Str(lri.val, lri.length) + '</root>';
+          DefLoger.Add(OutPutStr, LOG_DATA);
         end;
-        Result := True;
-      except
-        on EEx:Exception do
-        begin
-          DefLoger.Add('savePageLog2 fail ' + EEx.Message, LOG_ERROR or LOG_IMPORTANT);
-          Result := False;
+        PagelogFileMgr.LogDataSaveToFile(lri^);
+        DefLoger.Add('saveOne_ok:%.8x:%.8x:%.4x,n:%x',[lri^.lsn.lsn_1,lri^.lsn.lsn_2,lri^.lsn.lsn_3,Uint_ptr(lri^.n)], LOG_INFORMATION);
+        tmpPtr := lri;
+        lri := lri^.n;
+        try
+          _Lc_Free_PaddingData(tmpPtr);
+        except
+          on exc:Exception do
+          begin
+            DefLoger.Add('调用_Lc_Free_PaddingData失败！' + exc.Message, LOG_ERROR or LOG_IMPORTANT);
+          end;
         end;
       end;
-    finally
-      logs.Free;
+      Result := True;
+    except
+      on EEx:Exception do
+      begin
+        DefLoger.Add('savePageLog2 fail ' + EEx.Message, LOG_ERROR or LOG_IMPORTANT);
+        Result := False;
+      end;
     end;
   end;
 end;
@@ -232,7 +225,7 @@ begin
   except
     on e:Exception do
     begin
-      DefLoger.Add(' LogDataGetData fail! ' + e.Message, LOG_ERROR);
+      DefLoger.Add(' LogDataGetData fail! ' + e.Message, LOG_ERROR or LOG_IMPORTANT);
     end;
   end;
 end;
@@ -260,7 +253,7 @@ begin
   except
     on e:Exception do
     begin
-      DefLoger.Add(' LogDataSaveToFile fail! ' + e.Message, LOG_ERROR);
+      DefLoger.Add(' LogDataSaveToFile fail! ' + e.Message, LOG_ERROR or LOG_IMPORTANT);
     end;
   end;
   DefLoger.Add('...LogDataSaveToFile...EEE....');
@@ -446,7 +439,6 @@ end;
 function TVlfMgr.Save(Lri: TlogRecdItem): Boolean;
 var
   OutPutStr:string;
-  TmpDataStr:string;
   lsize:LARGE_INTEGER;
   Rsize:Cardinal;
 
@@ -469,7 +461,7 @@ begin
   begin
     lsize.QuadPart := 0;
     SetFilePointerEx(Handle_DataFile, 0, @lsize, soFromEnd);
-    WriteFile_OverLapped(Handle_DataFile, Lri.val^, Lri.length, Rsize, lsize.QuadPart, True);
+    WriteFile_OverLapped(Handle_DataFile, Lri.val^, Lri.length, Rsize, lsize.QuadPart);
 
     lsize.HighPart := Cardinal(lsize.HighPart) or ((Lri.length and $FFFF) shl 16);
     idxObj.add(UniId, lsize.QuadPart);
@@ -596,7 +588,7 @@ begin
   begin
     if Pli.HHH = 0 then
     begin
-      if WbuffPosi<$100 then
+      if WbuffPosi < $100 then
       begin
         //到首行
         tmpIdx := $100;
@@ -619,7 +611,7 @@ begin
     end
     else
     begin
-      tmpIdx := Uint_Ptr(Pli) - Uint_Ptr(Wbuff) + SizeOf(TLidxItem);
+      tmpIdx := Uint_Ptr(Pli) + SizeOf(TLidxItem) - Uint_Ptr(Wbuff);
       Break;
     end;
     Dec(Pli);
@@ -630,6 +622,7 @@ begin
       Exit;
     end;
   end;
+
   if tmpIdx >= WbuffLen then
   begin
     //append

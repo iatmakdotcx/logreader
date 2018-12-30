@@ -127,7 +127,7 @@ function _Lr_PluginRegXML(source:Pplg_source; Xml: PChar): integer; stdcall;
 var
   ImplsManger:TImplsManger;
 begin
-  Defloger.add(xml);
+  //Defloger.add(xml);
   ImplsManger := LrSvrJob.Get(source);
   dd(ImplsManger, Xml);
   Result := STATUS_SUCCESS;

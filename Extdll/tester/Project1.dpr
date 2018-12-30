@@ -20,6 +20,7 @@ end;
 function _Lc_Get_PaddingData: Pointer; stdcall;
 begin
   Result := ____PaddingData;
+  ____PaddingData := nil;
 end;
 
 function _Lc_Get_PaddingDataCnt: Int64; stdcall;
@@ -27,9 +28,10 @@ begin
   Result := 10;
 end;
 
-procedure _Lc_Free_PaddingData(Pnt: Pointer); stdcall;
+procedure _Lc_Free_PaddingData(Pnt: PlogRecdItem); stdcall;
 begin
- // Dispose(Pnt);
+  FreeMemory(Pnt.val);
+  Dispose(Pnt);
 end;
 
 exports
@@ -41,8 +43,8 @@ exports
 begin
   Application.Initialize;
   Application.MainFormOnTaskbar := True;
-  Application.CreateForm(TForm1, Form1);
   Application.CreateForm(TForm2, Form2);
+  Application.CreateForm(TForm1, Form1);
   Application.Run;
 end.
 

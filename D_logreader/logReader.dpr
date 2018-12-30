@@ -49,7 +49,8 @@ uses
   HashHelper in '..\Common\HashHelper.pas',
   I_LogSource in 'intf\I_LogSource.pas',
   p_tableview in 'UI\p_tableview.pas' {frm_tableview},
-  pMakloadingFormB in 'UI\pMakloadingFormB.pas' {MakloadingFormB};
+  pMakloadingFormB in 'UI\pMakloadingFormB.pas' {MakloadingFormB},
+  pagecache in 'pagecache.pas';
 
 {$R *.res}
 

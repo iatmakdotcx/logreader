@@ -999,6 +999,7 @@ var
   DataRow_buf:Tsql2014Opt;
   DMLitem: TDMLItem;
   TmpBinReader: TbinDataReader;
+  TmpSTr:string;
 begin
   FLogSource.Loger.Add(FormatDateTime('====>yyyy-MM-dd HH:nn:ss.zzz',now), LOG_DEBUG);
   FLogSource.Loger.Add('TSql2014logAnalyzer.Execute ==> transId:%s, MinLsn:%s, cnt:%d', [TranId2Str(FTranspkg.Ftransid),LSN2Str(TTransPkgItem(FTranspkg.Items[0]).lsn), FTranspkg.Items.Count],LOG_DEBUG);
@@ -1072,11 +1073,16 @@ begin
   end;
   DDLClear;
   DDLPretreatment;
-  PluginsMgr.onTranSql(FLogSource.Fdbc.GetPlgSrc, GenSql);
-  PluginsMgr.onTransXml(FLogSource.Fdbc.GetPlgSrc, GenXML);
+  //build Sql
+  TmpSTr := GenSql;
+  FLogSource.Loger.Add(TmpSTr);
+  PluginsMgr.onTranSql(FLogSource.Fdbc.GetPlgSrc, TmpSTr);
+  //build XML
+  TmpSTr := GenXML;
+  FLogSource.Loger.Add(TmpSTr);
+  PluginsMgr.onTransXml(FLogSource.Fdbc.GetPlgSrc, TmpSTr);
+  //save LSN
   FLogSource.FProcCurLSN := TransCommitLsn;
-//  Loger.Add(GenSql);
-//  Loger.Add(GenXML);
 {$IFDEF DEBUG}
 ApplySysDDLChange;
 Exit;
@@ -2684,6 +2690,13 @@ begin
         MPD_5 := PMIX_Page_DATA_5(DataRow.R0);
         Result := getDataFrom_TEXT_MIX_DATA(MPD_5.Pageid)
       end
+//      else if MPD.MixType = 8 then
+//      begin
+//        //Ã²ËÆ¿ÉÒÔºöÂÔ
+//
+//
+//
+//      end
       else
       begin
         FLogSource.Loger.Add('MIX_DATA:'+inttostr(MPD.MixType)+'>' + DumpMemory2Str(DataRow.R0, MPD.Recordlen), LOG_DATA or LOG_WARNING);

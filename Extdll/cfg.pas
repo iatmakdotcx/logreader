@@ -34,7 +34,7 @@ begin
   except
     on eee:Exception do
     begin
-      DefLoger.add('cfg.saveCfg=>'+eee.Message, LOG_ERROR);
+      DefLoger.add('cfg.saveCfg=>'+eee.Message, LOG_ERROR or LOG_IMPORTANT);
     end;
   end;
 end;
@@ -62,7 +62,7 @@ begin
   except
     on eee: Exception do
     begin
-      DefLoger.add('cfg.loadCfg=>' + eee.Message, LOG_ERROR);
+      DefLoger.add('cfg.loadCfg=>' + eee.Message, LOG_ERROR or LOG_IMPORTANT);
     end;
   end;
 end;

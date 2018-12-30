@@ -19,6 +19,20 @@ function getUpdateSoltData(databaseConnection:TdatabaseConnection;LSN: Tlog_LSN)
 /// <param name="Page_Id"></param>
 /// <returns></returns>
 function getUpdateSoltFromDbccPage(databaseConnection:TdatabaseConnection;Page_Id: TPage_Id):TBytes;
+/// <summary>
+/// 根据 Dbcc Page 获取整页数据（根据m_lsn回溯页历史
+/// </summary>
+/// <param name="databaseConnection"></param>
+/// <param name="Page_Id"></param>
+/// <returns></returns>
+function getDbccPageFull(databaseConnection:TdatabaseConnection;Page_Id: TPage_Id):TBytes;
+/// <summary>
+/// 通过fnlog获取日志记录（如果日志被截断，这里可能获取失败。但是又不能直接读文件，纠结
+/// </summary>
+/// <param name="databaseConnection"></param>
+/// <param name="LSN"></param>
+/// <returns></returns>
+function getSingleTransLogFromFndblog(databaseConnection:TdatabaseConnection;LSN: Tlog_LSN):TBytes;
 
 function setDbOn(databaseConnection:TdatabaseConnection):Boolean;
 function setDbOff(databaseConnection:TdatabaseConnection):Boolean;
@@ -225,5 +239,58 @@ begin
     end;
   end;
 end;
+
+function getDbccPageFull(databaseConnection:TdatabaseConnection;Page_Id: TPage_Id):TBytes;
+var
+  rDataset:TCustomADODataSet;
+  aSql:string;
+  ResData:string;
+begin
+  Result := nil;
+  aSql := 'create table #a(p varchar(100),o varchar(100),f varchar(100),v varchar(100)) ';
+  aSql := aSql + Format(' insert into #a exec(''dbcc page(%s,%d,%d,2)with tableresults'') ',[databaseConnection.dbName,Page_Id.FID,Page_Id.PID]);
+  if databaseConnection.dbIs64bit then
+  begin
+    aSql := aSql + ' select substring(v,21,44) from #a where o like ''Memory Dump%'' ';
+  end else begin
+    aSql := aSql + ' select substring(v,13,44) from #a where o like ''Memory Dump%'' ';
+  end;
+  aSql := aSql + ' drop table #a';
+  if databaseConnection.ExecSqlOnMaster(aSql, rDataset) then
+  begin
+    ResData := '';
+    rDataset.first;
+    while not rDataset.Eof do
+    begin
+      ResData := ResData + rDataset.Fields[0].AsString;
+      rDataset.Next;
+    end;
+    rDataset.Free;
+    try
+      Result := strToBytes(ResData);
+    except
+      Result := nil;
+    end;
+  end;
+end;
+
+function getSingleTransLogFromFndblog(databaseConnection:TdatabaseConnection;LSN: Tlog_LSN):TBytes;
+var
+  rDataset:TCustomADODataSet;
+  aSql:string;
+begin
+  Result := nil;
+  aSql := LSN2Str(LSN);
+  aSql := Format('select [Log Record] from fn_dblog(''%s'',''%s'') ', [aSql, aSql]);
+  if databaseConnection.ExecSql(aSql, rDataset) then
+  begin
+    if not rDataset.Eof then
+    begin
+      Result := rDataset.Fields[0].AsBytes;
+    end;
+    rDataset.Free;
+  end;
+end;
+
 
 end.
