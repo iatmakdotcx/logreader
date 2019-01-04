@@ -345,31 +345,6 @@ begin
 end;
 
 procedure TForm1.btn_jobStartClick(Sender: TObject);
-procedure setLsn(tlsObj:TLogSource);
-var
-  TmpLst :TStringList;
-  tmpLsn:Tlog_LSN;
-begin
-  if Edit1.Text<>'' then
-  BEGIN
-    TmpLst := TStringList.Create;
-    try
-      TmpLst.Text := StringReplace(Edit1.Text,':',WIN_EOL,[rfReplaceAll]);
-      if TmpLst.Count<>3 then
-      begin
-        ShowMessage('LSN格式化无效！');
-        Exit;
-      end;
-
-      tmpLsn.LSN_1 := StrToInt('$' + TmpLst[0]);
-      tmpLsn.LSN_2 := StrToInt('$' + TmpLst[1]);
-      tmpLsn.LSN_3 := StrToInt('$' + TmpLst[2]);
-      tlsObj.FProcCurLSN := tmpLsn;
-    finally
-      TmpLst.Free;
-    end;
-  END;
-end;
 var
   ItemIdx:Integer;
   tlsObj:TLogSource;
@@ -379,7 +354,11 @@ begin
     ItemIdx := StrToInt(ListView1.Selected.Caption) - 1;
     tlsObj := LogSourceList.Get(ItemIdx);
 {$IFDEF DEBUG}
-    setLsn(tlsObj);
+    tlsObj.FProcCurLSN := Str2LSN(Edit1.Text);
+    if tlsObj.FProcCurLSN.LSN_1=0 then
+    begin
+      raise Exception.Create('Lsn 无效');
+    end;
 {$ENDIF}
     tlsObj.Create_picker(True);
 

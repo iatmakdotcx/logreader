@@ -185,7 +185,7 @@ begin
     FLogSource.Loger.Add('invalid lsn [0]!%s', [LSN2Str(LSN)], LOG_ERROR);
     Exit;
   end;
-  vlfs := FLogSource.GetVlf_SeqNo(lsn.LSN_1);
+  vlfs := FLogSource.Fdbc.GetVlf_SeqNo(lsn.LSN_1);
   try
     if (vlfs = nil) then
     begin
@@ -404,13 +404,16 @@ begin
       sctest.Free;
       FLogSource.Loger.Add('数据库连接成功...');
 
-    setDbOn(FLogSource.Fdbc);
-    setCapLogStart(FLogSource.Fdbc);
+    if FLogSource.UseDBPlugs then
+    begin
+      setDbOn(FLogSource.Fdbc);
+      setCapLogStart(FLogSource.Fdbc);
+    end;
     FLogSource.Fdbc.getDb_dbInfo(true);
     if Fspm = nil then
       Fspm := TSqlProcessMonitor.Create(FLogSource.Fdbc.SvrProcessID, TerminateDelegate);
 
-      Tmpvlf := FLogSource.GetVlf_SeqNo(CurLSN.LSN_1);
+      Tmpvlf := FLogSource.Fdbc.GetVlf_SeqNo(CurLSN.LSN_1);
       try
         if (Tmpvlf = nil) or (Tmpvlf.SeqNo <> CurLSN.LSN_1) then
         begin
@@ -551,7 +554,7 @@ begin
       while True do
       begin
         FLogSource.Fdbc.getDb_VLFs();
-        Tmpvlf := FLogSource.GetVlf_SeqNo(CurLSN.LSN_1 + 1);
+        Tmpvlf := FLogSource.Fdbc.GetVlf_SeqNo(CurLSN.LSN_1 + 1);
         if Tmpvlf <> nil then
         begin
           vlf := Tmpvlf^;
@@ -632,7 +635,7 @@ begin
   if COMMIT_XACT.normalData.OpCode<>LOP_COMMIT_XACT then
     Exit;
 
-  sql :=Format('select [Current LSN],[Log Record] from fn_dblog(''%s'',''%s'') where [Transaction ID]=''%s'' ',[
+  sql := Format('select [Current LSN],[Log Record] from fn_dblog(''%s'',''%s'') where [Transaction ID]=''%s'' ',[
      LSN2Str(COMMIT_XACT.BeginLsn), LSN2Str(lsn), TranId2Str(COMMIT_XACT.normalData.TransID) ]);
   if FLogSource.Fdbc.ExecSql(sql, resDataset, True) then
   begin

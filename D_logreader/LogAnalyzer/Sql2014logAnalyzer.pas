@@ -179,7 +179,7 @@ implementation
 
 uses
   loglog, plugins, OpCode, contextCode, dbFieldTypes,comm_func,
-  Memory_Common, sqlextendedprocHelper, Windows,Xml.XMLDoc;
+  Memory_Common, sqlextendedprocHelper, Windows,Xml.XMLDoc, pagecache;
 
 type
   TRawElement = packed record
@@ -1078,9 +1078,9 @@ begin
   FLogSource.Loger.Add(TmpSTr);
   PluginsMgr.onTranSql(FLogSource.Fdbc.GetPlgSrc, TmpSTr);
   //build XML
-  TmpSTr := GenXML;
-  FLogSource.Loger.Add(TmpSTr);
-  PluginsMgr.onTransXml(FLogSource.Fdbc.GetPlgSrc, TmpSTr);
+//  TmpSTr := GenXML;
+//  FLogSource.Loger.Add(TmpSTr);
+//  PluginsMgr.onTransXml(FLogSource.Fdbc.GetPlgSrc, TmpSTr);
   //save LSN
   FLogSource.FProcCurLSN := TransCommitLsn;
 {$IFDEF DEBUG}
@@ -3404,8 +3404,11 @@ begin
                     CopyMemory(@OriginRowData[0], Rawssssss.Raw.data, Rawssssss.Raw.dataSize);
                   end;
                 end;
-              end else
-              OriginRowData := getUpdateSoltData(FLogSource.Fdbc, Rldo.normalData.PreviousLSN);
+              end else begin
+                OriginRowData := pc__PageCache.getUpdateSoltData(FLogSource.Fdbc, tPkg.LSN, Rldo.pageId);
+                if OriginRowData = nil then
+                  OriginRowData := getUpdateSoltData(FLogSource.Fdbc, Rldo.normalData.PreviousLSN);
+              end;
               if OriginRowData = nil then
               begin
                 FLogSource.Loger.Add('获取行原始数据失败！' + lsn2str(tPkg.LSN) + ',pLSN:' + lsn2str(Rldo.normalData.PreviousLSN), LOG_WARNING or LOG_IMPORTANT);
@@ -3414,21 +3417,10 @@ begin
                   FLogSource.Loger.Add('表[%s]没有唯一聚合,对此表的Update操作将被忽略！如您不希望Update被忽略，请启用数据库插件.',[DbTable.getFullName]);
                   DataRow_buf.Free;
                   Exit;
-                  //TODO:极不靠谱，不能保证page数据与当前lsn之间产生了哪些变化
-                  //如果没有聚合索引，从dbcc page获取原始行数据
-                  {
-                  OriginRowData := getUpdateSoltFromDbccPage(FLogSource.Fdbc, Rldo.pageId);
-                  if OriginRowData = nil then
-                  begin
-                    //数据已被删除！！！！！！
-                    Loger.Add('获取行原始数据失败！'+lsn2str(tPkg.LSN), LOG_ERROR or LOG_IMPORTANT);
-                    DataRow_buf.Free;
-                    Exit;
-                  end;
-                  }
+
                   DataRow_buf.UnReliableRData := true;
                 end else begin
-                  //如果没有OriginRowData但是有 UniqueClusteredKeys则可以通过直接查询整行数据封装
+
                 end
               end;
 
@@ -3781,8 +3773,11 @@ begin
                     CopyMemory(@OriginRowData[0], Rawssssss.Raw.data, Rawssssss.Raw.dataSize);
                   end;
                 end;
-              end else
-              OriginRowData := getUpdateSoltData(FLogSource.Fdbc, Rldo.normalData.PreviousLSN);
+              end else begin
+                OriginRowData := pc__PageCache.getUpdateSoltData(FLogSource.Fdbc, tPkg.LSN, Rldo.pageId);
+                if OriginRowData = nil then
+                  OriginRowData := getUpdateSoltData(FLogSource.Fdbc, Rldo.normalData.PreviousLSN);
+              end;
               if OriginRowData = nil then
               begin
                 FLogSource.Loger.Add('获取行原始数据失败！' + lsn2str(tPkg.LSN) + ',pLSN:' + lsn2str(Rldo.normalData.PreviousLSN), LOG_WARNING or LOG_IMPORTANT);

@@ -55,6 +55,7 @@ var
   rDataset:TCustomADODataSet;
   aSql:string;
 begin
+ raise Exception.Create('not allowed!');
   Result := False;
   aSql := Format('select object_id(''%s'',''X'')', [ProcName]);
   if databaseConnection.ExecSqlOnMaster(aSql, rDataset) then
@@ -76,6 +77,7 @@ var
   dllPath:string;
   aSql:string;
 begin
+ raise Exception.Create('not allowed!');
   if not CheckExtendedProcExists(databaseConnection, ProcName) then
   begin
     Result := False;
@@ -99,6 +101,7 @@ var
   rDataset:TCustomADODataSet;
   aSql:string;
 begin
+ raise Exception.Create('not allowed!');
   Result := false;
   if CreateExtendedProc(databaseConnection, OPTSQLPROCNAME) then
   begin
@@ -120,6 +123,7 @@ var
   rDataset:TCustomADODataSet;
   aSql:string;
 begin
+ raise Exception.Create('not allowed!');
   Result := nil;
   aSql := Format('exec %s %d,%d,%d,%d', [OPTSQLPROCNAME_readLog, databaseConnection.dbID, LSN.LSN_1, LSN.LSN_2, LSN.LSN_3]);
   if databaseConnection.ExecSqlOnMaster(aSql, rDataset) then
@@ -151,6 +155,7 @@ var
   rDataset:TCustomADODataSet;
   aSql:string;
 begin
+ raise Exception.Create('not allowed!');
   Result := false;
   if CreateExtendedProc(databaseConnection, OPTSQLPROCNAME) then
   begin
@@ -166,6 +171,7 @@ var
   rDataset:TCustomADODataSet;
   aSql:string;
 begin
+ raise Exception.Create('not allowed!');
   Result := false;
   if CreateExtendedProc(databaseConnection, OPTSQLPROCNAME) then
   begin
@@ -181,6 +187,7 @@ var
   rDataset:TCustomADODataSet;
   aSql:string;
 begin
+ raise Exception.Create('not allowed!');
   Result := false;
   if CreateExtendedProc(databaseConnection, OPTSQLPROCNAME) then
   begin
@@ -196,6 +203,7 @@ var
   rDataset:TCustomADODataSet;
   aSql:string;
 begin
+ raise Exception.Create('not allowed!');
   Result := false;
   if CreateExtendedProc(databaseConnection, OPTSQLPROCNAME) then
   begin
@@ -212,6 +220,7 @@ var
   aSql:string;
   ResData:string;
 begin
+ raise Exception.Create('not allowed!');
   Result := nil;
   aSql := 'create table #a(p varchar(100),o varchar(100),f varchar(100),v varchar(100)) ';
   aSql := aSql + Format(' insert into #a exec(''dbcc page(%s,%d,%d,1)with tableresults'') ',[databaseConnection.dbName,Page_Id.FID,Page_Id.PID]);

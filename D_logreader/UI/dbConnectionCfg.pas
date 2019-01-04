@@ -216,30 +216,33 @@ begin
   SetImgData(Image3,'img_ok','IMG');
   SetImgData(Image4,'img_load','IMG');
   Application.ProcessMessages;
+  if not IsRunningAsAdmin then
+  begin
+    SetImgData(Image4,'img_err','IMG');
+    mon_EMsg.Text := '需要管理员身份运行本程序！';
+    mon_EMsg.Show;
+    Exit;
+  end;
+
+  appPath := ExtractFilePath(GetModuleName(HInstance));
+  if not DirectoryExists(appPath+'data') then
+    ForceDirectories(appPath+'data');
+  if not DirectoryExists(appPath+'cfg') then
+    ForceDirectories(appPath+'cfg');
   //目录权限设置
   if logsource.Fdbc.CheckIsLocalHost then
   begin
-    if not IsRunningAsAdmin then
+    if LogSource.UseDBPlugs then
     begin
-      SetImgData(Image4,'img_err','IMG');
-      mon_EMsg.Text := '需要管理员身份运行本程序！';
-      mon_EMsg.Show;
-      Exit;
-    end;
-
-    appPath := ExtractFilePath(GetModuleName(HInstance));
-    if not DirectoryExists(appPath+'data') then
-      ForceDirectories(appPath+'data');
-    if not DirectoryExists(appPath+'cfg') then
-      ForceDirectories(appPath+'cfg');
-    ServiceAccount := logsource.Fdbc.GetServiceAccount;
-    if not Check_LrExtutils_DataPath_Authentication(appPath, ServiceAccount) then
-    begin
-      //目录授权失败
-      SetImgData(Image4,'img_err','IMG');
-      mon_EMsg.Text := '目录授权失败！' + appPath;
-      mon_EMsg.Show;
-      Exit;
+      ServiceAccount := logsource.Fdbc.GetServiceAccount;
+      if not Check_LrExtutils_DataPath_Authentication(appPath, ServiceAccount) then
+      begin
+        //目录授权失败
+        SetImgData(Image4,'img_err','IMG');
+        mon_EMsg.Text := '目录授权失败！' + appPath;
+        mon_EMsg.Show;
+        Exit;
+      end;
     end;
   end else begin
     //暂不支持远程连接

@@ -24,6 +24,7 @@ type
     procedure applyChange(srcData, pdata: Pointer; offset, size_old, size_new, datarowCnt: Integer);
     procedure UnDoUpdate_LOP_MODIFY_ROW(RawData: TBytes; RlOpt: PRawLog_DataOpt);
     procedure UnDoUpdate_LOP_MODIFY_COLUMNS(RawData: TBytes; RlOpt: PRawLog_DataOpt);
+    function LoadFullDataFromDb_after(LSN: Tlog_LSN; pageid: TPage_Id): TBytes;
   public
     constructor Create(DbCon: TdatabaseConnection);
     destructor Destroy; override;
@@ -104,7 +105,7 @@ begin
 
   if Length(Result) = 0 then
   begin
-    Result := LoadFullDataFromDb(LSN, pageid);
+    Result := LoadFullDataFromDb_after(LSN, pageid);
   end;
 end;
 
@@ -207,6 +208,94 @@ begin
     SetLength(FullPageData, 0);
   end;
 end;
+
+function TPageCacheDB.LoadFullDataFromDb_after(LSN: Tlog_LSN; pageid: TPage_Id): TBytes;
+var
+  FullPageData: TBytes;
+  PageHeader: PPage_Header;
+  tmpLsn: Tlog_LSN;
+  transLog: TBytes;
+  TmpBytes: Tbytes;
+  Rl: PRawLog;
+  RlOpt: PRawLog_DataOpt;
+  soltBuffer: array of TBytes;
+  RecordLen: Word;
+  RecordOffset: Cardinal;
+begin
+  Result := nil;
+  FullPageData := getDbccPageFull(FDbCon, pageid);
+  if Length(FullPageData) > 0 then
+  begin
+    PageHeader := PPage_Header(@FullPageData[0]);
+    tmpLsn := PageHeader.m_lsn;
+    SetLength(soltBuffer, PageHeader.m_slotCnt);
+    while True do
+    begin
+      if (tmpLsn.LSN_1 < LSN.LSN_1) or ((tmpLsn.LSN_1 = LSN.LSN_1) and (tmpLsn.LSN_2 < LSN.LSN_2)) or ((tmpLsn.LSN_1 = LSN.LSN_1) and (tmpLsn.LSN_2 = LSN.LSN_2) and (tmpLsn.LSN_3 < LSN.LSN_3)) then
+      begin
+        //没找到。越过
+        Break;
+      end;
+
+      //继续找
+      transLog := getSingleTransLogFromFndblog(FDbCon, tmpLsn);
+      if length(transLog) = 0 then
+      begin
+        Break;
+      end;
+      try
+        Rl := PRawLog(@transLog[0]);
+        RlOpt := PRawLog_DataOpt(Rl);
+        if Rl.OpCode = LOP_INSERT_ROWS then
+        begin
+          SetLength(soltBuffer[RlOpt.pageId.solt], 0);
+        end
+        else if Rl.OpCode = LOP_DELETE_ROWS then
+        begin
+          RecordLen := PWord(@transLog[SizeOf(TRawLog_DataOpt)])^;   //R0
+          RecordOffset := SizeOf(TRawLog_DataOpt) + RlOpt.NumElements * 2;
+          RecordOffset := (RecordOffset + 3) and $FFFFFFFC;
+          SetLength(soltBuffer[RlOpt.pageId.solt], $2000);
+          Move(transLog[RecordOffset], soltBuffer[RlOpt.pageId.solt][0], RecordLen);
+        end
+        else if (Rl.OpCode = LOP_MODIFY_ROW) or (Rl.OpCode = LOP_MODIFY_COLUMNS) then
+        begin
+          if Length(soltBuffer[RlOpt.pageId.solt]) = 0 then
+          begin
+            soltBuffer[RlOpt.pageId.solt] := getSoltDataFromFullPagedata(PageHeader, RlOpt.pageId.solt);
+          end;
+
+          //update 保存当前lsn 页数据
+          RecordLen := PageRowCalcLength(@soltBuffer[RlOpt.pageId.solt][0]);
+          SetLength(TmpBytes, RecordLen);
+          Move(soltBuffer[RlOpt.pageId.solt][0], TmpBytes[0], RecordLen);
+          if (tmpLsn.LSN_1 = LSN.LSN_1) and (tmpLsn.LSN_2 = LSN.LSN_2) and (tmpLsn.LSN_3 = LSN.LSN_3) then
+          begin
+            Result := TmpBytes;
+            break;
+          end;
+          FlsnLst.Add(TPageCacheRawData.Create(tmpLsn, TmpBytes));
+
+          UnDoUpdate(soltBuffer[RlOpt.pageid.solt], RlOpt);
+        end
+        else
+        begin
+          //初始化页或复制页
+          //TODO:如果是复制页，尝试从日志中提取数据
+          FDbCon.FlogSource.Loger.Add('提取页数据未完成：pageid：0x%.4X:%.8X', [pageid.FID, pageid.PID], LOG_IMPORTANT);
+          Break;
+        end;
+
+        tmpLsn := RlOpt.previousPageLsn;
+      finally
+        SetLength(transLog, 0);
+      end;
+    end;
+    SetLength(soltBuffer, 0);
+    SetLength(FullPageData, 0);
+  end;
+end;
+
 
 procedure TPageCacheDB.UnDoUpdate_LOP_MODIFY_ROW(RawData: TBytes; RlOpt: PRawLog_DataOpt);
 var

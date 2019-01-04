@@ -37,9 +37,10 @@ type
     FFFFIsDebug:Boolean;
     pageDatalist:TObjectList;
     MainMSGDISPLAY:TLogMsgRCallMain;
+    UseDBPlugs:Boolean;
     constructor Create;
     destructor Destroy; override;
-    function GetVlf_SeqNo(SeqNo:DWORD): PVLF_Info;
+
     function GetRawLogByLSN(LSN: Tlog_LSN;var OutBuffer: TMemory_data): Boolean;
     function Create_picker(AutoRun:Boolean):Boolean;
     procedure Stop_picker;
@@ -135,8 +136,8 @@ constructor TLogSource.Create;
 var
   Guid: TGUID;
 begin
-  FCollations:=TObjectList.Create;
-  FmsgCs:=TCriticalSection.Create;
+  FCollations := TObjectList.Create;
+  FmsgCs := TCriticalSection.Create;
   MainMSGDISPLAY := nil;
   inherited;
   FLoger := DefLoger;
@@ -146,17 +147,18 @@ begin
   FisLocal := True;
   Fdbc := nil;
   FLogPicker := nil;
-  FRunCs:=TCriticalSection.Create;
+  FRunCs := TCriticalSection.Create;
   FFFFIsDebug := False;
   pageDatalist := nil;
 
   FFmsg := TStringList.Create;
   if CreateGUID(Guid) <> S_OK then
-    uid := FormatDateTime('yyyymmddHHnnsszzz',Now)
+    uid := FormatDateTime('yyyymmddHHnnsszzz', Now)
   else
     uid := GUIDToString(Guid);
 
   FVariantWithRealType := True;
+  UseDBPlugs := False;
 end;
 
 function TLogSource.Create_picker(AutoRun:Boolean): Boolean;
@@ -164,7 +166,6 @@ var
   logreaderClass:TClass;
 begin
   Result := False;
-  setDbOn(Fdbc);
   FRunCs.Enter;
   try
     if FLogPicker = nil then
@@ -264,25 +265,6 @@ end;
 function TLogSource.getDefCollation: TSQLCollationItem;
 begin
   Result := Fdbc.DBCollation;
-end;
-
-function TLogSource.GetVlf_SeqNo(SeqNo:DWORD): PVLF_Info;
-var
-  I: Integer;
-begin
-  if Length(Fdbc.FVLF_List) = 0 then
-    Fdbc.getDb_VLFs;
-
-  Result := nil;
-  for I := 0 to Length(Fdbc.FVLF_List) - 1 do
-  begin
-    if Fdbc.FVLF_List[I].SeqNo = SeqNo then
-    begin
-      new(Result);
-      Result^ := Fdbc.FVLF_List[I];
-      Break;
-    end;
-  end;
 end;
 
 function TLogSource.GetRawLogByLSN(LSN: Tlog_LSN;var OutBuffer: TMemory_data): Boolean;

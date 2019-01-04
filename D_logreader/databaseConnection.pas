@@ -3,7 +3,7 @@ unit databaseConnection;
 interface
 
 uses
-  ADODB, Classes, p_structDefine, dbDict, System.SyncObjs, plgSrcData,
+  Windows, ADODB, Classes, p_structDefine, dbDict, System.SyncObjs, plgSrcData,
   I_LogSource;
 
 type
@@ -68,6 +68,7 @@ type
     function getDb_dbInfo(checkLoadedInfo:Boolean):Boolean;
     procedure getDb_allLogFiles;
     procedure getDb_VLFs;
+    function GetVlf_SeqNo(SeqNo:DWORD): PVLF_Info;
     function GetCollationPropertyFromName(cName: string): TSQLCollationItem;
     function GetCollationPropertyFromId(id: Integer): TSQLCollationItem;
     function GetSchemasName(schema_id: Integer): string;
@@ -108,7 +109,7 @@ type
 implementation
 
 uses
-  Windows, SysUtils, dbHelper, comm_func, MakCommonfuncs, loglog,
+  SysUtils, dbHelper, comm_func, MakCommonfuncs, loglog,
   Winapi.ADOInt, System.Variants, Data.DB, dbFieldTypes, Memory_Common, math, HashHelper;
 
 function CloneRecordset(const Data: _Recordset): _Recordset;
@@ -357,6 +358,24 @@ begin
   end;
 end;
 
+function TdatabaseConnection.GetVlf_SeqNo(SeqNo:DWORD): PVLF_Info;
+var
+  I: Integer;
+begin
+  if Length(FVLF_List) = 0 then
+    getDb_VLFs;
+
+  Result := nil;
+  for I := 0 to Length(FVLF_List) - 1 do
+  begin
+    if FVLF_List[I].SeqNo = SeqNo then
+    begin
+      new(Result);
+      Result^ := FVLF_List[I];
+      Break;
+    end;
+  end;
+end;
 
 procedure TdatabaseConnection.refreshConnection;
 begin
