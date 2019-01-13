@@ -257,7 +257,7 @@ var
 begin
   Result := nil;
   aSql := 'create table #a(p varchar(100),o varchar(100),f varchar(100),v varchar(100)) ';
-  aSql := aSql + Format(' insert into #a exec(''dbcc page(%s,%d,%d,2)with tableresults'') ',[databaseConnection.dbName,Page_Id.FID,Page_Id.PID]);
+  aSql := aSql + Format(' insert into #a exec(''dbcc page(%d,%d,%d,2)with tableresults'') ',[databaseConnection.dbID,Page_Id.FID,Page_Id.PID]);
   if databaseConnection.dbIs64bit then
   begin
     aSql := aSql + ' select substring(v,21,44) from #a where o like ''Memory Dump%'' ';

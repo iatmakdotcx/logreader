@@ -260,7 +260,6 @@ type
     LCID: Integer;
   end;
 
-
 function LSN2Str(lsn: Tlog_LSN): string;
 
 function TranId2Str(trans: TTrans_Id): string;
@@ -336,6 +335,7 @@ begin
   end;
 end;
 
+
 function PageRowCalcLength(rawData: Pointer): Integer;
 var
   RowFlag: Word;
@@ -344,6 +344,13 @@ var
 begin
   Result := 0;
   try
+    RowFlag := Pbyte(rawData)^;
+    if RowFlag = 4 then
+    begin
+      //FORWARDING_STUB
+      Result := 9;
+      exit;
+    end;
     RowFlag := PWORD(rawData)^;
     Endoffset := UINT_PTR(rawData) + PWORD(UINT_PTR(rawData) + 2)^;
     if RowFlag and $F0 > 0 then

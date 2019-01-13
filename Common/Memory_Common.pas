@@ -160,6 +160,7 @@ begin
   Result := AlignToDword(uint_Ptr(Ptr));
 end;
 
+//TODO:本函数需要优化
 function strToBytes(aStr: string): TBytes;
 var
   tmpByte: TBytes;

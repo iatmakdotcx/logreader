@@ -21,6 +21,7 @@ type
     TLogMsgRCallMain = procedure(Ls:TLogSource; aMsg: string; level: Integer)of object;
   private
     FCollations:TObjectList;
+    FCollationsCs: TCriticalSection;
     FCfgFilePath:string;
     FRunCs: TCriticalSection;
     FmsgCs:TCriticalSection;
@@ -136,10 +137,11 @@ constructor TLogSource.Create;
 var
   Guid: TGUID;
 begin
+  inherited;
+  FCollationsCs := TCriticalSection.Create;
   FCollations := TObjectList.Create;
   FmsgCs := TCriticalSection.Create;
   MainMSGDISPLAY := nil;
-  inherited;
   FLoger := DefLoger;
   FProcCurLSN.LSN_1 := 0;
   FProcCurLSN.LSN_2 := 0;
@@ -199,6 +201,7 @@ begin
   FFmsg.Free;
   FmsgCs.Free;
   FCollations.Free;
+  FCollationsCs.Free;
   inherited;
 end;
 
@@ -231,10 +234,28 @@ begin
   end;
   if result = nil then
   begin
-    result := Fdbc.GetCollationPropertyFromId(id);
-    if result <> nil then
-    begin
-      FCollations.Add(result);
+    FCollationsCs.Enter;
+    try
+      //重新查找
+      for I := 0 to FCollations.Count - 1 do
+      begin
+        if TSQLCollationItem(FCollations[i]).id = id then
+        begin
+          Result := TSQLCollationItem(FCollations[i]);
+          Break;
+        end;
+      end;
+      //仍然未找到
+      if result = nil then
+      begin
+        result := Fdbc.GetCollationPropertyFromId(id);
+        if result <> nil then
+        begin
+          FCollations.Add(result);
+        end;
+      end;
+    finally
+      FCollationsCs.Leave;
     end;
   end;
 end;
@@ -254,10 +275,28 @@ begin
   end;
   if result = nil then
   begin
-    result := Fdbc.GetCollationPropertyFromName(Name);
-    if result <> nil then
-    begin
-      FCollations.Add(result);
+    FCollationsCs.Enter;
+    try
+      //重新查找
+      for I := 0 to FCollations.Count - 1 do
+      begin
+        if TSQLCollationItem(FCollations[I]).Name = Name then
+        begin
+          Result := TSQLCollationItem(FCollations[I]);
+          Break;
+        end;
+      end;
+      //仍然未找到
+      if result = nil then
+      begin
+        result := Fdbc.GetCollationPropertyFromName(Name);
+        if result <> nil then
+        begin
+          FCollations.Add(result);
+        end;
+      end;
+    finally
+      FCollationsCs.Leave;
     end;
   end;
 end;

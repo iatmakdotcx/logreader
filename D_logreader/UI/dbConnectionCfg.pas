@@ -206,7 +206,7 @@ begin
     mon_EMsg.Show;
     Exit;
   end;
-  if not checkCfgExists(logsource.Fdbc) then
+  if LogSource.UseDBPlugs and (not checkCfgExists(logsource.Fdbc)) then
   begin
     SetImgData(Image3,'img_err','IMG');
     mon_EMsg.Text := '没有当前数据库版本的有效配置！请更新配置。';

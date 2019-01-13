@@ -144,7 +144,7 @@ begin
     cxGrid1TableView1.DataController.Values[i,1] := IntToStr(tableItem.TableId);
     cxGrid1TableView1.DataController.Values[i,2] := tableItem.Owner;
     cxGrid1TableView1.DataController.Values[i,3] := tableItem.TableNmae;
-    cxGrid1TableView1.DataController.Values[i,5] := tableItem.hasIdentity;
+    cxGrid1TableView1.DataController.Values[i,4] := tableItem.hasIdentity;
     uk := '';
     for J := 0 to tableItem.UniqueClusteredKeys.Count - 1 do
     begin
@@ -157,7 +157,7 @@ begin
         uk := uk + ',' + TdbFieldItem(tableItem.UniqueClusteredKeys[J]).ColName;
       end;
     end;
-    cxGrid1TableView1.DataController.Values[i,6] := uk;
+    cxGrid1TableView1.DataController.Values[i,5] := uk;
   end;
   cxGrid1TableView1.EndUpdate;
 end;

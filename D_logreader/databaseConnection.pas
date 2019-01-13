@@ -1061,7 +1061,7 @@ begin
   //刷新列信息
   aSql := 'select partis.object_id,p_cols.partition_column_id column_id,p_cols.system_type_id,p_cols.max_length,p_cols.precision,p_cols.scale,p_cols.is_nullable,cols.name, '+
           'p_cols.leaf_null_bit nullmap,p_cols.leaf_offset leaf_pos,p_cols.collation_name,Convert(int,COLLATIONPROPERTY(p_cols.collation_name, ''CodePage'')) cp,cols.is_identity,is_dropped '+
-          'from sys.system_internals_partition_columns p_cols join sys.system_internals_partitions partis on p_cols.partition_id=partis.partition_id and partis.index_id <= 1 '+
+          'from sys.system_internals_partition_columns p_cols join sys.system_internals_partitions partis on p_cols.partition_id=partis.partition_id and partis.index_id <= 1 and partis.partition_number=1 '+
           'left join sys.all_columns cols on cols.column_id = p_cols.partition_column_id and partis.object_id=cols.object_id '+
           'order by partis.object_id ';
   if ExecSql(aSql, rDataset) then

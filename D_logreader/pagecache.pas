@@ -3,7 +3,8 @@ unit pagecache;
 interface
 
 uses
-  p_structDefine, databaseConnection, System.SysUtils, System.Contnrs;
+  windows,p_structDefine, databaseConnection, System.SysUtils, System.Contnrs,
+  LogtransPkg, System.SyncObjs, System.Generics.Collections;
 
 type
   TPageCacheRawData = class(TObject)
@@ -16,19 +17,21 @@ type
   TPageCacheDB = class(TObject)
   private
     FDbCon: TdatabaseConnection;
-    FlsnLst: TObjectList;
-    function LoadFullDataFromDb(LSN: Tlog_LSN; pageid: TPage_Id): TBytes;
+    FlsnLstCs: TCriticalSection;
+    FpageDict:array of TDictionary<Integer, TObjectList>;
     function getSoltDataFromFullPagedata(PageHeader: PPage_Header; soltid: Word): TBytes;
     procedure UnDoUpdate(RawData: TBytes; RlOpt: PRawLog_DataOpt);
-    procedure ApplyUpdateLog2Raw(RawData, newData: TBytes; ModifyOffset: Word; oldDataLen: Word);deprecated 'not use';
+    procedure ApplyUpdateLog2Raw(RawData, newData: TBytes; ModifyOffset: Word; oldDataLen: Word); deprecated 'not use';
     procedure applyChange(srcData, pdata: Pointer; offset, size_old, size_new, datarowCnt: Integer);
     procedure UnDoUpdate_LOP_MODIFY_ROW(RawData: TBytes; RlOpt: PRawLog_DataOpt);
     procedure UnDoUpdate_LOP_MODIFY_COLUMNS(RawData: TBytes; RlOpt: PRawLog_DataOpt);
-    function LoadFullDataFromDb_after(LSN: Tlog_LSN; pageid: TPage_Id): TBytes;
+    function LoadFullDataFromDb(LSN: Tlog_LSN; pageid: TPage_Id): TBytes;
+    function LoadFullDataFromDb_after(LSN: Tlog_LSN; pageid: TPage_Id;FlsnLst :TObjectList;Transpkg: TTransPkg): TBytes;
+    function getTranslogby(LSN: Tlog_LSN; Transpkg: TTransPkg): TBytes;
   public
     constructor Create(DbCon: TdatabaseConnection);
     destructor Destroy; override;
-    function get(LSN: Tlog_LSN; pageid: TPage_Id): TBytes;
+    function get(LSN: Tlog_LSN; pageid: TPage_Id; Transpkg: TTransPkg = nil): TBytes;
   end;
 
   TPageCache = class(TObject)
@@ -36,7 +39,7 @@ type
     pccData: array[0..255] of TPageCacheDB;
   public
     destructor Destroy; override;
-    function getUpdateSoltData(databaseConnection: TdatabaseConnection; LSN: Tlog_LSN; pageid: TPage_Id): TBytes;
+    function getUpdateSoltData(databaseConnection: TdatabaseConnection; LSN: Tlog_LSN; pageid: TPage_Id;Transpkg: TTransPkg=nil): TBytes;
   end;
 
 var
@@ -61,14 +64,14 @@ begin
   inherited;
 end;
 
-function TPageCache.getUpdateSoltData(databaseConnection: TdatabaseConnection; LSN: Tlog_LSN; pageid: TPage_Id): TBytes;
+function TPageCache.getUpdateSoltData(databaseConnection: TdatabaseConnection; LSN: Tlog_LSN; pageid: TPage_Id;Transpkg: TTransPkg): TBytes;
 begin
   if pccData[databaseConnection.dbID] = nil then
   begin
     pccData[databaseConnection.dbID] := TPageCacheDB.Create(databaseConnection);
   end;
 
-  result := pccData[databaseConnection.dbID].get(LSN, pageid);
+  result := pccData[databaseConnection.dbID].get(LSN, pageid, Transpkg);
 end;
 
 { TPageCacheDB }
@@ -76,36 +79,92 @@ end;
 constructor TPageCacheDB.Create(DbCon: TdatabaseConnection);
 begin
   FDbCon := DbCon;
-  FlsnLst := TObjectList.Create;
+  FlsnLstCs := TCriticalSection.Create;
 end;
 
 destructor TPageCacheDB.Destroy;
+var
+  I: Integer;
+  jobo: TObjectList;
 begin
-  FlsnLst.Free;
+  for I := 0 to Length(FpageDict)-1 do
+  begin
+    for jobo in FpageDict[i].Values do
+    begin
+      jobo.Free;
+    end;
+    FpageDict[i].free;
+  end;
+
+  SetLength(FpageDict, 0);
+  FlsnLstCs.Free;
   inherited;
 end;
 
-function TPageCacheDB.get(LSN: Tlog_LSN; pageid: TPage_Id): TBytes;
+function TPageCacheDB.get(LSN: Tlog_LSN; pageid: TPage_Id;Transpkg: TTransPkg): TBytes;
 var
   I: Integer;
   pcd: TPageCacheRawData;
+  FlsnLst: TObjectList;
+  Adbpage :TDictionary<Integer, TObjectList>;
 begin
   Result := nil;
-  for I := 0 to FlsnLst.Count - 1 do
+  if pageid.FID >= Length(FpageDict) then
   begin
-    pcd := TPageCacheRawData(FlsnLst[I]);
-    if (pcd.lsn.LSN_1 = LSN.LSN_1) and (pcd.lsn.LSN_2 = LSN.LSN_2) and (pcd.lsn.LSN_3 = LSN.LSN_3) then
-    begin
-      SetLength(result, Length(pcd.PageRawData));
-      Move(pcd.PageRawData[0], Result[0], Length(pcd.PageRawData));
-      FlsnLst.Delete(I);
-      Break;
+    SetLength(FpageDict, pageid.FID);
+  end;
+  Adbpage := FpageDict[pageid.FID - 1];
+  if Adbpage = nil then
+  begin
+    FlsnLstCs.Enter;
+    try
+      Adbpage := FpageDict[pageid.FID - 1];
+      if Adbpage = nil then
+      begin
+        Adbpage := TDictionary<Integer, TObjectList>.Create;
+        FpageDict[pageid.FID - 1] := Adbpage;
+      end;
+    finally
+      FlsnLstCs.Leave;
     end;
   end;
-
+  if Adbpage.TryGetValue(pageid.PID, FlsnLst) then
+  begin
+    //同一个page只会有一个线程访问。
+    for I := 0 to FlsnLst.Count - 1 do
+    begin
+      pcd := TPageCacheRawData(FlsnLst[I]);
+      if (pcd.lsn.LSN_1 = LSN.LSN_1) and (pcd.lsn.LSN_2 = LSN.LSN_2) and (pcd.lsn.LSN_3 = LSN.LSN_3) then
+      begin
+        SetLength(result, Length(pcd.PageRawData));
+        Move(pcd.PageRawData[0], Result[0], Length(pcd.PageRawData));
+        FlsnLst.Delete(I);
+        Break;
+      end;
+    end;
+    if FlsnLst.Count=0 then
+    begin
+      FlsnLstCs.Enter;
+      try
+        Adbpage.Remove(pageid.PID);
+        FlsnLst.free;
+      finally
+        FlsnLstCs.Leave;
+      end;
+    end;
+  end else begin
+    //还未创建
+    FlsnLst := TObjectList.Create;
+    FlsnLstCs.Enter;
+    try
+      Adbpage.Add(pageid.PID, FlsnLst);
+    finally
+      FlsnLstCs.Leave;
+    end;
+  end;
   if Length(Result) = 0 then
   begin
-    Result := LoadFullDataFromDb_after(LSN, pageid);
+    Result := LoadFullDataFromDb_after(LSN, pageid, FlsnLst, Transpkg);
   end;
 end;
 
@@ -189,7 +248,7 @@ begin
             Result := TmpBytes;
             break;
           end;
-          FlsnLst.Add(TPageCacheRawData.Create(tmpLsn, TmpBytes));
+          //FlsnLst.Add(TPageCacheRawData.Create(tmpLsn, TmpBytes));
         end
         else
         begin
@@ -209,7 +268,36 @@ begin
   end;
 end;
 
-function TPageCacheDB.LoadFullDataFromDb_after(LSN: Tlog_LSN; pageid: TPage_Id): TBytes;
+function TPageCacheDB.getTranslogby(LSN: Tlog_LSN; Transpkg: TTransPkg): TBytes;
+var
+  tpi:TTransPkgItem;
+  I: Integer;
+  minLsn,maxLsn:Tlog_LSN;
+begin
+  SetLength(Result, 0);
+  minLsn := TTransPkgItem(Transpkg.Items[0]).lsn;
+  maxLsn := TTransPkgItem(Transpkg.Items[Transpkg.Items.Count - 1]).lsn;
+  if ((LSN.LSN_1 > minLsn.LSN_1) or ((LSN.LSN_1 = minLsn.LSN_1) and (LSN.LSN_2 >= minLsn.LSN_2)))
+    and ((LSN.LSN_1 < maxLsn.LSN_1) or ((LSN.LSN_1 = maxLsn.LSN_1) and (LSN.LSN_2 <= maxLsn.LSN_2)))
+  then
+  begin
+    for I := 0 to Transpkg.Items.count - 1 do
+    begin
+      tpi := TTransPkgItem(Transpkg.Items[I]);
+      if (tpi.LSN.LSN_1 = LSN.LSN_1) and (tpi.LSN.LSN_2 = LSN.LSN_2) and (tpi.LSN.LSN_3 = LSN.LSN_3) then
+      begin
+        SetLength(Result, tpi.Raw.dataSize);
+        Move(tpi.Raw.data^, Result[0], tpi.Raw.dataSize);
+      end;
+    end;
+  end;
+  if length(Result) = 0 then
+  begin
+    Result := getSingleTransLogFromFndblog(FDbCon, LSN);
+  end;
+end;
+
+function TPageCacheDB.LoadFullDataFromDb_after(LSN: Tlog_LSN; pageid: TPage_Id;FlsnLst :TObjectList;Transpkg: TTransPkg): TBytes;
 var
   FullPageData: TBytes;
   PageHeader: PPage_Header;
@@ -238,7 +326,7 @@ begin
       end;
 
       //继续找
-      transLog := getSingleTransLogFromFndblog(FDbCon, tmpLsn);
+      transLog := getTranslogby(tmpLsn, Transpkg);
       if length(transLog) = 0 then
       begin
         Break;

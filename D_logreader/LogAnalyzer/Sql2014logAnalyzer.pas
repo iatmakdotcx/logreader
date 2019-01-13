@@ -3,7 +3,7 @@ unit Sql2014logAnalyzer;
 interface
 
 uses
-  Classes, I_logAnalyzer, LogtransPkg, p_structDefine, LogSource, dbDict, System.SysUtils,
+  windows, Classes, I_logAnalyzer, LogtransPkg, p_structDefine, LogSource, dbDict, System.SysUtils,
   Contnrs, BinDataUtils, SqlDDLs, LogtransPkgMgr, hexValUtils,
   System.Generics.Collections, Xml.XMLIntf;
 
@@ -31,10 +31,9 @@ type
     OperaType: TOperationType;
     page:TPage_Id;
     table:TdbTableItem;
-    UnReliableRData:Boolean;       //标识R0和R1的值是不可靠的 (来源为dbcc page
     R0:Pointer;                    //新数据
     R1:Pointer;                    //老数据
-    UniqueClusteredKeys:string;
+    UniqueClusteredKeys:TBytes;
     deleteFlag:Boolean;            //数据删除标志（ 为ture的数据不生产Sql
     //
     old_data:Tsql2014RowData;
@@ -42,6 +41,8 @@ type
     //特殊变量
     deleteFromUpdate:Boolean;
     isMixData:Boolean;
+    //如果按Pageid处理，这个字段其实没什么用。因为冲突在页内就已经处理了
+    ___SourceId:Cardinal;
   public
     constructor Create;
     destructor Destroy; override;
@@ -147,11 +148,10 @@ type
     function GenSql_UpdateColumn(ddlitem: TDDL_Update_Column): string;
     function GenSql_UpdateRenameObj(ddlitem: TDDL_Update_RenameObj): string;
     procedure PriseDDLPkg_sysiscols(DataRow: Tsql2014Opt);
-    procedure Execute2(FTranspkg: TTransPkg);
     procedure PriseDDLPkg_syscolpars(DataRow: Tsql2014Opt);
     procedure PriseRowLog_MODIFY_ROW(tPkg: TTransPkgItem);
     procedure PriseRowLog_MODIFY_COLUMNS(tPkg: TTransPkgItem);
-    function PriseRowLog_UniqueClusteredKeys(BinReader: TbinDataReader; DbTable: TdbTableItem): string;
+    function PriseRowLog_UniqueClusteredKeys(uckdata: TBytes; DbTable: TdbTableItem): string;
     procedure DDLClear;
     procedure DDLPretreatment;
     procedure PriseDDLPkg_sysidxstats(DataRow: Tsql2014Opt);
@@ -160,6 +160,8 @@ type
     procedure PriseRowLOP_FORMAT_PAGE(tPkg: TTransPkgItem);
     procedure PriseDDLPkg_U_sysrowsets(DataRow: Tsql2014Opt);
     function DML_BuilderXML_Truncate(ddlitem: TDDL_truncate_table): string;
+    procedure Execute2(FTranspkg: TTransPkg);
+    procedure Execute3(FTranspkg: TTransPkg);
   public
     /// <summary>
     ///
@@ -175,11 +177,54 @@ type
     function ApplySysDDLChange:Boolean;
   end;
 
+  TPageidGroup = class(TObject)
+  private
+    Fcapacity: Cardinal;
+    fSize: Cardinal;
+    function GetItem(Index: Integer): Cardinal;
+  public
+    Fid:Word;
+    Pid:DWORD;
+    Fbuff: array of Dword;
+    constructor Create(pageid:TPage_Id;capacity: Cardinal = $100);
+    destructor Destroy; override;
+    property Count: Cardinal read fSize;
+    function Add(value: DWORD): Cardinal;
+    property items[Index: Integer]: Dword read GetItem; default;
+  end;
+
+  TSql2014logAnalyzerThread = class(TThread)
+  private
+    FAnalyzerMain:TSql2014logAnalyzer;
+    FTranspkg: TTransPkg;
+    Flogsource:TLogSource;
+    FOpts: TObjectList;
+    FMixPending: TList;
+    CurProcesspkgIdx:Cardinal;
+    procedure PriseRowLog(tPkg: TTransPkgItem);
+    procedure PriseRowLog_Insert(tPkg: TTransPkgItem);
+    procedure PriseRowLog_Delete(tPkg: TTransPkgItem);
+    procedure applyUpdateChange(srcData, pdata: Pointer; offset, size_old, size_new, datarowCnt: Integer);
+    procedure PriseRowLog_MODIFY_ROW(tPkg: TTransPkgItem);
+    procedure PriseRowLog_MODIFY_COLUMNS(tPkg: TTransPkgItem);
+    function PriseRowLog_InsertDeleteRowData(DbTable: TdbTableItem;
+      BinReader: TbinDataReader): Tsql2014RowData;
+  public
+    startIdx,stopIdx: Integer;
+    idsLst:TObjectList;
+    isdone:Boolean;
+
+    constructor Create(logsource:TLogSource;Transpkg: TTransPkg);
+    destructor Destroy; override;
+    procedure Execute;override;
+  end;
+
+
 implementation
 
 uses
-  loglog, plugins, OpCode, contextCode, dbFieldTypes,comm_func,
-  Memory_Common, sqlextendedprocHelper, Windows,Xml.XMLDoc, pagecache;
+  loglog, plugins, OpCode, contextCode, dbFieldTypes,comm_func, math,
+  Memory_Common, sqlextendedprocHelper, Xml.XMLDoc, pagecache;
 
 type
   TRawElement = packed record
@@ -534,104 +579,56 @@ var
   raw_old,raw_new: PdbFieldValue;
   whereStr: string;
   fieldval: PdbFieldValue;
-  isUniClustered :Boolean;
-  J: Integer;
 begin
-  whereStr := aRowData.UniqueClusteredKeys;
-  if whereStr='' then
+  if Length(aRowData.UniqueClusteredKeys)>0 then
   begin
-    //没有聚合键
-    if aRowData.old_data<>nil then
-    begin
-      //有old源则通过olddata生成where
-      for I := 0 to aRowData.old_data.Fields.Count - 1 do
-      begin
-        fieldval := PdbFieldValue(aRowData.old_data.Fields[I]);
-        whereStr := whereStr + Format('and %s=%s ', [fieldval.field.getSafeColName, Hvu.GetFieldStrValueWithQuoteIfNeed(fieldval)]);
-      end;
-      if whereStr.Length > 0 then
-      begin
-        Delete(whereStr, 1, 4);  //"and "
-      end;
-    end else begin
-      //没有唯一聚合,也没有old源
-      whereStr :=' 1=2 --表不包涵唯一聚合,且无法获取更新源。请为表设置“唯一聚合”或使用数据源提取插件';
-    end
-  end;
-
-  if aRowData.new_data = nil then
-  begin
-    //没有新数据。使用select封装
-    updateStr := FLogSource.Fdbc.getUpdateSQLfromSelect(aRowData.Table, whereStr);
-    if updateStr='' then
-    begin
-      Result := '数据行已丢失！'+whereStr;
-      Exit;
-    end;
+    OutputDebugString('---->yes');
+    whereStr := PriseRowLog_UniqueClusteredKeys(aRowData.UniqueClusteredKeys, aRowData.table);
   end else begin
-    if aRowData.old_data<>nil then
+    whereStr := '';
+    //没有聚合键
+    for I := 0 to aRowData.old_data.Fields.Count - 1 do
     begin
-      //新旧数据都有，则对比差异生成update
-      updateStr := '';
-      for I := 0 to aRowData.Table.Fields.Count - 1 do
-      begin
-        if not aRowData.Table.Fields[i].isLogSkipCol then
-        begin
-          raw_old := aRowData.old_data.getField(aRowData.Table.Fields[i].Col_id);
-          raw_new := aRowData.new_data.getField(aRowData.Table.Fields[i].Col_id);
-          if (raw_new=nil)  and (raw_old=nil)then
-          begin
-
-          end else
-          if raw_new = nil then
-          begin
-            //var 值 ————>  null
-            updateStr := updateStr + Format(', %s=NULL',[raw_old.field.getSafeColName]);
-          end else if (raw_old = nil) or (not binEquals(raw_new.value, raw_old.value)) then begin
-            updateStr := updateStr + Format(', %s=%s',[raw_new.field.getSafeColName, Hvu.GetFieldStrValueWithQuoteIfNeed(raw_new)]);
-          end
-        end;
-      end;
-      if updateStr.Length = 0 then
-      begin
-        //如果所有字段一样，肯定就是更新回原始状态了，
-        Result := '';
-        exit;
-      end;
-      Delete(updateStr, 1, 2);  //", "
-    end else begin
-      //没有old，根据新的全部字段生成update（除唯一聚合
-      updateStr := '';
-      for I := 0 to aRowData.Table.Fields.Count - 1 do
-      begin
-        if aRowData.Table.Fields[i].isLogSkipCol then Continue;
-
-        isUniClustered := False;
-        for J := 0 to aRowData.Table.UniqueClusteredKeys.Count-1 do
-        begin
-          if TdbFieldItem(aRowData.Table.UniqueClusteredKeys[j]).Col_id = aRowData.Table.Fields[i].Col_id then
-          begin
-            isUniClustered := True;
-            Break;
-          end;
-        end;
-
-        if not isUniClustered then
-        begin
-          raw_new := aRowData.new_data.getField(aRowData.Table.Fields[i].Col_id);
-          if raw_new = nil then
-          begin
-            //var 值 ————>  null
-            updateStr := updateStr + Format(', %s=NULL',[raw_new.field.getSafeColName]);
-          end else begin
-            updateStr := updateStr + Format(', %s=%s',[raw_new.field.getSafeColName, Hvu.GetFieldStrValueWithQuoteIfNeed(raw_new)]);
-          end;
-        end;
-      end;
-      if updateStr.Length > 0 then
-        Delete(updateStr, 1, 2);  //", "
-    end
+      fieldval := PdbFieldValue(aRowData.old_data.Fields[I]);
+      whereStr := whereStr + Format('and %s=%s ', [fieldval.field.getSafeColName, Hvu.GetFieldStrValueWithQuoteIfNeed(fieldval)]);
+    end;
+    if whereStr.Length > 0 then
+    begin
+      Delete(whereStr, 1, 4);  //"and "
+    end;
   end;
+
+  //对比差异生成update
+  updateStr := '';
+  for I := 0 to aRowData.Table.Fields.Count - 1 do
+  begin
+    if not aRowData.Table.Fields[I].isLogSkipCol then
+    begin
+      raw_old := aRowData.old_data.getField(aRowData.Table.Fields[I].Col_id);
+      raw_new := aRowData.new_data.getField(aRowData.Table.Fields[I].Col_id);
+      if (raw_new = nil) and (raw_old = nil) then
+      begin
+
+      end
+      else if raw_new = nil then
+      begin
+        //var 值 ————>  null
+        updateStr := updateStr + Format(', %s=NULL', [raw_old.field.getSafeColName]);
+      end
+      else if (raw_old = nil) or (not binEquals(raw_new.value, raw_old.value)) then
+      begin
+        updateStr := updateStr + Format(', %s=%s', [raw_new.field.getSafeColName, Hvu.GetFieldStrValueWithQuoteIfNeed(raw_new)]);
+      end
+    end;
+  end;
+  if updateStr.Length = 0 then
+  begin
+    //如果所有字段一样，肯定就是更新回原始状态了，
+    Result := '';
+    exit;
+  end;
+  Delete(updateStr, 1, 2);  //", "
+
   Result := Format('UPDATE %s SET %s WHERE %s;', [aRowData.Table.getFullName, updateStr, whereStr]);
 end;
 
@@ -641,9 +638,9 @@ var
   I: Integer;
   fieldval: PdbFieldValue;
 begin
-  if aRowData.UniqueClusteredKeys <> '' then
+  if 'aRowData.UniqueClusteredKeys' <> '' then
   begin
-    Result := aRowData.UniqueClusteredKeys;
+    Result := 'aRowData.UniqueClusteredKeys';
   end
   else
   begin
@@ -976,7 +973,7 @@ begin
         IDXs.FItems.Clear;
         IDXstats.Clear;
         Rscols.Clear;
-        Execute2(TTsPkg);
+        Execute3(TTsPkg);
       except
         on ee:Exception do
         begin
@@ -1093,6 +1090,201 @@ Exit;
     FLogSource.saveToFile;
   end;
   FLogSource.saveToFile_LSN;
+end;
+
+procedure TSql2014logAnalyzer.Execute3(FTranspkg: TTransPkg);
+  procedure getAllPageIds(Transpkg: TTransPkg; idsgroup: TObjectList);
+  var
+    TTpi: TTransPkgItem;
+    Rlo: PRawLog_DataOpt;
+    I: Cardinal;
+    tmpIntlst: TPageidGroup;
+    J: Integer;
+    found: Boolean;
+  begin
+    for I := 0 to Transpkg.Items.Count - 1 do
+    begin
+      TTpi := TTransPkgItem(FTranspkg.Items[I]);
+      Rlo := PRawLog_DataOpt(TTpi.Raw.data);
+      if Rlo.normalData.OpCode in [LOP_INSERT_ROWS, LOP_DELETE_ROWS, LOP_MODIFY_ROW, LOP_MODIFY_COLUMNS, LOP_FORMAT_PAGE] then
+      begin
+        found := False;
+        for J := 0 to idsgroup.Count - 1 do
+        begin
+          tmpIntlst := TPageidGroup(idsgroup[J]);
+          if (tmpIntlst.FID = Rlo.pageId.FID) and (tmpIntlst.PID = Rlo.pageId.PID) then
+          begin
+            tmpIntlst.Add(I);
+            found := True;
+          end;
+        end;
+
+        if not found then
+        begin
+          tmpIntlst := TPageidGroup.Create(Rlo.pageId);
+          tmpIntlst.Add(I);
+          idsgroup.Add(tmpIntlst);
+        end;
+      end;
+    end;
+  end;
+
+  procedure PriseTransInfo(Transpkg: TTransPkg);
+  var
+    TTpi :TTransPkgItem;
+    Rlbx: PRawLog_BEGIN_XACT;
+    Rlcx: PRawLog_COMMIT_XACT;
+  begin
+    TTpi := TTransPkgItem(FTranspkg.Items[0]);
+    Rlbx := TTpi.Raw.data;
+    if Rlbx.normalData.OpCode = LOP_BEGIN_XACT then
+    begin
+      TransBeginTime := Hvu.Hex2Datetime(Rlbx.Time);
+      TransId := Rlbx.normalData.TransID;
+    end;
+
+    TTpi := TTransPkgItem(FTranspkg.Items[FTranspkg.Items.Count - 1]);
+    Rlcx := TTpi.Raw.data;
+    if Rlcx.normalData.OpCode = LOP_COMMIT_XACT then
+    begin
+      TransCommitLsn := TTpi.LSN;
+      TransCommitTime := Hvu.Hex2Datetime(Rlcx.Time);
+    end
+  end;
+var
+  I,J: integer;
+  threadCnt:integer;
+  perThreadCnt:integer;
+  AnalyzerThreads:array of TSql2014logAnalyzerThread;
+  pidGroupids:TObjectList;
+  DrOpt_buf : Tsql2014Opt;
+  DMLitem :TDMLItem;
+  fieldval: PdbFieldValue;
+  TmpSTr:string;
+begin
+  FLogSource.Loger.Add(FormatDateTime('====>yyyy-MM-dd HH:nn:ss.zzz',now), LOG_DEBUG);
+  FLogSource.Loger.Add('TSql2014logAnalyzer.Execute ==> transId:%s, MinLsn:%s, cnt:%d', [TranId2Str(FTranspkg.Ftransid),LSN2Str(TTransPkgItem(FTranspkg.Items[0]).lsn), FTranspkg.Items.Count],LOG_DEBUG);
+//  if FTranspkg.Items.Count<=100 then
+//  begin
+//    //单线程处理
+//    Execute2(FTranspkg);
+//    Exit;
+//  end;
+
+  pidGroupids := TObjectList.Create;
+  getAllPageIds(FTranspkg, pidGroupids);
+
+  //计算线程数最多10个线程
+  threadCnt := Ceil(pidGroupids.Count / 50);
+  if threadCnt > 10 then
+    threadCnt := 10;
+
+  //threadCnt := 1;
+
+  perThreadCnt := pidGroupids.Count div threadCnt;
+
+  SetLength(AnalyzerThreads, threadCnt);
+  for I := 0 to threadCnt - 1 do
+  begin
+    AnalyzerThreads[I] := TSql2014logAnalyzerThread.Create(FLogSource, FTranspkg);
+    AnalyzerThreads[I].idsLst := pidGroupids;
+    AnalyzerThreads[I].startIdx := I * perThreadCnt;
+    if I = threadCnt - 1 then
+      AnalyzerThreads[I].stopIdx := pidGroupids.Count
+    else
+      AnalyzerThreads[I].stopIdx := I * perThreadCnt + perThreadCnt;
+    AnalyzerThreads[I].FAnalyzerMain := Self;
+    AnalyzerThreads[I].Start;
+  end;
+
+  //解析事务开启和结束信息
+  PriseTransInfo(FTranspkg);
+
+  //等待所有线程完成
+  for I := 0 to threadCnt - 1 do
+  begin
+    while not (Terminated or AnalyzerThreads[i].isdone) do
+    begin
+      WaitForSingleObject(AnalyzerThreads[i].Handle, 25); //25ms, an eternity for a cpu
+    end;
+
+    //终止所有线程
+    if terminated then
+    begin
+      AnalyzerThreads[i].Terminate;
+      AnalyzerThreads[i].WaitFor;
+    end;
+  end;
+
+  pidGroupids.Free;
+
+  //提取所有线程的成果
+  DDL.FItems.Clear;
+  for I := 0 to threadCnt - 1 do
+  begin
+    for J := 0 to AnalyzerThreads[I].FMixPending.Count - 1 do
+    begin
+      fieldval := PdbFieldValue(AnalyzerThreads[I].FMixPending[j]);
+      fieldval.value := getDataFrom_TEXT_MIX(fieldval.value);
+    end;
+    for J := 0 to AnalyzerThreads[I].FOpts.Count - 1 do
+    begin
+      DrOpt_buf := Tsql2014Opt(AnalyzerThreads[I].FOpts[J]);
+      if DrOpt_buf.deleteFlag or DrOpt_buf.isMixData then
+      begin
+        Continue;
+      end;
+      //FLogSource.Loger.Add('-->' + DML_BuilderSql(DrOpt_buf), LOG_DEBUG);
+      if DrOpt_buf.Table.Owner = 'sys' then
+      begin
+        //如果操作的是系统表则是ddl语句
+        if DrOpt_buf.OperaType = Opt_Insert then
+        begin
+          PriseDDLPkg(DrOpt_buf);
+        end
+        else if DrOpt_buf.OperaType = Opt_Delete then
+        begin
+          PriseDDLPkg_D(DrOpt_buf);
+        end
+        else if DrOpt_buf.OperaType = Opt_Update then
+        begin
+          PriseDDLPkg_U(DrOpt_buf);
+        end;
+      end
+      else
+      begin
+        // dml 语句
+        DMLitem := TDMLItem.Create;
+        DMLitem.data := DrOpt_buf;
+        DDL.Add(DMLitem);
+      end;
+    end;
+  end;
+
+  DDLClear;
+  DDLPretreatment;
+  //build Sql
+  TmpSTr := GenSql;
+  //FLogSource.Loger.Add(TmpSTr);
+  PluginsMgr.onTranSql(FLogSource.Fdbc.GetPlgSrc, TmpSTr);
+  //build XML
+  TmpSTr := GenXML;
+  //FLogSource.Loger.Add(TmpSTr);
+  PluginsMgr.onTransXml(FLogSource.Fdbc.GetPlgSrc, TmpSTr);
+  //save LSN
+  FLogSource.FProcCurLSN := TransCommitLsn;
+{$IFDEF DEBUG}
+ApplySysDDLChange;
+for I := 0 to threadCnt - 1 do AnalyzerThreads[I].Free;
+Exit;
+{$ENDIF}
+  if ApplySysDDLChange then
+  begin
+    //如果表结构有变更，重新保存表结构
+    FLogSource.saveToFile;
+  end;
+  FLogSource.saveToFile_LSN;
+  for I := 0 to threadCnt - 1 do AnalyzerThreads[I].Free;
 end;
 
 function TSql2014logAnalyzer.GenSql: string;
@@ -2976,6 +3168,12 @@ begin
               end;
             end;
 
+            if (PByte(UIntPtr(Rldo)+R_Info[0].Offset)^ and $02) = 2 then
+            begin
+              //FORWARDED_RECORD
+              exit;
+            end;
+
             DataRow := Tsql2014Opt.Create;
             DataRow.OperaType := Opt_Insert;
             DataRow.page := Rldo.pageId;
@@ -3137,7 +3335,7 @@ begin
   end;
 end;
 
-function TSql2014logAnalyzer.PriseRowLog_UniqueClusteredKeys(BinReader: TbinDataReader;DbTable: TdbTableItem):string;
+function TSql2014logAnalyzer.PriseRowLog_UniqueClusteredKeys(uckdata: TBytes;DbTable: TdbTableItem):string;
 var
   flag:Byte;
   I, J: Integer;
@@ -3148,7 +3346,9 @@ var
   varFxIdx:array of Word;
   fieldCnt:Word;
   tmpCardinal:Cardinal;
+  BinReader: TbinDataReader;
 begin
+  BinReader := TbinDataReader.Create(@uckdata[0], Length(uckdata));
   flag := BinReader.readByte;
   Result := '';
   varFCnt := 0;
@@ -3218,6 +3418,7 @@ begin
       Dispose(PdbFieldValue(values[I]));
     end;
     values.Free;
+    BinReader.free;
   end;
 end;
 
@@ -3323,7 +3524,7 @@ begin
                 //找到页，修正页数据
                 if DataRow_buf.OperaType = Opt_Update then
                 begin
-                  if (DataRow_buf.R0<>nil) and (not DataRow_buf.UnReliableRData) then
+                  if (DataRow_buf.R0<>nil) then
                   begin
                     RawDataLen := PageRowCalcLength(DataRow_buf.R0);
                     applyChange(DataRow_buf.R0, R_[1], Rldo.OffsetInRow, Rldo.ModifySize, R_Info[1].Length, RawDataLen);
@@ -3347,7 +3548,7 @@ begin
                 //找到页，修正页数据
                 if DataRow_buf.OperaType = Opt_Update then
                 begin
-                  if (DataRow_buf.R0<>nil) and (not DataRow_buf.UnReliableRData) then
+                  if (DataRow_buf.R0<>nil) then
                   begin
                     RawDataLen := PageRowCalcLength(DataRow_buf.R0);
                     applyChange(DataRow_buf.R0, R_[1], Rldo.OffsetInRow, Rldo.ModifySize, R_Info[1].Length, RawDataLen);
@@ -3364,10 +3565,10 @@ begin
                   RawDataLen := PageRowCalcLength(DataRow_buf.R0);
                   applyChange(DataRow_buf.R0, R_[1], Rldo.OffsetInRow, R_Info[0].Length, R_Info[1].Length, RawDataLen);
                   //刷新唯一聚合（唯一聚合是不会被update的，当尝试Update聚合=delete+insert
-                  if (DataRow_buf.UniqueClusteredKeys='') and (DataRow_buf.table.UniqueClusteredKeys.Count>0) and (R_Info[2].Length > 0) then
+                  if (DataRow_buf.UniqueClusteredKeys=nil) and (DataRow_buf.table.UniqueClusteredKeys.Count>0) and (R_Info[2].Length > 0) then
                   begin
                     BinReader.SetRange(R_Info[2].Offset, R_Info[2].Length);
-                    DataRow_buf.UniqueClusteredKeys := PriseRowLog_UniqueClusteredKeys(BinReader, DataRow_buf.table);
+                    //DataRow_buf.UniqueClusteredKeys := PriseRowLog_UniqueClusteredKeys(BinReader, DataRow_buf.table);
                   end;
                 end;
                 exit;
@@ -3390,7 +3591,7 @@ begin
               begin
                 //读取UniqueClusteredKeys
                 BinReader.SetRange(R_Info[2].Offset, R_Info[2].Length);
-                DataRow_buf.UniqueClusteredKeys := PriseRowLog_UniqueClusteredKeys(BinReader, DbTable);
+//                DataRow_buf.UniqueClusteredKeys := PriseRowLog_UniqueClusteredKeys(BinReader, DbTable);
               end;
 
               if FLogSource.FFFFIsDebug then
@@ -3411,17 +3612,22 @@ begin
               end;
               if OriginRowData = nil then
               begin
-                FLogSource.Loger.Add('获取行原始数据失败！' + lsn2str(tPkg.LSN) + ',pLSN:' + lsn2str(Rldo.normalData.PreviousLSN), LOG_WARNING or LOG_IMPORTANT);
-                if (DataRow_buf.UniqueClusteredKeys = '') or (DbTable.Owner='sys') then   //sys表可能没有select权限，所以直接读page
-                begin
-                  FLogSource.Loger.Add('表[%s]没有唯一聚合,对此表的Update操作将被忽略！如您不希望Update被忽略，请启用数据库插件.',[DbTable.getFullName]);
-                  DataRow_buf.Free;
-                  Exit;
-
-                  DataRow_buf.UnReliableRData := true;
-                end else begin
-
-                end
+//                FLogSource.Loger.Add('获取行原始数据失败！' + lsn2str(tPkg.LSN) + ',pLSN:' + lsn2str(Rldo.normalData.PreviousLSN), LOG_WARNING or LOG_IMPORTANT);
+//                if (DataRow_buf.UniqueClusteredKeys = '') or (DbTable.Owner='sys') then   //sys表可能没有select权限，所以直接读page
+//                begin
+//                  FLogSource.Loger.Add('表[%s]没有唯一聚合,对此表的Update操作将被忽略！如您不希望Update被忽略，请启用数据库插件.',[DbTable.getFullName]);
+//                  DataRow_buf.Free;
+//                  Exit;
+//
+//                  DataRow_buf.UnReliableRData := true;
+//                end else begin
+//
+//                end
+              end else if OriginRowData[0] = 4 then
+              begin
+                //FORWARDING_STUB
+                DataRow_buf.Free;
+                Exit;
               end;
 
               DataRow_buf.OperaType := Opt_Update;
@@ -3653,7 +3859,7 @@ begin
                 //找到页，修正页数据
                 if DataRow_buf.OperaType = Opt_Update then
                 begin
-                  if (DataRow_buf.R0<>nil) and (not DataRow_buf.UnReliableRData) then
+                  if (DataRow_buf.R0<>nil) then
                   begin
                     RawDataLen := PageRowCalcLength(DataRow_buf.R0);
                     for J := 0 to ((Rldo.NumElements - 4) div 2) - 1 do
@@ -3693,7 +3899,7 @@ begin
                 //找到页，修正页数据
                 if DataRow_buf.OperaType = Opt_Update then
                 begin
-                  if (DataRow_buf.R0<>nil) and (not DataRow_buf.UnReliableRData) then
+                  if (DataRow_buf.R0<>nil) then
                   begin
                     RawDataLen := PageRowCalcLength(DataRow_buf.R0);
                     for J := 0 to ((Rldo.NumElements - 4) div 2) - 1 do
@@ -3735,11 +3941,11 @@ begin
 //                  RawDataLen := PageRowCalcLength(DataRow_buf.R0);
 //                  applyChange(DataRow_buf.R0, R_[1], Rldo.OffsetInRow, R_Info[0].Length, R_Info[1].Length, RawDataLen);
                   //刷新唯一聚合（唯一聚合是不会被update的，当尝试Update聚合=delete+insert
-                  if (DataRow_buf.UniqueClusteredKeys='') and (DataRow_buf.table.UniqueClusteredKeys.Count>0) and (R_Info[2].Length > 0) then
-                  begin
-                    BinReader.SetRange(R_Info[2].Offset, R_Info[2].Length);
-                    DataRow_buf.UniqueClusteredKeys := PriseRowLog_UniqueClusteredKeys(BinReader, DataRow_buf.table);
-                  end;
+//                  if (DataRow_buf.UniqueClusteredKeys='') and (DataRow_buf.table.UniqueClusteredKeys.Count>0) and (R_Info[2].Length > 0) then
+//                  begin
+//                    BinReader.SetRange(R_Info[2].Offset, R_Info[2].Length);
+//                    DataRow_buf.UniqueClusteredKeys := PriseRowLog_UniqueClusteredKeys(BinReader, DataRow_buf.table);
+//                  end;
                 end;
                 exit;
               end
@@ -3760,7 +3966,7 @@ begin
               begin
                 //读取UniqueClusteredKeys
                 BinReader.SetRange(R_Info[2].Offset, R_Info[2].Length);
-                DataRow_buf.UniqueClusteredKeys := PriseRowLog_UniqueClusteredKeys(BinReader, DbTable);
+//                DataRow_buf.UniqueClusteredKeys := PriseRowLog_UniqueClusteredKeys(BinReader, DbTable);
               end;
               if FLogSource.FFFFIsDebug then
               begin
@@ -3781,14 +3987,19 @@ begin
               if OriginRowData = nil then
               begin
                 FLogSource.Loger.Add('获取行原始数据失败！' + lsn2str(tPkg.LSN) + ',pLSN:' + lsn2str(Rldo.normalData.PreviousLSN), LOG_WARNING or LOG_IMPORTANT);
-                if (DataRow_buf.UniqueClusteredKeys = '') or (DbTable.Owner='sys') then   //sys表可能没有select权限，所以直接读page
-                begin
-                  FLogSource.Loger.Add('表[%s]没有唯一聚合,对此表的Update操作将被忽略！如您不希望Update被忽略，请启用数据库插件.',[DbTable.getFullName]);
-                  DataRow_buf.Free;
-                  Exit;
-                end else begin
-                  //如果没有OriginRowData但是有 UniqueClusteredKeys则可以通过直接查询整行数据封装
-                end
+//                if (DataRow_buf.UniqueClusteredKeys = '') or (DbTable.Owner='sys') then   //sys表可能没有select权限，所以直接读page
+//                begin
+//                  FLogSource.Loger.Add('表[%s]没有唯一聚合,对此表的Update操作将被忽略！如您不希望Update被忽略，请启用数据库插件.',[DbTable.getFullName]);
+//                  DataRow_buf.Free;
+//                  Exit;
+//                end else begin
+//                  //如果没有OriginRowData但是有 UniqueClusteredKeys则可以通过直接查询整行数据封装
+//                end
+              end else if OriginRowData[0] = 4 then
+              begin
+                //FORWARDING_STUB
+                DataRow_buf.Free;
+                Exit;
               end;
 
               //OriginRowData 是修改后的行数据
@@ -4072,11 +4283,12 @@ end;
 
 constructor Tsql2014Opt.Create;
 begin
+  ___SourceId := 0;
   R0 := nil;
   R1 := nil;
-  UnReliableRData := False;
   old_data := nil;
   new_data := nil;
+  UniqueClusteredKeys := nil;
 
   deleteFromUpdate := False;
   isMixData := False;
@@ -4097,6 +4309,1008 @@ begin
 
   inherited;
 end;
+
+{ TPageidGroup }
+
+function TPageidGroup.Add(value: DWORD): Cardinal;
+begin
+  if fSize >= Length(Fbuff) then
+  begin
+    SetLength(Fbuff, Length(Fbuff) + Fcapacity);
+  end;
+
+  Fbuff[fSize] := value;
+  Result := fSize;
+  fSize := fSize + 1;
+end;
+
+constructor TPageidGroup.Create(pageid:TPage_Id; capacity: Cardinal);
+begin
+  Fcapacity := capacity;
+  fSize := 0;
+  SetLength(Fbuff, capacity);
+  Fid := pageid.FID;
+  Pid := pageid.PID;
+end;
+
+destructor TPageidGroup.Destroy;
+begin
+  SetLength(Fbuff, 0);
+  inherited;
+end;
+
+function TPageidGroup.GetItem(Index: Integer): Cardinal;
+begin
+  Result := Fbuff[Index];
+end;
+
+{ TSql2014logAnalyzerThread }
+
+constructor TSql2014logAnalyzerThread.Create(logsource:TLogSource;Transpkg: TTransPkg);
+begin
+  inherited Create(True);
+  FTranspkg := Transpkg;
+  Flogsource:=logsource;
+  isdone := False;
+  startIdx := 0;
+  stopIdx := 0;
+
+  FOpts := TObjectList.Create;
+  FMixPending:=TList.Create;
+end;
+
+destructor TSql2014logAnalyzerThread.Destroy;
+begin
+  FMixPending.Free;
+  FOpts.Free;
+  inherited;
+end;
+
+procedure TSql2014logAnalyzerThread.Execute;
+var
+  I,J:Integer;
+  TTpi :TTransPkgItem;
+  tmpPg: TPageidGroup;
+  DataRow_buf:Tsql2014Opt;
+  TmpBinReader: TbinDataReader;
+begin
+  Flogsource.Loger.Add('------>TSql2014logAnalyzerThread run..%d-%d', [startIdx, stopIdx]);
+  for I := startIdx to stopIdx - 1 do
+  begin
+    tmpPg := TPageidGroup(idsLst[I]);
+    for J := 0 to tmpPg.Count-1 do
+    begin
+      CurProcesspkgIdx := tmpPg.Fbuff[J];
+      TTpi := TTransPkgItem(FTranspkg.Items[CurProcesspkgIdx]);
+      PriseRowLog(TTpi);
+    end;
+  end;
+
+  for I := 0 to FOpts.Count - 1 do
+  begin
+    DataRow_buf := Tsql2014Opt(FOpts[i]);
+    if DataRow_buf.deleteFlag or DataRow_buf.isMixData then
+    begin
+      Continue;
+    end;
+    if DataRow_buf.R0<>nil then
+    begin
+      TmpBinReader := TbinDataReader.Create(DataRow_buf.R0, $2000);
+      try
+        DataRow_buf.new_data := PriseRowLog_InsertDeleteRowData(DataRow_buf.table, TmpBinReader);
+      finally
+        TmpBinReader.Free;
+      end;
+      if DataRow_buf.R1 <> nil then
+      begin
+        TmpBinReader := TbinDataReader.Create(DataRow_buf.R1, $2000);
+        try
+          DataRow_buf.old_data := PriseRowLog_InsertDeleteRowData(DataRow_buf.table, TmpBinReader);
+        finally
+          TmpBinReader.Free;
+        end;
+      end;
+    end;
+  end;
+
+  isdone := True;
+end;
+
+procedure TSql2014logAnalyzerThread.PriseRowLog(tPkg: TTransPkgItem);
+var
+  Rl: PRawLog;
+begin
+  Rl := tPkg.Raw.data;
+  try
+    if Rl.OpCode = LOP_INSERT_ROWS then //新增
+    begin
+      PriseRowLog_Insert(tPkg);
+    end
+    else if Rl.OpCode = LOP_DELETE_ROWS then  //删除
+    begin
+      PriseRowLog_Delete(tPkg);
+    end
+    else if Rl.OpCode = LOP_MODIFY_ROW then  //修改单个块
+    begin
+      PriseRowLog_MODIFY_ROW(tPkg);
+    end
+    else if Rl.OpCode = LOP_MODIFY_COLUMNS then  //修改多个块
+    begin
+      PriseRowLog_MODIFY_COLUMNS(tPkg);
+    end else if Rl.OpCode = LOP_FORMAT_PAGE then  //页初始化，select into是直接整页写入
+    begin
+//      PriseRowLOP_FORMAT_PAGE(tPkg);
+    end;
+  except
+    on E: Exception do
+    begin
+      FLogSource.Loger.Add(E.Message + '-->LSN:' + lsn2str(tPkg.LSN), LOG_ERROR);
+    end;
+  end;
+end;
+
+procedure TSql2014logAnalyzerThread.PriseRowLog_Insert(tPkg: TTransPkgItem);
+var
+  Rldo: PRawLog_DataOpt;
+  R_: array of TBytes;
+  R_Info: array of TRawElement;
+  I: Integer;
+  BinReader: TbinDataReader;
+  TableId: Integer;
+  DbTable: TdbTableItem;
+  DataRow: Tsql2014Opt;
+  TmpCPnt:UIntPtr;
+  TmpSize:Cardinal;
+begin
+  DataRow := nil;
+  Rldo := tPkg.Raw.data;
+  if Rldo.normalData.ContextCode in [LCX_HEAP,//堆表写入(没有聚合索引的表
+    LCX_CLUSTERED, //聚合写入
+    LCX_TEXT_TREE, LCX_TEXT_MIX //行分块数据 image,text,ntext之类的
+    ] then
+  begin
+    if (Rldo.normalData.FlagBits and 1)>0 then
+    begin
+      //Rollback tran
+      //COMPENSATION    恢复事务中Delete的数据
+      for I := FOpts.Count - 1 downto 0 do
+      begin
+        DataRow := Tsql2014Opt(FOpts[i]);
+        if (DataRow.page.PID = Rldo.pageId.PID) and
+          (DataRow.page.FID = Rldo.pageId.FID) and
+          (DataRow.page.solt = Rldo.pageId.solt) then
+        begin
+          //撤销之前的数据
+          if DataRow.OperaType = Opt_Insert then
+          begin
+            //insert的数据。delete然后回滚delete
+            DataRow.deleteFlag := False;
+
+            TmpCPnt :=  UIntPtr(Rldo)+ SizeOf(TRawLog_DataOpt) ;
+            TmpSize := PWord(TmpCPnt)^;
+            TmpCPnt := TmpCPnt + Rldo.NumElements*2;
+            TmpCPnt := (TmpCPnt + 3) and $FFFFFFFC;
+
+            //只读第一个块放进buf就是了
+            if DataRow.R0<>nil then
+              FreeMemory(DataRow.R0);
+            DataRow.R0 := GetMemory($2000);
+            Move(Pointer(TmpCPnt)^, DataRow.R0^, TmpSize);
+          end else if DataRow.deleteFromUpdate then
+          begin
+            DataRow.OperaType := Opt_Update;
+          end else
+          begin
+            //delete 然后回滚
+            FOpts.Delete(i);
+          end;
+
+          Break;
+        end
+      end;
+    end else begin
+      SetLength(R_, Rldo.NumElements);
+      SetLength(R_Info, Rldo.NumElements);
+      BinReader := TbinDataReader.Create(tPkg.Raw);
+      try
+        BinReader.seek(SizeOf(TRawLog_DataOpt), soBeginning);
+        for I := 0 to Rldo.NumElements - 1 do
+        begin
+          R_Info[I].Length := BinReader.readWord;
+        end;
+        BinReader.alignTo4;
+        for I := 0 to Rldo.NumElements - 1 do
+        begin
+          if R_Info[I].Length > 0 then
+          begin
+            R_Info[I].Offset := BinReader.Position;
+            R_[I] := BinReader.readBytes(R_Info[I].Length);
+            BinReader.alignTo4;
+          end;
+        end;
+        //一般是 3 块数据 (可以有N个块
+        //1至n-2. 真实写入的数据
+        //n-1. 0 聚合索引信息（对于Insert日志，此值保持null
+        //n. 表信息 (LCX_TEXT_TREE可能不包含此信息
+        if R_Info[Rldo.NumElements - 1].Length <> 0 then
+        begin
+          BinReader.SetRange(R_Info[Rldo.NumElements - 1].Offset, R_Info[Rldo.NumElements - 1].Length);
+          BinReader.skip(6);
+          TableId := BinReader.readInt;
+          DbTable := FLogSource.Fdbc.dict.tables.GetItemById(TableId);
+          if DbTable = nil then
+          begin
+            //忽略的表
+            Exit;
+          end;
+        end else begin
+          //LCX_TEXT_TREE
+          if (Rldo.normalData.ContextCode = LCX_TEXT_TREE) or
+             (Rldo.normalData.ContextCode = LCX_TEXT_MIX) then
+          begin
+            DbTable := nil;
+          end else begin
+            //Move Page
+            exit
+          end;
+        end;
+
+        if (PByte(UIntPtr(Rldo) + R_Info[0].offset)^ and $02) = 2 then
+        begin
+          //FORWARDED_RECORD
+          exit;
+        end;
+
+        DataRow := Tsql2014Opt.Create;
+        DataRow.___sourceId := CurProcesspkgIdx;
+        DataRow.OperaType := Opt_Insert;
+        DataRow.page := Rldo.pageId;
+        DataRow.table := DbTable;
+        DataRow.R0 := GetMemory($2000);
+        Move(Pointer(UIntPtr(Rldo)+R_Info[0].Offset)^, DataRow.R0^, R_Info[0].Length);
+        if Rldo.normalData.ContextCode in [LCX_TEXT_TREE, LCX_TEXT_MIX] then
+        begin
+          DataRow.isMixData := True;
+        end;
+        FOpts.Add(DataRow);
+      finally
+         BinReader.Free;
+      end;
+    end;
+  end;
+end;
+
+procedure TSql2014logAnalyzerThread.PriseRowLog_Delete(tPkg: TTransPkgItem);
+var
+  Rldo: PRawLog_DataOpt;
+  BinReader: TbinDataReader;
+  R_: array of TBytes;
+  R_Info: array of TRawElement;
+  I: Integer;
+  TableId: Integer;
+  DbTable: TdbTableItem;
+  DataRow: Tsql2014Opt;
+  TmpCPnt:UIntPtr;
+  TmpSize:Cardinal;
+begin
+  DataRow := nil;
+  Rldo := tPkg.Raw.data;
+  case Rldo.normalData.ContextCode of
+    LCX_MARK_AS_GHOST, LCX_CLUSTERED, LCX_HEAP:
+      begin
+        if (Rldo.normalData.FlagBits and 1) > 0 then
+        begin
+            //rollback tran
+            //COMPENSATION    删除事务中insert的数据
+          for I := FOpts.Count - 1 downto 0 do
+          begin
+            DataRow := Tsql2014Opt(FOpts[I]);
+            if (DataRow.page.PID = Rldo.pageId.PID) and (DataRow.page.FID = Rldo.pageId.FID) and (DataRow.page.solt = Rldo.pageId.solt) then
+            begin
+              //撤销之前的数据
+              FOpts.Delete(I);
+              Break;
+            end
+          end;
+        end
+        else
+        begin
+            //删除前，先查找下之前有没有对本行数据的操作（insert或Update，有则取消之前操作
+          for I := FOpts.Count - 1 downto 0 do
+          begin
+            DataRow := Tsql2014Opt(FOpts[I]);
+            if (DataRow.page.PID = Rldo.pageId.PID) and (DataRow.page.FID = Rldo.pageId.FID) and (DataRow.page.solt = Rldo.pageId.solt) then
+            begin
+                //撤销之前的数据
+              if DataRow.OperaType = Opt_Insert then
+              begin
+                DataRow.deleteFlag := True;
+                  //同一个事务中先insert然后再delete(
+                Exit;
+              end
+              else
+              begin
+                 //同一个事务中先update然后再delete(
+
+                //操作性质变更
+                DataRow.deleteFromUpdate := True;     //如果此删除回滚，用于还原之前的Update状态
+                DataRow.OperaType := Opt_Delete;
+                  //替换R0
+                TmpCPnt := UIntPtr(Rldo) + SizeOf(TRawLog_DataOpt);
+                TmpSize := PWord(TmpCPnt)^;
+                TmpCPnt := TmpCPnt + Rldo.NumElements * 2;
+                TmpCPnt := (TmpCPnt + 3) and $FFFFFFFC;
+
+                  //只读第一个块放进buf就是了
+                if DataRow.R0 <> nil then
+                  FreeMemory(DataRow.R0);
+                DataRow.R0 := GetMemory($2000);
+                Move(Pointer(TmpCPnt)^, DataRow.R0^, TmpSize);
+                Exit;
+              end;
+            end
+          end;
+
+          SetLength(R_, Rldo.NumElements);
+          SetLength(R_Info, Rldo.NumElements);
+          BinReader := TbinDataReader.Create(tPkg.Raw);
+          try
+            BinReader.seek(SizeOf(TRawLog_DataOpt), soBeginning);
+            for I := 0 to Rldo.NumElements - 1 do
+            begin
+              R_Info[I].Length := BinReader.readWord;
+            end;
+            BinReader.alignTo4;
+            for I := 0 to Rldo.NumElements - 1 do
+            begin
+              if R_Info[I].Length > 0 then
+              begin
+                R_Info[I].offset := BinReader.Position;
+                R_[I] := BinReader.readBytes(R_Info[I].Length);
+                BinReader.alignTo4;
+              end;
+            end;
+            //一般是 2 块数据
+            //1. 删除的行数据
+            //2. 表信息
+            if (Pbyte(UIntPtr(Rldo) + R_Info[0].offset)^ and $F) > 0 then
+            begin
+              //not primary record
+              Exit;
+            end;
+
+            BinReader.SetRange(R_Info[1].offset, R_Info[1].Length);
+            BinReader.skip(6);
+            TableId := BinReader.readInt;
+            DbTable := FLogSource.Fdbc.dict.tables.GetItemById(TableId);
+            if DbTable = nil then
+            begin
+              //忽略的表
+              Exit;
+            end;
+
+            //开始读取R0
+            DataRow := Tsql2014Opt.Create;
+            DataRow.OperaType := Opt_Delete;
+            DataRow.page := Rldo.pageId;
+            DataRow.table := DbTable;
+            DataRow.R0 := GetMemory($2000);
+            Move(Pointer(UIntPtr(Rldo) + R_Info[0].offset)^, DataRow.R0^, R_Info[0].Length);
+            FOpts.Add(DataRow);
+          finally
+            if BinReader <> nil then
+              BinReader.Free;
+          end;
+
+        end;
+      end;
+    LCX_TEXT_MIX:
+      begin
+        //可以忽略的。删除行数据的时候这个会自动删除掉
+      end;
+  end;
+end;
+
+procedure TSql2014logAnalyzerThread.applyUpdateChange(srcData, pdata: Pointer; offset, size_old, size_new, datarowCnt: Integer);
+var
+  tmpdata:Pointer;
+  tmpLen:Integer;
+begin
+  //回滚一个修改
+  if size_old = size_new then
+  begin
+    Move(pdata^, Pointer(uintptr(srcData) + offset)^, size_old);
+  end
+  else begin
+    if size_old < size_new then
+    begin
+      //数据后移
+      tmpLen := datarowCnt - offset;
+      if tmpLen > 0 then
+      begin
+        tmpdata := AllocMem(tmpLen);
+        Move(Pointer(uintptr(srcData) + offset)^, tmpdata^, tmpLen);
+        Move(tmpdata^, Pointer(uintptr(srcData) + offset + (size_new - size_old))^, tmpLen);
+        FreeMem(tmpdata);
+      end;
+      Move(pdata^, Pointer(uintptr(srcData) + offset)^, size_new);
+    end else begin
+      //前移
+      tmpLen := datarowCnt - offset;
+      tmpdata := AllocMem(tmpLen);
+      Move(Pointer(uintptr(srcData) + offset)^, tmpdata^, tmpLen);
+      Move(Pointer(uintptr(tmpdata) + (size_old - size_new))^, Pointer(uintptr(srcData) + offset)^, tmpLen - (size_old - size_new));
+      Move(pdata^, Pointer(uintptr(srcData) + offset)^, size_new);
+      FreeMem(tmpdata);
+    end;
+    if Pbyte(srcData)^ = $0008 then
+    begin
+      //mix data
+      tmpLen := datarowCnt + size_new - size_old;
+      PWord(uintptr(srcData) + 2)^ := tmpLen;
+    end;
+  end;
+end;
+
+procedure TSql2014logAnalyzerThread.PriseRowLog_MODIFY_ROW(tPkg: TTransPkgItem);
+var
+  Rldo: PRawLog_DataOpt;
+  R_: array of TBytes;
+  R_Info: array of TRawElement;
+  BinReader: TbinDataReader;
+  I:Integer;
+  OriginRowData:TBytes;
+  TableId: Integer;
+  DbTable: TdbTableItem;
+  tmpdata:Pointer;
+  DataRow_buf: Tsql2014Opt;
+  RawDataLen:Integer;
+  Rawssssss:TTransPkgItem;
+begin
+  BinReader := nil;
+  DataRow_buf := nil;
+  Rldo := tPkg.Raw.data;
+  try
+    case Rldo.normalData.ContextCode of
+      LCX_HEAP, //堆表写入
+      LCX_CLUSTERED, //聚合写入
+      LCX_TEXT_TREE, LCX_TEXT_MIX:
+        begin
+          SetLength(R_, Rldo.NumElements);
+          SetLength(R_Info, Rldo.NumElements);
+          BinReader := TbinDataReader.Create(tPkg.Raw);
+          BinReader.seek(SizeOf(TRawLog_DataOpt), soBeginning);
+          for I := 0 to Rldo.NumElements - 1 do
+          begin
+            R_Info[I].Length := BinReader.readWord;
+          end;
+          BinReader.alignTo4;
+          for I := 0 to Rldo.NumElements - 1 do
+          begin
+            if R_Info[I].Length > 0 then
+            begin
+              R_Info[I].Offset := BinReader.Position;
+              R_[I] := BinReader.readBytes(R_Info[I].Length);
+              BinReader.alignTo4;
+            end;
+          end;
+          //一般是 6 块数据
+          //0, 旧数据
+          //1. 新数据
+          //2. 聚合索引信息
+          //3. 表信息
+          //4. 0
+          //5. 0
+          if (Rldo.normalData.FlagBits and 1) > 0 then
+          begin
+            //COMPENSATION
+            for I := FOpts.Count - 1 downto 0 do
+            begin
+              DataRow_buf := Tsql2014Opt(FOpts[i]);
+              if (DataRow_buf.page.PID = Rldo.pageId.PID) and
+                (DataRow_buf.page.FID = Rldo.pageId.FID) and
+                (DataRow_buf.page.solt = Rldo.pageId.solt) then
+              begin
+                //找到页，修正页数据
+                if (DataRow_buf.OperaType = Opt_Update) or (DataRow_buf.OperaType=Opt_Insert) then
+                begin
+                  RawDataLen := PageRowCalcLength(DataRow_buf.R0);
+                  applyUpdateChange(DataRow_buf.R0, R_[1], Rldo.OffsetInRow, Rldo.ModifySize, R_Info[1].Length, RawDataLen);
+                end else if DataRow_buf.OperaType=Opt_Insert then
+                begin
+                  RawDataLen := PageRowCalcLength(DataRow_buf.R0);
+                  applyUpdateChange(DataRow_buf.R0, R_[1], Rldo.OffsetInRow, Rldo.ModifySize, R_Info[1].Length, RawDataLen);
+                end;
+                Break;
+              end
+            end;
+          end else begin
+            for I := FOpts.Count - 1 downto 0 do
+            begin
+              DataRow_buf := Tsql2014Opt(FOpts[i]);
+              if (DataRow_buf.page.PID = Rldo.pageId.PID) and
+                (DataRow_buf.page.FID = Rldo.pageId.FID) and
+                (DataRow_buf.page.solt = Rldo.pageId.solt) then
+              begin
+                if DataRow_buf.OperaType = Opt_Update then
+                begin
+                  //Update后再update
+                  RawDataLen := PageRowCalcLength(DataRow_buf.R0);
+                  applyUpdateChange(DataRow_buf.R0, R_[1], Rldo.OffsetInRow, Rldo.ModifySize, R_Info[1].Length, RawDataLen);
+                end
+                else if DataRow_buf.OperaType = Opt_Insert then
+                begin
+                  //先insert再update的
+                  RawDataLen := PageRowCalcLength(DataRow_buf.R0);
+                  applyUpdateChange(DataRow_buf.R0, R_[1], Rldo.OffsetInRow, R_Info[0].Length, R_Info[1].Length, RawDataLen);
+                end
+                else if DataRow_buf.OperaType = Opt_Delete then
+                begin
+                  //这肯定是删除了数据然后又回滚了的（R0中包含了当前行的完整数据
+                  //^^^^^delete然后回滚，操作会被删除掉，到不了这里
+//                  DataRow_buf.OperaType := Opt_Update;
+//                  DataRow_buf.deleteFlag := False;
+//                  RawDataLen := PageRowCalcLength(DataRow_buf.R0);
+//                  applyUpdateChange(DataRow_buf.R0, R_[1], Rldo.OffsetInRow, R_Info[0].Length, R_Info[1].Length, RawDataLen);
+                end;
+                exit;
+              end
+            end;
+
+            BinReader.SetRange(R_Info[3].Offset, R_Info[3].Length);
+            BinReader.skip(6);
+            TableId := BinReader.readInt;
+            DbTable := FLogSource.Fdbc.dict.tables.GetItemById(TableId);
+            if DbTable = nil then
+            begin
+              //忽略的表
+              Exit;
+            end;
+
+            if FLogSource.FFFFIsDebug then
+            begin
+              for I := 0 to FLogSource.pageDatalist.Count - 1 do
+              begin
+                Rawssssss := TTransPkgItem(FLogSource.pageDatalist[I]);
+                if (Rawssssss.LSN.LSN_1 = tPkg.LSN.LSN_1) and (Rawssssss.LSN.LSN_2 = tPkg.LSN.LSN_2) and (Rawssssss.LSN.LSN_3 = tPkg.LSN.LSN_3) then
+                begin
+                  SetLength(OriginRowData, Rawssssss.Raw.dataSize);
+                  CopyMemory(@OriginRowData[0], Rawssssss.Raw.data, Rawssssss.Raw.dataSize);
+                end;
+              end;
+            end
+            else
+            begin
+              OriginRowData := pc__PageCache.getUpdateSoltData(FLogSource.Fdbc, tPkg.LSN, Rldo.pageId, FTranspkg);
+              if OriginRowData = nil then
+                OriginRowData := getUpdateSoltData(FLogSource.Fdbc, Rldo.normalData.PreviousLSN);
+            end;
+
+            if OriginRowData = nil then
+            begin
+              FLogSource.Loger.Add('获取行原始数据失败！' + lsn2str(tPkg.LSN) + ',pLSN:' + lsn2str(Rldo.normalData.PreviousLSN), LOG_WARNING or LOG_IMPORTANT);
+              Exit;
+            end
+            else if OriginRowData[0] = 4 then
+            begin
+              //FORWARDING_STUB
+              Exit;
+            end;
+
+            DataRow_buf := Tsql2014Opt.Create;
+            try
+              if (DbTable.UniqueClusteredKeys.Count>0) and (R_Info[2].Length > 0) then
+              begin
+                //读取UniqueClusteredKeys
+                BinReader.SetRange(R_Info[2].Offset, R_Info[2].Length);
+                DataRow_buf.UniqueClusteredKeys := BinReader.readBytes(R_Info[2].Length);
+              end;
+
+              DataRow_buf.OperaType := Opt_Update;
+              DataRow_buf.page := Rldo.pageId;
+              DataRow_buf.table := DbTable;
+
+              //before
+              tmpdata := GetMemory($2000);
+              Move(OriginRowData[0], tmpdata^, Length(OriginRowData));
+              RawDataLen := PageRowCalcLength(tmpdata);
+              applyUpdateChange(tmpdata, R_[0], Rldo.OffsetInRow, R_Info[1].Length, R_Info[0].Length, RawDataLen);
+              DataRow_buf.R1 := tmpdata;
+              //after
+              tmpdata := GetMemory($2000);
+              Move(OriginRowData[0], tmpdata^, Length(OriginRowData));
+              DataRow_buf.R0 := tmpdata;
+              if Rldo.normalData.ContextCode in [LCX_TEXT_TREE, LCX_TEXT_MIX] then
+              begin
+                DataRow_buf.isMixData := True;
+              end;
+              FOpts.Add(DataRow_buf);
+            except
+              DataRow_buf.Free;
+            end;
+            SetLength(OriginRowData, 0);
+          end;
+        end;
+    else
+    end;
+  finally
+    if BinReader <> nil then
+      BinReader.Free;
+  end;
+end;
+
+procedure TSql2014logAnalyzerThread.PriseRowLog_MODIFY_COLUMNS(tPkg: TTransPkgItem);
+var
+  Rldo: PRawLog_DataOpt;
+  R_: array of TBytes;
+  R_Info: array of TRawElement;
+  BinReader: TbinDataReader;
+  I, J:Integer;
+  OriginRowData:TBytes;
+  OffsetInRow:Word;
+  TableId: Integer;
+  DbTable: TdbTableItem;
+  DataRow_buf: Tsql2014Opt;
+  tmpdata:Pointer;
+  RawDataLen:Integer;
+  tmpLen:Word;
+  Rawssssss :TTransPkgItem;
+begin
+  BinReader := nil;
+  Rldo := tPkg.Raw.data;
+  try
+    case Rldo.normalData.ContextCode of
+      LCX_HEAP, //堆表写入
+      LCX_CLUSTERED, //聚合写入
+      LCX_TEXT_TREE, LCX_TEXT_MIX:
+        begin
+          SetLength(R_, Rldo.NumElements);
+          SetLength(R_Info, Rldo.NumElements);
+          BinReader := TbinDataReader.Create(tPkg.Raw);
+          BinReader.seek(SizeOf(TRawLog_DataOpt), soBeginning);
+          for I := 0 to Rldo.NumElements - 1 do
+          begin
+            R_Info[I].Length := BinReader.readWord;
+          end;
+          BinReader.alignTo4;
+          for I := 0 to Rldo.NumElements - 1 do
+          begin
+            if R_Info[I].Length > 0 then
+            begin
+              R_Info[I].Offset := BinReader.Position;
+              R_[I] := BinReader.readBytes(R_Info[I].Length);
+              BinReader.alignTo4;
+            end;
+          end;
+          (*
+          0:更新的Offset
+          1:更新的大小
+          2:聚集索引信息
+          3:锁信息，object_id和 lock_key
+          --之后是修改的内容，类似Log_MODIFY_ROW的r0和r1
+          每2个为一组，至少有2组
+          *)
+
+          if (Rldo.normalData.FlagBits and 1) > 0 then
+          begin
+            //COMPENSATION
+            for I := FOpts.Count - 1 downto 0 do
+            begin
+              DataRow_buf := Tsql2014Opt(FOpts[i]);
+              if (DataRow_buf.page.PID = Rldo.pageId.PID) and
+                (DataRow_buf.page.FID = Rldo.pageId.FID) and
+                (DataRow_buf.page.solt = Rldo.pageId.solt) then
+              begin
+                //找到页，修正页数据
+                if DataRow_buf.OperaType = Opt_Update then
+                begin
+                  RawDataLen := PageRowCalcLength(DataRow_buf.R0);
+                  for J := 0 to ((Rldo.NumElements - 4) div 2) - 1 do
+                  begin
+                    OffsetInRow := Pword(UIntPtr(R_[0]) + J * 4)^;
+                    tmpLen := Pword(UIntPtr(R_[1]) + J * 2)^;
+                    applyUpdateChange(DataRow_buf.R0, R_[4 + J * 2 + 1], OffsetInRow, tmpLen, R_Info[4 + J * 2 + 1].Length, RawDataLen);
+                    RawDataLen := RawDataLen + (R_Info[4 + J * 2 + 1].Length - tmpLen);
+                  end;
+                end else if DataRow_buf.OperaType=Opt_Insert then
+                begin
+                  RawDataLen := PageRowCalcLength(DataRow_buf.R0);
+                  for J := 0 to ((Rldo.NumElements - 4) div 2) - 1 do
+                  begin
+                    OffsetInRow := Pword(UIntPtr(R_[0]) + J * 4)^;
+                    tmpLen := Pword(UIntPtr(R_[1]) + J * 2)^;
+                    applyUpdateChange(DataRow_buf.R0, R_[4 + J * 2 + 1], OffsetInRow, tmpLen, R_Info[4 + J * 2 + 1].Length, RawDataLen);
+                    RawDataLen := RawDataLen + (R_Info[4 + J * 2 + 1].Length - tmpLen);
+                  end;
+                end;
+                Break;
+              end
+            end;
+          end else begin
+            for I := FOpts.Count - 1 downto 0 do
+            begin
+              DataRow_buf := Tsql2014Opt(FOpts[i]);
+              if (DataRow_buf.page.PID = Rldo.pageId.PID) and
+                (DataRow_buf.page.FID = Rldo.pageId.FID) and
+                (DataRow_buf.page.solt = Rldo.pageId.solt) then
+              begin
+                //找到页，修正页数据
+                if DataRow_buf.OperaType = Opt_Update then
+                begin
+                  if (DataRow_buf.R0<>nil) then
+                  begin
+                    RawDataLen := PageRowCalcLength(DataRow_buf.R0);
+                    for J := 0 to ((Rldo.NumElements - 4) div 2) - 1 do
+                    begin
+                      OffsetInRow := Pword(UIntPtr(R_[0]) + J * 4 + 2)^;
+                      applyUpdateChange(DataRow_buf.R0, R_[4 + J * 2 + 1], OffsetInRow, R_Info[4 + J * 2].Length, R_Info[4 + J * 2 + 1].Length, RawDataLen);
+                      RawDataLen := RawDataLen + (R_Info[4 + J * 2 + 1].Length - R_Info[4 + J * 2].Length);
+                    end;
+                  end;
+                end else if DataRow_buf.OperaType=Opt_Insert then
+                begin
+                  RawDataLen := PageRowCalcLength(DataRow_buf.R0);
+                  for J := 0 to ((Rldo.NumElements - 4) div 2) - 1 do
+                  begin
+                    OffsetInRow := Pword(UIntPtr(R_[0]) + J * 4 + 2)^;
+                    applyUpdateChange(DataRow_buf.R0, R_[4 + J * 2 + 1], OffsetInRow, R_Info[4 + J * 2].Length, R_Info[4 + J * 2 + 1].Length, RawDataLen);
+                    RawDataLen := RawDataLen + (R_Info[4 + J * 2 + 1].Length - R_Info[4 + J * 2].Length);
+                  end;
+                end else  if DataRow_buf.OperaType=Opt_Delete then
+                begin
+                  //这肯定是删除了数据然后又回滚了的（R0中包含了当前行的完整数据
+                  DataRow_buf.OperaType := Opt_Update;
+                  DataRow_buf.deleteFlag := False;
+                  RawDataLen := PageRowCalcLength(DataRow_buf.R0);
+                  for J := 0 to ((Rldo.NumElements - 4) div 2) - 1 do
+                  begin
+                    OffsetInRow := Pword(UIntPtr(R_[0]) + J*4 + 2)^;
+                    applyUpdateChange(DataRow_buf.R0, R_[4 + J * 2 + 1], OffsetInRow,
+                      R_Info[4 + J * 2].Length, R_Info[4 + J * 2 + 1].Length, RawDataLen);
+                    RawDataLen := RawDataLen + (R_Info[4 + J * 2 + 1].Length - R_Info[4 + J * 2].Length);
+                  end;
+                end;
+                exit;
+              end
+            end;
+
+            BinReader.SetRange(R_Info[3].Offset, R_Info[3].Length);
+            BinReader.skip(6);
+            TableId := BinReader.readInt;
+            DbTable := FLogSource.Fdbc.dict.tables.GetItemById(TableId);
+            if DbTable = nil then
+            begin
+              //忽略的表
+              Exit;
+            end;
+
+            if FLogSource.FFFFIsDebug then
+            begin
+              for I := 0 to FLogSource.pageDatalist.Count-1 do
+              begin
+                Rawssssss := TTransPkgItem(FLogSource.pageDatalist[I]);
+                if (Rawssssss.LSN.LSN_1 = tPkg.LSN.LSN_1) and (Rawssssss.LSN.LSN_2 = tPkg.LSN.LSN_2) and (Rawssssss.LSN.LSN_3 = tPkg.LSN.LSN_3) then
+                begin
+                  SetLength(OriginRowData, Rawssssss.Raw.dataSize);
+                  CopyMemory(@OriginRowData[0], Rawssssss.Raw.data, Rawssssss.Raw.dataSize);
+                end;
+              end;
+            end else begin
+              OriginRowData := pc__PageCache.getUpdateSoltData(FLogSource.Fdbc, tPkg.LSN, Rldo.pageId, FTranspkg);
+              if OriginRowData = nil then
+                OriginRowData := getUpdateSoltData(FLogSource.Fdbc, Rldo.normalData.PreviousLSN);
+            end;
+            if OriginRowData = nil then
+            begin
+              FLogSource.Loger.Add('获取行原始数据失败！' + lsn2str(tPkg.LSN) + ',pLSN:' + lsn2str(Rldo.normalData.PreviousLSN), LOG_WARNING or LOG_IMPORTANT);
+              Exit;
+            end else if OriginRowData[0] = 4 then
+            begin
+              //FORWARDING_STUB
+              DataRow_buf.Free;
+              Exit;
+            end;
+
+            DataRow_buf := Tsql2014Opt.Create;
+            try
+              if (DbTable.UniqueClusteredKeys.Count>0) and (R_Info[2].Length > 0) then
+              begin
+                //读取UniqueClusteredKeys
+                BinReader.SetRange(R_Info[2].Offset, R_Info[2].Length);
+                DataRow_buf.UniqueClusteredKeys := BinReader.readBytes(R_Info[2].Length);
+              end;
+              //OriginRowData 是修改后的行数据
+              DataRow_buf.OperaType := Opt_Update;
+              DataRow_buf.page := Rldo.pageId;
+              DataRow_buf.table := DbTable;
+
+              //after
+              tmpdata := GetMemory($2000);
+              Move(OriginRowData[0], tmpdata^, Length(OriginRowData));
+              DataRow_buf.R0 := tmpdata;
+
+              //before、回滚到修改之前的状态
+              tmpdata := GetMemory($2000);
+              Move(OriginRowData[0], tmpdata^, Length(OriginRowData));
+              RawDataLen := PageRowCalcLength(tmpdata);
+              for I := 0 to ((Rldo.NumElements - 4) div 2) - 1 do
+              begin
+                OffsetInRow := Pword(UIntPtr(R_[0]) + I * 4)^;
+                applyUpdateChange(tmpdata, R_[4 + I * 2], OffsetInRow, R_Info[4 + I * 2 + 1].Length, R_Info[4 + I * 2].Length, RawDataLen);
+                RawDataLen := RawDataLen + (R_Info[4 + I * 2].Length - R_Info[4 + I * 2 + 1].Length);
+              end;
+              DataRow_buf.R1 := tmpdata;
+              FOpts.Add(DataRow_buf);
+            except
+              DataRow_buf.Free;
+            end;
+          end;
+        end;
+    else
+    end;
+  finally
+    if BinReader <> nil then
+      BinReader.Free;
+  end;
+end;
+
+function TSql2014logAnalyzerThread.PriseRowLog_InsertDeleteRowData(DbTable: TdbTableItem; BinReader: TbinDataReader): Tsql2014RowData;
+var
+  I: Integer;
+  InsertRowFlag: Word;
+  TmpInt: Integer;
+  ColCnt: Word;
+  DataRow: Tsql2014RowData;
+  nullMap: TBytes;
+  VarFieldValEndOffset: array of Word;
+  VarFieldValBase: Cardinal;  //var 字段值开始位置
+  boolbit: Integer;
+  aField: TdbFieldItem;
+  Idx, b: Integer;
+  val_begin, val_len: Cardinal;
+  fieldval: PdbFieldValue;
+begin
+  InsertRowFlag := BinReader.readWord;
+  //DONE: 这里应该效验InsertRowFlag的特性  https://funning.fun/index.php/2018/11/28/sqlserver-datarow/
+  TmpInt := BinReader.readWord; //列数量的 Offset
+  BinReader.seek(TmpInt, soBeginning);
+  ColCnt := BinReader.readWord;
+  if ColCnt <> DbTable.Fields.Count then
+  begin
+    raise Exception.Create('实际列数与日志不匹配！这可能是修改表后造成的！放弃解析！');
+  end;
+  DataRow := Tsql2014RowData.Create(Self.FAnalyzerMain);
+  if (InsertRowFlag and $10) > 0 then
+  begin
+    //nullMap := BinReader.readBytes((DbTable.Fields.Count + 7) shr 3);
+    nullMap := BinReader.readBytes((ColCnt + 7) shr 3);
+  end
+  else
+  begin
+    //不包含NullData
+    nullMap := nil;
+  end;
+  if (InsertRowFlag and $20) > 0 then
+  begin
+    TmpInt := BinReader.readWord; //var 字段数量
+  end
+  else
+  begin
+    //不包含varData
+    TmpInt := 0;
+  end;
+  SetLength(VarFieldValEndOffset, TmpInt);
+  for I := 0 to TmpInt - 1 do
+  begin
+    VarFieldValEndOffset[I] := BinReader.readWord;
+  end;
+  VarFieldValBase := BinReader.getRangePosition;
+  boolbit := 0;
+  for I := 0 to DbTable.Fields.Count - 1 do
+  begin
+    aField := DbTable.Fields[I];
+    if not aField.isLogSkipCol then
+    begin
+      New(fieldval);
+      fieldval.field := aField;
+
+      if aField.is_nullable then
+      begin
+        Idx := aField.nullMap shr 3;
+        b := aField.nullMap and 7;
+        if (nullMap[Idx] and (1 shl b)) > 0 then  //值为null
+        begin
+          fieldval.value := nil;
+          fieldval.isNull := True;
+          DataRow.Fields.Add(fieldval);
+          Continue;
+        end;
+      end;
+
+      fieldval.isNull := False;
+      if aField.leaf_pos < 0 then
+      begin
+        // var Field
+        Idx := 0 - aField.leaf_pos - 1;
+        if Idx < Length(VarFieldValEndOffset) then
+        begin
+          if Idx = 0 then
+          begin
+            val_begin := VarFieldValBase;
+          end
+          else
+          begin
+            val_begin := (VarFieldValEndOffset[Idx - 1] and $7FFF);
+          end;
+          val_len := (VarFieldValEndOffset[Idx] and $7FFF) - val_begin;
+          if val_len = 0 then
+          begin
+            //空字符串
+            SetLength(fieldval.value,0);
+          end
+          else
+          begin
+            try
+              BinReader.seek(val_begin, soBeginning);
+              if (VarFieldValEndOffset[Idx] and $8000) > 0 then
+              begin
+                //如果最高位是1说明数据在LCX_TEXT_MIX包中
+                fieldval.value := BinReader.readBytes(val_len);
+                //fieldval.value := getDataFrom_TEXT_MIX(fieldval.value);
+                FMixPending.Add(fieldval);
+              end
+              else
+              begin
+                fieldval.value := BinReader.readBytes(val_len);
+              end;
+            except
+              on exx: Exception do
+              begin
+                Dispose(fieldval);
+                raise exx;
+              end;
+            end;
+          end;
+        end else begin
+          //空字符串
+          SetLength(fieldval.value,0);
+        end;
+      end
+      else
+      begin
+        //fixed Field
+        BinReader.seek(aField.leaf_pos, soBeginning);
+        try
+          fieldval.value := BinReader.readBytes(aField.Max_length);
+          if aField.type_id = MsTypes.BIT then
+          begin
+            if ((1 shl boolbit) and fieldval.value[0]) > 0 then
+            begin
+              fieldval.value[0] := 1;
+            end
+            else
+            begin
+              fieldval.value[0] := 0;
+            end;
+            boolbit := boolbit + 1;
+            if boolbit = 8 then
+              boolbit := 0;
+          end;
+        except
+          on exx: Exception do
+          begin
+            Dispose(fieldval);
+            raise exx;
+          end;
+        end;
+
+      end;
+      DataRow.Fields.Add(fieldval);
+    end;
+  end;
+  Result := DataRow;
+end;
+
 
 end.
 
