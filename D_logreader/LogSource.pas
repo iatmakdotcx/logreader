@@ -4,7 +4,7 @@ interface
 
 uses
   I_LogProvider, databaseConnection, p_structDefine, Types,
-  System.Classes, System.SyncObjs, System.Contnrs, loglog, I_LogSource;
+  System.Classes, System.SyncObjs, System.Contnrs, loglog, I_LogSource, dbDict;
 
 type
    TLogPicker = class(TThread)
@@ -38,7 +38,11 @@ type
     FFFFIsDebug:Boolean;
     pageDatalist:TObjectList;
     MainMSGDISPLAY:TLogMsgRCallMain;
+    //config
     UseDBPlugs:Boolean;
+    FilterType:Integer;
+    FilterList:TObjectList;
+
     constructor Create;
     destructor Destroy; override;
 
@@ -63,6 +67,7 @@ type
     function getCollationByName(Name: string): TSQLCollationItem; override;
     function getCollationByCodePage(codepage: Integer): TSQLCollationItem; override;
     function getDefCollation:TSQLCollationItem; override;
+    function GetTableById(TableId: Integer): TdbTableItem;
   end;
 
   TLogSourceList = class(TObject)
@@ -161,6 +166,7 @@ begin
 
   FVariantWithRealType := True;
   UseDBPlugs := False;
+  FilterList:=TObjectList.Create;
 end;
 
 function TLogSource.Create_picker(AutoRun:Boolean): Boolean;
@@ -189,6 +195,7 @@ end;
 
 destructor TLogSource.Destroy;
 begin
+  FilterList.Free;
   ClrLogSource;
   FRunCs.Free;
   pageDatalist.Free;
@@ -313,6 +320,40 @@ begin
   Result := FLogPicker.GetRawLogByLSN(LSN, OutBuffer);
 end;
 
+function TLogSource.GetTableById(TableId: Integer): TdbTableItem;
+var
+  I: Integer;
+begin
+  Result := Fdbc.dict.tables.GetItemById(TableId);
+  if (Result <> nil) and (FilterType > 0) and (Result.Owner <> 'sys') then
+  begin
+    if FilterType = 1 then
+    begin
+      //ÅÅ³ý
+      for I := 0 to FilterList.Count - 1 do
+      begin
+        if TtableFilterItem(FilterList[i]).check(Result.getFullName) then
+        begin
+          Result := nil;
+          Exit;
+        end;
+      end;
+    end
+    else if FilterType = 2 then
+    begin
+      //°üº¬
+      for I := 0 to FilterList.Count - 1 do
+      begin
+        if TtableFilterItem(FilterList[i]).check(Result.getFullName) then
+        begin
+          Exit;
+        end;
+      end;
+      Result := nil;
+    end;
+  end;
+end;
+
 function TLogSource.status: LS_STATUE;
 begin
   if Fdbc = nil then
@@ -369,7 +410,9 @@ end;
 var
   mmo: TMemoryStream;
   xmlDoc:IXMLDocument;
-  RootNode,xmlNode:IXMLNode;
+  RootNode,xmlNode,xxnode:IXMLNode;
+  I:Integer;
+  tfi:TtableFilterItem;
 begin
   Result := False;
   ClrLogSource;
@@ -405,6 +448,16 @@ begin
       //xmlNode := RootNode.ChildNodes['tables'];
       Fdbc.dict.fromXml(RootNode);
 
+      xmlNode := RootNode.ChildNodes['filter'];
+      FilterType := xmlNode.Attributes['type'];
+      for I := 0 to xmlNode.ChildNodes.Count-1 do
+      begin
+        xxnode := xmlNode.ChildNodes[I];
+        tfi := TtableFilterItem.Create;
+        tfi.filterType := xxnode.Attributes['b'];
+        tfi.valueStr := xxnode.Attributes['c'];
+        FilterList.Add(tfi);
+      end;
       Result := True;
       ReSetLoger;
     except
@@ -464,8 +517,9 @@ end;
 function TLogSource.saveToFile(aPath: string): Boolean;
 var
   xmlDoc:IXMLDocument;
-  RootNode,xmlNode:IXMLNode;
+  RootNode,xmlNode,xxxNode:IXMLNode;
   pathName:string;
+  I: Integer;
 begin
   Result := False;
   if aPath = '' then
@@ -480,6 +534,7 @@ begin
     RootNode := xmlDoc.AddChild('LogSource');
     RootNode.Attributes['Cdate'] := FormatDateTime('yyyy-MM-dd HH:nn:ss.zzz', Now);
     RootNode.Attributes['uid'] := uid;
+    RootNode.Attributes['UseDBPlugs'] := UseDBPlugs;
     RootNode.AddChild('LSN').Text := LSN2Str(FProcCurLSN);
 
     xmlNode := RootNode.AddChild('DBC');
@@ -491,7 +546,14 @@ begin
     xmlNode.Attributes['dbV1'] := Fdbc.dbVer_Major;
     xmlNode.Attributes['dbV2'] := Fdbc.dbVer_Minor;
     xmlNode.Attributes['dbV3'] := Fdbc.dbVer_BuildNumber;
-    //xmlNode := RootNode.AddChild('tables');
+    xmlNode := RootNode.AddChild('filter');
+    xmlNode.Attributes['type'] := FilterType;
+    for I := 0 to FilterList.Count -1 do
+    begin
+      xxxNode := xmlNode.AddChild('a');
+      xxxNode.Attributes['b'] := TtableFilterItem(FilterList[i]).filterType;
+      xxxNode.Attributes['c'] := TtableFilterItem(FilterList[i]).valueStr;
+    end;
     Fdbc.dict.toXml(RootNode);
     pathName := ExtractFilePath(aPath);
     if not DirectoryExists(pathName) then

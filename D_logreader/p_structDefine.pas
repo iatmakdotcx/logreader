@@ -260,6 +260,7 @@ type
     LCID: Integer;
   end;
 
+
 function LSN2Str(lsn: Tlog_LSN): string;
 
 function TranId2Str(trans: TTrans_Id): string;

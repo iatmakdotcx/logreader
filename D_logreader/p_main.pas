@@ -46,6 +46,8 @@ type
     CompareDictFromdb1: TMenuItem;
     ViewAllTable1: TMenuItem;
     Button3: TButton;
+    N8: TMenuItem;
+    N9: TMenuItem;
     procedure FormCreate(Sender: TObject);
     procedure btn_newCfgClick(Sender: TObject);
     procedure FormDestroy(Sender: TObject);
@@ -67,6 +69,7 @@ type
     procedure Button5Click(Sender: TObject);
     procedure ViewAllTable1Click(Sender: TObject);
     procedure Button3Click(Sender: TObject);
+    procedure N9Click(Sender: TObject);
   private
     MMO_LOGCS:TCriticalSection;
     MMO_LOGCSMSG:TStringList;
@@ -94,7 +97,7 @@ uses
   dbConnectionCfg, databaseConnection, p_structDefine, Memory_Common,
   MakCommonfuncs, loglog, sqlextendedprocHelper, XMLDoc, LogtransPkg, dbDict,
   LogtransPkgMgr, Sql2014logAnalyzer, p_tableview, pMakloadingFormB, Winapi.ActiveX,
-  pagecache;
+  pagecache,lscfg;
 
 {$R *.dfm}
 
@@ -511,6 +514,21 @@ end;
 procedure TForm1.N7Click(Sender: TObject);
 begin
   ListViewRefresh;
+end;
+
+procedure TForm1.N9Click(Sender: TObject);
+begin
+  if ListView1.Selected <> nil then
+  begin
+    frm_lscfg:=Tfrm_lscfg.create(nil);
+    try
+      frm_lscfg.logsource := ListView1.Selected.Data;
+      frm_lscfg.ShowModal;
+      frm_lscfg.logsource.saveToFile;
+    finally
+      frm_lscfg.Free;
+    end;
+  end;
 end;
 
 procedure TForm1.PluginMenuItemClick(Sender: TObject);

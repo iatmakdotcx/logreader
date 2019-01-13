@@ -124,10 +124,19 @@ type
     isNull:Boolean;
   end;
 
+  TtableFilterItem = class(TObject)
+  public
+    filterType:Integer;  //equal,endwith,startwith
+    valueStr:string;
+    function ToString: string;
+    function check(astr:string): Boolean;
+  end;
+
+
 implementation
 
 uses
-  loglog, Types, Variants, Xml.XMLDoc, dbFieldTypes;
+  loglog, Types, Variants, Xml.XMLDoc, dbFieldTypes, System.StrUtils;
 
 { TDbDict }
 
@@ -1041,6 +1050,48 @@ begin
       Result := '[GEOGRAPHY]';
   else
     Result := '';
+  end;
+end;
+
+{ TtableFilterItem }
+
+function TtableFilterItem.check(astr: string): Boolean;
+begin
+  if filterType = 1 then
+  begin
+    Result := astr.StartsWith(valueStr);
+  end
+  else if filterType = 2 then
+  begin
+    Result := astr.EndsWith(valueStr);
+  end
+  else if filterType = 3 then
+  begin
+    Result := pos(valueStr, astr) > 0;
+  end
+  else
+  begin
+    Result := valueStr = astr;
+  end;
+end;
+
+function TtableFilterItem.ToString: string;
+begin
+  if filterType = 1 then
+  begin
+    Result := '开头是:'+valueStr;
+  end
+  else if filterType = 2 then
+  begin
+    Result := '结尾是:'+valueStr;
+  end
+  else if filterType = 3 then
+  begin
+    Result := '包含字符:'+valueStr;
+  end
+  else
+  begin
+    Result := valueStr;
   end;
 end;
 

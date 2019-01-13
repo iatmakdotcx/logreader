@@ -50,7 +50,9 @@ uses
   I_LogSource in 'intf\I_LogSource.pas',
   p_tableview in 'UI\p_tableview.pas' {frm_tableview},
   pMakloadingFormB in 'UI\pMakloadingFormB.pas' {MakloadingFormB},
-  pagecache in 'pagecache.pas';
+  pagecache in 'pagecache.pas',
+  lscfg in 'UI\lscfg.pas' {frm_lscfg},
+  lscfgFilteritem in 'UI\lscfgFilteritem.pas' {frm_lscfgFilteritem};
 
 {$R *.res}
 
@@ -60,8 +62,10 @@ begin
   if IsRunningAsAdmin then
   begin
     Application.CreateForm(TForm1, Form1);
-  Application.CreateForm(Tfrm_tableview, frm_tableview);
-  Application.Run;
+//    Application.CreateForm(Tfrm_tableview, frm_tableview);
+//    Application.CreateForm(Tfrm_lscfg, frm_lscfg);
+//    Application.CreateForm(Tfrm_lscfgFilteritem, frm_lscfgFilteritem);
+    Application.Run;
   end else begin
     showmessage('必须“使用管理员身份”运行本程序');
   end;

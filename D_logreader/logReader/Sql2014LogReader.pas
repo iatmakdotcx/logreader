@@ -410,7 +410,7 @@ begin
       setCapLogStart(FLogSource.Fdbc);
     end;
     FLogSource.Fdbc.getDb_dbInfo(true);
-    if Fspm = nil then
+    if (Fspm = nil) then
       Fspm := TSqlProcessMonitor.Create(FLogSource.Fdbc.SvrProcessID, TerminateDelegate);
 
       Tmpvlf := FLogSource.Fdbc.GetVlf_SeqNo(CurLSN.LSN_1);
