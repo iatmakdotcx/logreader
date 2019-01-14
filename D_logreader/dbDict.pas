@@ -128,7 +128,7 @@ type
   public
     filterType:Integer;  //equal,endwith,startwith
     valueStr:string;
-    function ToString: string;
+    function ToString: string; override;
     function check(astr:string): Boolean;
   end;
 

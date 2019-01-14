@@ -21,7 +21,6 @@ type
     FpageDict:array of TDictionary<Integer, TObjectList>;
     function getSoltDataFromFullPagedata(PageHeader: PPage_Header; soltid: Word): TBytes;
     procedure UnDoUpdate(RawData: TBytes; RlOpt: PRawLog_DataOpt);
-    procedure ApplyUpdateLog2Raw(RawData, newData: TBytes; ModifyOffset: Word; oldDataLen: Word); deprecated 'not use';
     procedure applyChange(srcData, pdata: Pointer; offset, size_old, size_new, datarowCnt: Integer);
     procedure UnDoUpdate_LOP_MODIFY_ROW(RawData: TBytes; RlOpt: PRawLog_DataOpt);
     procedure UnDoUpdate_LOP_MODIFY_COLUMNS(RawData: TBytes; RlOpt: PRawLog_DataOpt);
@@ -524,37 +523,6 @@ begin
     end;
   end;
 end;
-
-procedure TPageCacheDB.ApplyUpdateLog2Raw(RawData, newData: TBytes; ModifyOffset: Word; oldDataLen: Word);
-var
-  RecordLen: Word;
-  tmpOffset: Word;
-  mriBuf: TBytes;
-begin
-  RecordLen := PageRowCalcLength(@RawData[0]);
-  if oldDataLen = length(newData) then
-  begin
-    Move(newData[0], RawData[ModifyOffset], Length(newData));
-  end
-  else if oldDataLen > length(newData) then
-  begin
-    Move(newData[0], RawData[ModifyOffset], Length(newData));
-    //«∞“∆
-    tmpOffset := ModifyOffset + length(newData) + oldDataLen - length(newData);
-    Move(RawData[tmpOffset], RawData[ModifyOffset + length(newData)], RecordLen - tmpOffset);
-  end
-  else
-  begin
-    //∫Û“∆
-    SetLength(mriBuf, RecordLen - ModifyOffset - oldDataLen);
-
-    tmpOffset := ModifyOffset + length(newData) + oldDataLen - length(newData);
-
-    Move(newData[0], RawData[ModifyOffset], Length(newData));
-  end;
-
-end;
-
 
 { TPageCacheData }
 
